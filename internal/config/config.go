@@ -34,7 +34,7 @@ type Config struct {
 	SyncCron string `envconfig:"SYNC_CRON" default:"*/15 * * * *"`
 
 	// Server
-	APIPort  string `envconfig:"API_PORT" default:"8080"`
+	APIPort  string `envconfig:"PORT" default:"8080"` // Railway uses PORT env var
 	LogLevel string `envconfig:"LOG_LEVEL" default:"info"`
 }
 
