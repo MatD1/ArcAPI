@@ -64,7 +64,7 @@ function CallbackContent() {
     };
 
     handleCallback();
-  }, [searchParams, router, login, setUser]);
+  }, [searchParams, router, setUser]);
 
   if (loading) {
     return (
