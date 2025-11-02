@@ -159,8 +159,8 @@ func (s *SyncService) fetchJSONFile(ctx context.Context, owner, repo, path strin
 }
 
 func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) error {
-	// Try common paths for missions
-	paths := []string{"missions.json", "data/missions.json", "missions/missions.json"}
+	// Fetch quests.json for missions (in root of repo)
+	paths := []string{"quests.json"}
 
 	var data []byte
 	var err error
@@ -172,7 +172,7 @@ func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) erro
 	}
 
 	if err != nil {
-		log.Printf("Warning: Could not fetch missions.json: %v", err)
+		log.Printf("Warning: Could not fetch quests.json: %v", err)
 		return nil // Non-fatal
 	}
 
@@ -208,12 +208,12 @@ func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) erro
 		}
 	}
 
-	log.Printf("Synced %d missions", len(missions))
+	log.Printf("Synced %d missions from quests.json", len(missions))
 	return nil
 }
 
 func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
-	paths := []string{"items.json", "data/items.json", "items/items.json"}
+	paths := []string{"items.json"}
 
 	var data []byte
 	var err error
@@ -267,7 +267,7 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 }
 
 func (s *SyncService) syncSkillNodes(ctx context.Context, owner, repo string) error {
-	paths := []string{"skill_nodes.json", "data/skill_nodes.json", "skill_nodes/skill_nodes.json", "skills.json"}
+	paths := []string{"skillNodes.json"}
 
 	var data []byte
 	var err error
@@ -279,7 +279,7 @@ func (s *SyncService) syncSkillNodes(ctx context.Context, owner, repo string) er
 	}
 
 	if err != nil {
-		log.Printf("Warning: Could not fetch skill_nodes.json: %v", err)
+		log.Printf("Warning: Could not fetch skillNodes.json: %v", err)
 		return nil
 	}
 
@@ -318,7 +318,7 @@ func (s *SyncService) syncSkillNodes(ctx context.Context, owner, repo string) er
 }
 
 func (s *SyncService) syncHideoutModules(ctx context.Context, owner, repo string) error {
-	paths := []string{"hideout_modules.json", "data/hideout_modules.json", "hideout_modules/hideout_modules.json", "hideout.json"}
+	paths := []string{"hideoutModules.json"}
 
 	var data []byte
 	var err error
@@ -330,7 +330,7 @@ func (s *SyncService) syncHideoutModules(ctx context.Context, owner, repo string
 	}
 
 	if err != nil {
-		log.Printf("Warning: Could not fetch hideout_modules.json: %v", err)
+		log.Printf("Warning: Could not fetch hideoutModules.json: %v", err)
 		return nil
 	}
 
