@@ -3,7 +3,9 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -127,12 +129,33 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 		return
 	}
 
+	// Build redirect URL from request if not set in config
+	redirectURL := h.cfg.OAuthRedirectURL
+	if redirectURL == "" || strings.Contains(redirectURL, "localhost") {
+		scheme := "https"
+		// Check X-Forwarded-Proto header first (for proxies like Railway)
+		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+			scheme = proto
+		} else if c.Request.TLS == nil {
+			scheme = "http"
+		}
+		host := c.GetHeader("X-Forwarded-Host")
+		if host == "" {
+			host = c.Request.Host
+		}
+		redirectURL = fmt.Sprintf("%s://%s/api/v1/auth/github/callback", scheme, host)
+	}
+
+	// Update OAuth config with dynamic redirect URL
+	oauthConfig := *h.oauthConfig
+	oauthConfig.RedirectURL = redirectURL
+
 	state := c.Query("state")
 	if state == "" {
 		state = "random-state" // In production, generate secure random state
 	}
 
-	url := h.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOnline)
+	url := oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOnline)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -239,9 +262,21 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	h.tempTokensMu.Unlock()
 
 	// Redirect to frontend callback with temp token
+	// Build callback URL from request if not set in config
 	callbackURL := h.cfg.FrontendCallbackURL
-	if callbackURL == "" {
-		callbackURL = "http://localhost:8080/dashboard/api/auth/github/callback/"
+	if callbackURL == "" || strings.Contains(callbackURL, "localhost") {
+		scheme := "https"
+		// Check X-Forwarded-Proto header first (for proxies like Railway)
+		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+			scheme = proto
+		} else if c.Request.TLS == nil {
+			scheme = "http"
+		}
+		host := c.GetHeader("X-Forwarded-Host")
+		if host == "" {
+			host = c.Request.Host
+		}
+		callbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/github/callback/", scheme, host)
 	}
 	c.Redirect(http.StatusFound, callbackURL+"?token="+tempToken)
 }
