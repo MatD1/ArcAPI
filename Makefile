@@ -1,8 +1,13 @@
-.PHONY: build run test clean docker-up docker-down migrate
+.PHONY: build run test clean docker-up docker-down migrate build-frontend
 
 # Build the application
-build:
+build: build-frontend
 	go build -o server ./cmd/server
+
+# Build frontend
+build-frontend:
+	cd frontend && npm install && npm run build
+	@echo "Frontend built successfully"
 
 # Run the application
 run:
@@ -21,6 +26,9 @@ test-coverage:
 clean:
 	rm -f server
 	rm -f coverage.out
+	rm -rf frontend/out
+	rm -rf frontend/.next
+	rm -rf frontend/node_modules
 
 # Start Docker services
 docker-up:
@@ -38,6 +46,7 @@ docker-logs:
 deps:
 	go mod download
 	go mod tidy
+	cd frontend && npm install
 
 # Format code
 fmt:
@@ -57,4 +66,4 @@ setup: deps
 	@echo "1. Copy .env.example to .env"
 	@echo "2. Update .env with your configuration"
 	@echo "3. Start PostgreSQL and Redis (docker-compose up -d postgres redis)"
-
+	@echo "4. Build frontend: make build-frontend"

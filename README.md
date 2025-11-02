@@ -10,13 +10,15 @@ A fast, secure REST API built in Go that synchronizes and serves game data from 
 - **OAuth Integration**: Optional GitHub OAuth for user authentication
 - **Comprehensive Logging**: All requests are logged with API key/JWT information for auditing
 - **Management API**: Admin endpoints for managing API keys, JWT tokens, and querying logs
+- **Web Dashboard**: Built-in Next.js frontend accessible at `/dashboard` for managing all data
 - **High Performance**: Uses Go concurrency features and optional Redis caching
 - **PostgreSQL**: Persistent storage with proper indexing
 - **Docker Support**: Complete Docker Compose setup for local development
 
 ## Prerequisites
 
-- Go 1.21 or higher
+- Go 1.24 or higher
+- Node.js 18+ and npm (for frontend)
 - PostgreSQL 12 or higher
 - Redis (optional, for caching)
 - Docker and Docker Compose (optional)
@@ -44,19 +46,29 @@ cp .env.example .env
 4. Install dependencies:
 ```bash
 go mod download
+cd frontend && npm install && cd ..
 ```
 
-5. Start PostgreSQL and Redis (if using Docker Compose):
+5. Build the frontend:
+```bash
+make build-frontend
+# Or manually:
+cd frontend && npm run build && cd ..
+```
+
+6. Start PostgreSQL and Redis (if using Docker Compose):
 ```bash
 docker-compose up -d postgres redis
 ```
 
-6. Run the application:
+7. Run the application:
 ```bash
 go run cmd/server/main.go
+# Or make run
 ```
 
 The API will be available at `http://localhost:8080`
+The Dashboard will be available at `http://localhost:8080/dashboard`
 
 ### Docker Compose
 
@@ -65,10 +77,13 @@ The API will be available at `http://localhost:8080`
 cp .env.example .env
 ```
 
-2. Start all services:
+2. Build and start all services:
 ```bash
+docker-compose build
 docker-compose up -d
 ```
+
+The Dockerfile will automatically build the frontend during the image build process.
 
 ## Configuration
 
@@ -83,10 +98,31 @@ All configuration is done via environment variables. See `.env.example` for all 
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: GitHub OAuth credentials
 - `OAUTH_ENABLED`: Enable/disable OAuth (default: true)
 - `SYNC_CRON`: Cron expression for sync schedule (default: `*/15 * * * *` = every 15 minutes)
-- `API_PORT`: Server port (default: 8080)
+- `PORT`: Server port (default: 8080, Railway uses PORT env var)
 - `LOG_LEVEL`: Logging level (debug, info, warn, error)
 
+## Web Dashboard
+
+Access the integrated web dashboard at `/dashboard` after starting the server.
+
+Features:
+- **Login**: Use your API key to authenticate
+- **Dashboard**: Overview of all entities
+- **CRUD Operations**: Full Create, Read, Update, Delete interfaces for:
+  - Missions
+  - Items
+  - Skill Nodes
+  - Hideout Modules
+- **Management**:
+  - API Key management (create, revoke, view)
+  - JWT Token management
+  - Audit Logs viewer with filtering
+
+The dashboard is built with Next.js and automatically detects the API URL.
+
 ## API Endpoints
+
+See `docs/api.md` for complete API documentation.
 
 ### Authentication Endpoints
 
@@ -105,26 +141,7 @@ All data endpoints require both an API key (header: `X-API-Key`) and a JWT token
 - `PUT /api/v1/missions/:id` - Update mission
 - `DELETE /api/v1/missions/:id` - Delete mission
 
-#### Items
-- `GET /api/v1/items` - List items (paginated)
-- `GET /api/v1/items/:id` - Get item by ID
-- `POST /api/v1/items` - Create item
-- `PUT /api/v1/items/:id` - Update item
-- `DELETE /api/v1/items/:id` - Delete item
-
-#### Skill Nodes
-- `GET /api/v1/skill-nodes` - List skill nodes (paginated)
-- `GET /api/v1/skill-nodes/:id` - Get skill node by ID
-- `POST /api/v1/skill-nodes` - Create skill node
-- `PUT /api/v1/skill-nodes/:id` - Update skill node
-- `DELETE /api/v1/skill-nodes/:id` - Delete skill node
-
-#### Hideout Modules
-- `GET /api/v1/hideout-modules` - List hideout modules (paginated)
-- `GET /api/v1/hideout-modules/:id` - Get hideout module by ID
-- `POST /api/v1/hideout-modules` - Create hideout module
-- `PUT /api/v1/hideout-modules/:id` - Update hideout module
-- `DELETE /api/v1/hideout-modules/:id` - Delete hideout module
+Similar endpoints for `/items`, `/skill-nodes`, `/hideout-modules`.
 
 ### Management Endpoints (Admin Only)
 
@@ -150,6 +167,11 @@ All data endpoints require both an API key (header: `X-API-Key`) and a JWT token
    - Login with API key via `POST /api/v1/auth/login`
    - Receive JWT token in response
    - Use both API key and JWT token for subsequent requests
+
+3. **Via Dashboard**:
+   - Visit `/dashboard` in your browser
+   - Login with your API key
+   - Access all features through the web interface
 
 ### Making Authenticated Requests
 
@@ -179,6 +201,7 @@ The sync service:
 ```
 ArcAPI/
 ├── cmd/server/          # Application entry point
+├── frontend/            # Next.js frontend (served at /dashboard)
 ├── internal/
 │   ├── config/         # Configuration management
 │   ├── models/         # Database models
@@ -195,16 +218,20 @@ ArcAPI/
 
 ## Development
 
+### Building
+
+```bash
+# Build everything (includes frontend)
+make build
+
+# Build just frontend
+make build-frontend
+```
+
 ### Running Tests
 
 ```bash
 go test ./...
-```
-
-### Building
-
-```bash
-go build -o server ./cmd/server
 ```
 
 ### Database Migrations
@@ -226,4 +253,3 @@ GORM automatically handles migrations on startup. See `migrations/` for SQL refe
 ## Contributing
 
 [Add contributing guidelines here]
-
