@@ -17,9 +17,9 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
   const getDisplayFields = (item: Entity) => {
     const base = { id: item.id, external_id: (item as any).external_id, name: (item as any).name };
     if (type === 'item') {
-      return { ...base, image_url: (item as Item).image_url };
+      return { ...base, image_url: (item as Item).image_url } as typeof base & { image_url?: string };
     }
-    return base;
+    return base as typeof base & { image_url?: string };
   };
 
   return (
@@ -61,7 +61,7 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
                   {fields.external_id}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{fields.name}</td>
-                {type === 'item' && fields.image_url && (
+                {type === 'item' && 'image_url' in fields && fields.image_url && (
                   <td className="px-6 py-4 text-sm">
                     <a
                       href={fields.image_url}
