@@ -160,6 +160,14 @@ func main() {
 		// Serve static assets (CSS, JS, images) from _next directory
 		r.StaticFS("/_next", gin.Dir(frontendDir+"/_next", false))
 
+		// Serve OAuth callback route (must be before /dashboard/*path wildcard)
+		r.GET("/dashboard/api/auth/github/callback", func(c *gin.Context) {
+			c.File(frontendDir + "/api/auth/github/callback/index.html")
+		})
+		r.GET("/dashboard/api/auth/github/callback/*path", func(c *gin.Context) {
+			c.File(frontendDir + "/api/auth/github/callback/index.html")
+		})
+
 		// Serve dashboard and other frontend routes
 		r.GET("/dashboard", func(c *gin.Context) {
 			c.File(frontendDir + "/dashboard/index.html")
@@ -183,14 +191,6 @@ func main() {
 		})
 		r.GET("/login/*path", func(c *gin.Context) {
 			c.File(frontendDir + "/login/index.html")
-		})
-
-		// Serve OAuth callback route
-		r.GET("/dashboard/api/auth/github/callback", func(c *gin.Context) {
-			c.File(frontendDir + "/api/auth/github/callback/index.html")
-		})
-		r.GET("/dashboard/api/auth/github/callback/*path", func(c *gin.Context) {
-			c.File(frontendDir + "/api/auth/github/callback/index.html")
 		})
 
 		// Catch-all for other frontend routes
