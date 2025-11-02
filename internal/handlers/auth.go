@@ -188,14 +188,20 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	githubID := user.GetLogin()
 	dbUser, err := h.userService.CreateOrUpdateFromGithub(githubID, email, user.GetLogin())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user", "details": err.Error()})
+		return
+	}
+
+	// Validate user was created/updated successfully
+	if dbUser == nil || dbUser.ID == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user after creation"})
 		return
 	}
 
 	// Generate JWT token
 	jwtToken, err := h.authService.GenerateJWT(dbUser)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token", "details": err.Error()})
 		return
 	}
 

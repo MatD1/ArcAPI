@@ -99,6 +99,16 @@ func (s *AuthService) ValidateAPIKey(apiKey string) (*models.APIKey, error) {
 
 // GenerateJWT generates a JWT token for a user
 func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
+	// Validate user
+	if user == nil || user.ID == 0 {
+		return "", fmt.Errorf("invalid user: user is nil or ID is 0")
+	}
+
+	// Validate JWT secret
+	if len(s.jwtSecret) == 0 {
+		return "", fmt.Errorf("JWT secret is not configured")
+	}
+
 	expiresAt := time.Now().Add(time.Duration(s.cfg.JWTExpiryHours) * time.Hour)
 
 	claims := jwt.MapClaims{
@@ -111,13 +121,13 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(s.jwtSecret)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to sign token: %w", err)
 	}
 
 	// Hash token for storage
 	hashedToken, err := bcrypt.GenerateFromPassword([]byte(tokenString), bcrypt.DefaultCost)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to hash token: %w", err)
 	}
 
 	// Store token in database
@@ -128,7 +138,7 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
 	}
 	err = s.jwtTokenRepo.Create(jwtToken)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to store token in database: %w", err)
 	}
 
 	return tokenString, nil
