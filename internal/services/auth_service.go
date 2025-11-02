@@ -2,7 +2,9 @@ package services
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -124,16 +126,14 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}
 
-	// Hash token for storage
-	hashedToken, err := bcrypt.GenerateFromPassword([]byte(tokenString), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("failed to hash token: %w", err)
-	}
+	// Hash token for storage (use SHA-256 since JWT tokens can exceed bcrypt's 72-byte limit)
+	hash := sha256.Sum256([]byte(tokenString))
+	tokenHash := hex.EncodeToString(hash[:])
 
 	// Store token in database
 	jwtToken := &models.JWTToken{
 		UserID:    user.ID,
-		TokenHash: string(hashedToken),
+		TokenHash: tokenHash,
 		ExpiresAt: expiresAt,
 	}
 	err = s.jwtTokenRepo.Create(jwtToken)
