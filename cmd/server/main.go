@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
@@ -151,6 +152,70 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Serve frontend static files
+	frontendDir := "./frontend/out"
+	if _, err := os.Stat(frontendDir); err == nil {
+		// Serve static assets (CSS, JS, images) from _next directory
+		r.StaticFS("/_next", gin.Dir(frontendDir+"/_next", false))
+
+		// Serve dashboard and other frontend routes
+		r.GET("/dashboard", func(c *gin.Context) {
+			c.File(frontendDir + "/dashboard/index.html")
+		})
+		r.GET("/dashboard/*path", func(c *gin.Context) {
+			path := c.Param("path")
+			filePath := frontendDir + "/dashboard" + path
+			if strings.HasSuffix(path, "/") || path == "" {
+				filePath += "index.html"
+			}
+			if _, err := os.Stat(filePath); err == nil {
+				c.File(filePath)
+			} else {
+				c.File(frontendDir + "/dashboard/index.html")
+			}
+		})
+
+		// Serve other frontend routes (login, missions, etc.)
+		r.GET("/login", func(c *gin.Context) {
+			c.File(frontendDir + "/login/index.html")
+		})
+		r.GET("/login/*path", func(c *gin.Context) {
+			c.File(frontendDir + "/login/index.html")
+		})
+
+		// Catch-all for other frontend routes
+		r.NoRoute(func(c *gin.Context) {
+			// If route doesn't start with /api or /health, try to serve frontend
+			if !strings.HasPrefix(c.Request.URL.Path, "/api") &&
+				!strings.HasPrefix(c.Request.URL.Path, "/health") &&
+				!strings.HasPrefix(c.Request.URL.Path, "/_next") {
+				path := c.Request.URL.Path
+				filePath := frontendDir + path
+
+				// Add /index.html if it's a directory route
+				if strings.HasSuffix(path, "/") || path == "" || path == "/" {
+					filePath += "index.html"
+				} else if !strings.Contains(path, ".") {
+					// If no extension, it's probably a route that needs index.html
+					filePath += "/index.html"
+				}
+
+				// Check if file exists
+				if _, err := os.Stat(filePath); err == nil {
+					c.File(filePath)
+				} else {
+					// Fallback to root index.html for client-side routing
+					c.File(frontendDir + "/index.html")
+				}
+			} else {
+				c.JSON(404, gin.H{"error": "Not found"})
+			}
+		})
+		log.Println("Frontend dashboard enabled at /dashboard")
+	} else {
+		log.Printf("Warning: Frontend not found at %s. Build frontend with 'make build-frontend'", frontendDir)
+	}
 
 	// Start server
 	go func() {
