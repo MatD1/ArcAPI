@@ -103,40 +103,53 @@ func main() {
 			auth.POST("/login", authHandler.LoginWithAPIKey)
 		}
 
-		// Protected routes (require API key + JWT)
-		protected := api.Group("")
-		protected.Use(middleware.AuthMiddleware(authService))
+		// Read-only routes (require JWT only)
+		readOnly := api.Group("")
+		readOnly.Use(middleware.JWTAuthMiddleware(authService))
 		{
-			// Missions
-			protected.GET("/missions", missionHandler.List)
-			protected.GET("/missions/:id", missionHandler.Get)
-			protected.POST("/missions", missionHandler.Create)
-			protected.PUT("/missions/:id", missionHandler.Update)
-			protected.DELETE("/missions/:id", missionHandler.Delete)
+			// Missions - Read
+			readOnly.GET("/missions", missionHandler.List)
+			readOnly.GET("/missions/:id", missionHandler.Get)
 
-			// Items
-			protected.GET("/items", itemHandler.List)
-			protected.GET("/items/:id", itemHandler.Get)
-			protected.POST("/items", itemHandler.Create)
-			protected.PUT("/items/:id", itemHandler.Update)
-			protected.DELETE("/items/:id", itemHandler.Delete)
+			// Items - Read
+			readOnly.GET("/items", itemHandler.List)
+			readOnly.GET("/items/:id", itemHandler.Get)
 
-			// Skill Nodes
-			protected.GET("/skill-nodes", skillNodeHandler.List)
-			protected.GET("/skill-nodes/:id", skillNodeHandler.Get)
-			protected.POST("/skill-nodes", skillNodeHandler.Create)
-			protected.PUT("/skill-nodes/:id", skillNodeHandler.Update)
-			protected.DELETE("/skill-nodes/:id", skillNodeHandler.Delete)
+			// Skill Nodes - Read
+			readOnly.GET("/skill-nodes", skillNodeHandler.List)
+			readOnly.GET("/skill-nodes/:id", skillNodeHandler.Get)
 
-			// Hideout Modules
-			protected.GET("/hideout-modules", hideoutModuleHandler.List)
-			protected.GET("/hideout-modules/:id", hideoutModuleHandler.Get)
-			protected.POST("/hideout-modules", hideoutModuleHandler.Create)
-			protected.PUT("/hideout-modules/:id", hideoutModuleHandler.Update)
-			protected.DELETE("/hideout-modules/:id", hideoutModuleHandler.Delete)
+			// Hideout Modules - Read
+			readOnly.GET("/hideout-modules", hideoutModuleHandler.List)
+			readOnly.GET("/hideout-modules/:id", hideoutModuleHandler.Get)
+		}
+
+		// Write routes (require API key + JWT for regular users, or JWT only for admins)
+		writeProtected := api.Group("")
+		writeProtected.Use(middleware.WriteAuthMiddleware(authService))
+		{
+			// Missions - Write
+			writeProtected.POST("/missions", missionHandler.Create)
+			writeProtected.PUT("/missions/:id", missionHandler.Update)
+			writeProtected.DELETE("/missions/:id", missionHandler.Delete)
+
+			// Items - Write
+			writeProtected.POST("/items", itemHandler.Create)
+			writeProtected.PUT("/items/:id", itemHandler.Update)
+			writeProtected.DELETE("/items/:id", itemHandler.Delete)
+
+			// Skill Nodes - Write
+			writeProtected.POST("/skill-nodes", skillNodeHandler.Create)
+			writeProtected.PUT("/skill-nodes/:id", skillNodeHandler.Update)
+			writeProtected.DELETE("/skill-nodes/:id", skillNodeHandler.Delete)
+
+			// Hideout Modules - Write
+			writeProtected.POST("/hideout-modules", hideoutModuleHandler.Create)
+			writeProtected.PUT("/hideout-modules/:id", hideoutModuleHandler.Update)
+			writeProtected.DELETE("/hideout-modules/:id", hideoutModuleHandler.Delete)
 
 			// Management API (admin only)
-			admin := protected.Group("/admin")
+			admin := writeProtected.Group("/admin")
 			admin.Use(middleware.AdminMiddleware())
 			{
 				admin.POST("/api-keys", managementHandler.CreateAPIKey)

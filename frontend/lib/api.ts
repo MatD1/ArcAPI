@@ -47,11 +47,23 @@ class APIClient {
     }
   }
 
-  setAuth(apiKey: string, jwtToken: string) {
+  setAuth(apiKey: string | null, jwtToken: string) {
     this.apiKey = apiKey;
     this.jwtToken = jwtToken;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('api_key', apiKey);
+      if (apiKey) {
+        localStorage.setItem('api_key', apiKey);
+      } else {
+        localStorage.removeItem('api_key');
+      }
+      localStorage.setItem('jwt_token', jwtToken);
+    }
+    this.updateHeaders();
+  }
+
+  setJWT(jwtToken: string) {
+    this.jwtToken = jwtToken;
+    if (typeof window !== 'undefined') {
       localStorage.setItem('jwt_token', jwtToken);
     }
     this.updateHeaders();
@@ -68,12 +80,18 @@ class APIClient {
   }
 
   private updateHeaders() {
-    if (this.apiKey && this.jwtToken) {
-      this.client.defaults.headers.common['X-API-Key'] = this.apiKey;
+    // Always set JWT if available (needed for read operations)
+    if (this.jwtToken) {
       this.client.defaults.headers.common['Authorization'] = `Bearer ${this.jwtToken}`;
     } else {
-      delete this.client.defaults.headers.common['X-API-Key'];
       delete this.client.defaults.headers.common['Authorization'];
+    }
+
+    // Only set API key if available (needed for write operations by non-admin users)
+    if (this.apiKey) {
+      this.client.defaults.headers.common['X-API-Key'] = this.apiKey;
+    } else {
+      delete this.client.defaults.headers.common['X-API-Key'];
     }
   }
 

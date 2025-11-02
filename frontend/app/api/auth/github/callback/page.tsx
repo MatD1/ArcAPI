@@ -8,7 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, setUser } = useAuthStore();
+  const { setUser } = useAuthStore();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -35,31 +35,28 @@ function CallbackContent() {
         const data = await response.json();
         const { token, user, api_key, api_key_warning } = data;
 
-        // Store the JWT token
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('jwt_token', token);
-        }
-
-        // Set user in store
+        // Set JWT token for authentication (needed for read operations)
+        apiClient.setJWT(token);
+        
+        // Set user in store (this marks user as authenticated)
         setUser(user);
 
-        // If API key was auto-created, store it and use it for login
+        // If API key was auto-created (first login), store it and show warning
         if (api_key) {
           // Show warning if present
           if (api_key_warning) {
-            alert(`API Key Created!\n\n${api_key_warning}\n\nYour API Key: ${api_key}\n\nPlease save this key now.`);
+            alert(`API Key Created!\n\n${api_key_warning}\n\nYour API Key: ${api_key}\n\nPlease save this key if you need to perform write operations.`);
           }
-          // Use the API key to complete login
+          // Store API key for write operations
           apiClient.setAuth(api_key, token);
-          await login(api_key);
-          router.push('/dashboard/');
         } else {
-          // User already has an API key, but we don't have it
-          // We'll need to prompt them to enter it or create a new one
-          // For now, just set the user and redirect - they can use API key login
-          setUser(user);
-          router.push('/dashboard/');
+          // User already has API keys - JWT is sufficient for read operations
+          // They can use API key login if they need to do writes
+          apiClient.setAuth(null, token);
         }
+        
+        // Redirect to dashboard (user is already authenticated via setUser above)
+        router.push('/dashboard/');
       } catch (err) {
         setError(getErrorMessage(err));
         setLoading(false);

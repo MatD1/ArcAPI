@@ -116,7 +116,7 @@ func (h *AuthHandler) ExchangeTempToken(c *gin.Context) {
 	}
 	if data.APIKey != "" {
 		response["api_key"] = data.APIKey
-		response["api_key_warning"] = "Save this API key now. You won't be able to see it again."
+		response["api_key_warning"] = "A new API key has been generated for this login. Save it now if you want to use it. You won't be able to see it again. If you already have API keys, you can continue using those instead."
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -228,8 +228,10 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	// Auto-create API key if user doesn't have one (for OAuth users)
-	// Check if user has any active API keys
+	// Don't auto-create API keys for OAuth users - they can use JWT for read operations
+	// API keys are only needed for write operations (or can be created manually by admins)
+	var apiKey string
+	// Check if user has any active API keys - only create if they don't have any
 	apiKeys, _ := h.apiKeyRepo.FindByUserID(dbUser.ID)
 	hasActiveKey := false
 	for _, key := range apiKeys {
@@ -239,9 +241,8 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		}
 	}
 
-	var apiKey string
+	// Only create an API key if user doesn't have any (first login convenience)
 	if !hasActiveKey {
-		// Create a default API key for OAuth users
 		newKey, err := h.authService.CreateAPIKey(dbUser.ID, "OAuth Auto-Generated")
 		if err == nil {
 			apiKey = newKey

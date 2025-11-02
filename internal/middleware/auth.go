@@ -17,25 +17,9 @@ type AuthContext struct {
 
 const AuthContextKey = "auth_context"
 
-// AuthMiddleware validates both API key and JWT token
-func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
+// JWTAuthMiddleware validates JWT token only (for read operations)
+func JWTAuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get API key from header
-		apiKey := c.GetHeader("X-API-Key")
-		if apiKey == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "API key required"})
-			c.Abort()
-			return
-		}
-
-		// Validate API key
-		key, err := authService.ValidateAPIKey(apiKey)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
-			c.Abort()
-			return
-		}
-
 		// Get JWT token from Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -65,15 +49,69 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 		// Store auth context
 		c.Set(AuthContextKey, &AuthContext{
 			User:     user,
-			APIKey:   key,
+			APIKey:   nil,
 			JWTToken: tokenString,
 		})
 		c.Set("user", user)
 		c.Set("user_id", user.ID)
-		c.Set("api_key_id", key.ID)
 
 		c.Next()
 	}
+}
+
+// WriteAuthMiddleware only allows admin users to perform write operations
+// Regular users are restricted to read-only access, even with API keys
+func WriteAuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get JWT token from Authorization header (required)
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "JWT token required"})
+			c.Abort()
+			return
+		}
+
+		// Extract token from "Bearer <token>"
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
+			c.Abort()
+			return
+		}
+
+		tokenString := parts[1]
+
+		// Validate JWT
+		user, err := authService.ValidateJWT(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired JWT token"})
+			c.Abort()
+			return
+		}
+
+		// Only admin users can perform write operations
+		if user.Role != models.RoleAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Write operations are restricted to admin users only"})
+			c.Abort()
+			return
+		}
+
+		// Admin users can write with JWT only (no API key required)
+		c.Set(AuthContextKey, &AuthContext{
+			User:     user,
+			APIKey:   nil,
+			JWTToken: tokenString,
+		})
+		c.Set("user", user)
+		c.Set("user_id", user.ID)
+
+		c.Next()
+	}
+}
+
+// AuthMiddleware validates both API key and JWT token (legacy, kept for backward compatibility)
+func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
+	return WriteAuthMiddleware(authService)
 }
 
 // AdminMiddleware checks if user has admin role
