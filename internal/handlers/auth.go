@@ -1,24 +1,44 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/v57/github"
 	"github.com/mat/arcapi/internal/config"
+	"github.com/mat/arcapi/internal/repository"
 	"github.com/mat/arcapi/internal/services"
 	"golang.org/x/oauth2"
 	githubOAuth "golang.org/x/oauth2/github"
 )
 
 type AuthHandler struct {
-	authService *services.AuthService
-	userService *services.UserService
-	cfg         *config.Config
-	oauthConfig *oauth2.Config
+	authService  *services.AuthService
+	userService  *services.UserService
+	cfg          *config.Config
+	oauthConfig  *oauth2.Config
+	apiKeyRepo   *repository.APIKeyRepository
+	tempTokens   map[string]OAuthTokenData
+	tempTokensMu sync.RWMutex
 }
 
-func NewAuthHandler(authService *services.AuthService, userService *services.UserService, cfg *config.Config) *AuthHandler {
+type OAuthTokenData struct {
+	Token     string
+	User      interface{}
+	APIKey    string
+	CreatedAt time.Time
+}
+
+func NewAuthHandler(
+	authService *services.AuthService,
+	userService *services.UserService,
+	cfg *config.Config,
+	apiKeyRepo *repository.APIKeyRepository,
+) *AuthHandler {
 	oauthConfig := &oauth2.Config{
 		ClientID:     cfg.GitHubClientID,
 		ClientSecret: cfg.GitHubClientSecret,
@@ -27,12 +47,77 @@ func NewAuthHandler(authService *services.AuthService, userService *services.Use
 		Endpoint:     githubOAuth.Endpoint,
 	}
 
-	return &AuthHandler{
+	handler := &AuthHandler{
 		authService: authService,
 		userService: userService,
 		cfg:         cfg,
 		oauthConfig: oauthConfig,
+		apiKeyRepo:  apiKeyRepo,
+		tempTokens:  make(map[string]OAuthTokenData),
 	}
+
+	// Cleanup old tokens periodically
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			handler.cleanupOldTokens()
+		}
+	}()
+
+	return handler
+}
+
+func (h *AuthHandler) cleanupOldTokens() {
+	h.tempTokensMu.Lock()
+	defer h.tempTokensMu.Unlock()
+
+	now := time.Now()
+	for token, data := range h.tempTokens {
+		if now.Sub(data.CreatedAt) > 10*time.Minute {
+			delete(h.tempTokens, token)
+		}
+	}
+}
+
+func (h *AuthHandler) generateTempToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
+
+// ExchangeTempToken exchanges a temporary token for actual auth data
+func (h *AuthHandler) ExchangeTempToken(c *gin.Context) {
+	tempToken := c.Query("token")
+	if tempToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing token"})
+		return
+	}
+
+	h.tempTokensMu.RLock()
+	data, exists := h.tempTokens[tempToken]
+	h.tempTokensMu.RUnlock()
+
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		return
+	}
+
+	// Delete token after use (one-time use)
+	h.tempTokensMu.Lock()
+	delete(h.tempTokens, tempToken)
+	h.tempTokensMu.Unlock()
+
+	response := gin.H{
+		"token": data.Token,
+		"user":  data.User,
+	}
+	if data.APIKey != "" {
+		response["api_key"] = data.APIKey
+		response["api_key_warning"] = "Save this API key now. You won't be able to see it again."
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GitHubLogin initiates GitHub OAuth flow
@@ -114,10 +199,45 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"token": jwtToken,
-		"user":  dbUser,
-	})
+	// Auto-create API key if user doesn't have one (for OAuth users)
+	// Check if user has any active API keys
+	apiKeys, _ := h.apiKeyRepo.FindByUserID(dbUser.ID)
+	hasActiveKey := false
+	for _, key := range apiKeys {
+		if key.RevokedAt == nil {
+			hasActiveKey = true
+			break
+		}
+	}
+
+	var apiKey string
+	if !hasActiveKey {
+		// Create a default API key for OAuth users
+		newKey, err := h.authService.CreateAPIKey(dbUser.ID, "OAuth Auto-Generated")
+		if err == nil {
+			apiKey = newKey
+		}
+	}
+
+	// Generate temporary token for frontend to exchange
+	tempToken := h.generateTempToken()
+
+	// Store token data temporarily (in production, use Redis with TTL)
+	h.tempTokensMu.Lock()
+	h.tempTokens[tempToken] = OAuthTokenData{
+		Token:     jwtToken,
+		User:      dbUser,
+		APIKey:    apiKey,
+		CreatedAt: time.Now(),
+	}
+	h.tempTokensMu.Unlock()
+
+	// Redirect to frontend callback with temp token
+	callbackURL := h.cfg.FrontendCallbackURL
+	if callbackURL == "" {
+		callbackURL = "http://localhost:8080/dashboard/api/auth/github/callback/"
+	}
+	c.Redirect(http.StatusFound, callbackURL+"?token="+tempToken)
 }
 
 // LoginWithAPIKey authenticates with API key and returns JWT

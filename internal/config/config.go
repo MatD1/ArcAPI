@@ -25,10 +25,11 @@ type Config struct {
 	JWTExpiryHours int    `envconfig:"JWT_EXPIRY_HOURS" default:"72"`
 
 	// OAuth
-	GitHubClientID     string `envconfig:"GITHUB_CLIENT_ID" default:""`
-	GitHubClientSecret string `envconfig:"GITHUB_CLIENT_SECRET" default:""`
-	OAuthEnabled       bool   `envconfig:"OAUTH_ENABLED" default:"true"`
-	OAuthRedirectURL   string `envconfig:"OAUTH_REDIRECT_URL" default:"http://localhost:8080/api/v1/auth/github/callback"`
+	GitHubClientID      string `envconfig:"GITHUB_CLIENT_ID" default:""`
+	GitHubClientSecret  string `envconfig:"GITHUB_CLIENT_SECRET" default:""`
+	OAuthEnabled        bool   `envconfig:"OAUTH_ENABLED" default:"true"`
+	OAuthRedirectURL    string `envconfig:"OAUTH_REDIRECT_URL" default:"http://localhost:8080/api/v1/auth/github/callback"`
+	FrontendCallbackURL string `envconfig:"FRONTEND_CALLBACK_URL" default:"http://localhost:8080/dashboard/api/auth/github/callback/"`
 
 	// Sync
 	SyncCron string `envconfig:"SYNC_CRON" default:"*/15 * * * *"`

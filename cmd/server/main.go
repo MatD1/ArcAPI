@@ -67,7 +67,7 @@ func main() {
 	defer syncService.Stop()
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService, userService, cfg)
+	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
 	missionHandler := handlers.NewMissionHandler(missionRepo)
 	itemHandler := handlers.NewItemHandler(itemRepo)
 	skillNodeHandler := handlers.NewSkillNodeHandler(skillNodeRepo)
@@ -99,6 +99,7 @@ func main() {
 		{
 			auth.GET("/github/login", authHandler.GitHubLogin)
 			auth.GET("/github/callback", authHandler.GitHubCallback)
+			auth.GET("/exchange-token", authHandler.ExchangeTempToken) // Public endpoint to exchange temp token
 			auth.POST("/login", authHandler.LoginWithAPIKey)
 		}
 
@@ -182,6 +183,14 @@ func main() {
 		})
 		r.GET("/login/*path", func(c *gin.Context) {
 			c.File(frontendDir + "/login/index.html")
+		})
+
+		// Serve OAuth callback route
+		r.GET("/dashboard/api/auth/github/callback", func(c *gin.Context) {
+			c.File(frontendDir + "/api/auth/github/callback/index.html")
+		})
+		r.GET("/dashboard/api/auth/github/callback/*path", func(c *gin.Context) {
+			c.File(frontendDir + "/api/auth/github/callback/index.html")
 		})
 
 		// Catch-all for other frontend routes
