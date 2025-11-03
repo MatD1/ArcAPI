@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -280,11 +281,14 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 
 		// Handle image - check both imageFilename and image_url
 		var imagePath string
+		var imageSource string
 		if imgFilename, ok := i["imageFilename"].(string); ok && imgFilename != "" {
 			item.ImageFilename = imgFilename
 			imagePath = imgFilename
+			imageSource = "imageFilename"
 		} else if imgURL, ok := i["image_url"].(string); ok && imgURL != "" {
 			imagePath = imgURL
+			imageSource = "image_url"
 		}
 
 		// Convert to GitHub raw URL if needed
@@ -295,8 +299,13 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 			} else {
 				// Otherwise, treat it as a filename and construct GitHub raw URL
 				filename := strings.TrimPrefix(imagePath, "/")
-				item.ImageURL = fmt.Sprintf("%s/%s", baseImageURL, filename)
+				// URL encode the filename in case it has special characters or spaces
+				encodedFilename := url.PathEscape(filename)
+				item.ImageURL = fmt.Sprintf("%s/%s", baseImageURL, encodedFilename)
 			}
+			log.Printf("Item %s: Image from %s -> %s", item.ExternalID, imageSource, item.ImageURL)
+		} else {
+			log.Printf("Item %s: No image found (checked imageFilename and image_url)", item.ExternalID)
 		}
 
 		item.Data = models.JSONB(i)

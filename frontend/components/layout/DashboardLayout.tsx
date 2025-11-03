@@ -13,6 +13,7 @@ const navigation = [
   { name: 'API Keys', href: '/api-keys/' },
   { name: 'JWT Tokens', href: '/jwt-tokens/' },
   { name: 'Audit Logs', href: '/logs/' },
+  { name: 'API Test', href: '/dashboard/api-test/' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

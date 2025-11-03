@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Mission, Item, SkillNode, HideoutModule } from '@/types';
 import { formatDate } from '@/lib/utils';
+import ViewModal from './ViewModal';
 
 type Entity = Mission | Item | SkillNode | HideoutModule;
 
@@ -14,6 +15,7 @@ interface DataTableProps {
 }
 
 export default function DataTable({ data, onEdit, onDelete, type }: DataTableProps) {
+  const [viewingEntity, setViewingEntity] = useState<Entity | null>(null);
   const getDisplayFields = (item: Entity) => {
     const base = { id: item.id, external_id: (item as any).external_id, name: (item as any).name };
     if (type === 'item') {
@@ -53,7 +55,11 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
           {data.map((item) => {
             const fields = getDisplayFields(item);
             return (
-              <tr key={item.id}>
+              <tr
+                key={item.id}
+                onClick={() => setViewingEntity(item)}
+                className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                   {item.id}
                 </td>
@@ -61,31 +67,44 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
                   {fields.external_id}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{fields.name}</td>
-                {type === 'item' && 'image_url' in fields && fields.image_url && (
+                {type === 'item' && (
                   <td className="px-6 py-4 text-sm">
-                    <img
-                      src={fields.image_url}
-                      alt={fields.name || 'Item image'}
-                      className="h-12 w-12 object-contain rounded"
-                      onError={(e) => {
-                        // Fallback to link if image fails to load
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const link = document.createElement('a');
-                        link.href = fields.image_url!;
-                        link.target = '_blank';
-                        link.rel = 'noopener noreferrer';
-                        link.className = 'text-indigo-600 hover:text-indigo-900 dark:text-indigo-400';
-                        link.textContent = 'View';
-                        target.parentElement?.appendChild(link);
-                      }}
-                    />
+                    {fields.image_url ? (
+                      <img
+                        src={fields.image_url}
+                        alt={fields.name || 'Item image'}
+                        className="h-12 w-12 object-contain rounded"
+                        onError={(e) => {
+                          // Replace image with a broken image icon or placeholder
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const placeholder = document.createElement('div');
+                          placeholder.className = 'h-12 w-12 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded text-xs text-gray-500';
+                          placeholder.textContent = 'No img';
+                          if (fields.image_url) {
+                            placeholder.title = fields.image_url;
+                          }
+                          target.parentElement?.appendChild(placeholder);
+                        }}
+                      />
+                    ) : (
+                      <div className="h-12 w-12 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded text-xs text-gray-500">
+                        No img
+                      </div>
+                    )}
                   </td>
                 )}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {formatDate(item.updated_at)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setViewingEntity(item)}
+                    className="text-blue-600 hover:text-blue-900 dark:text-blue-400 mr-4"
+                    title="View Details"
+                  >
+                    View
+                  </button>
                   <button
                     onClick={() => onEdit(item)}
                     className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 mr-4"
@@ -104,6 +123,9 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
           })}
         </tbody>
       </table>
+      
+      {/* View Modal */}
+      <ViewModal entity={viewingEntity} type={type} onClose={() => setViewingEntity(null)} />
     </div>
   );
 }
