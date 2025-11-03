@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -198,6 +199,19 @@ func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) erro
 		if desc, ok := m["description"].(string); ok {
 			mission.Description = desc
 		}
+		if trader, ok := m["trader"].(string); ok {
+			mission.Trader = trader
+		}
+		if objectives, ok := m["objectives"].([]interface{}); ok {
+			// Store as array directly, but wrap for consistency with TypeScript types
+			mission.Objectives = models.JSONB(map[string]interface{}{"objectives": objectives})
+		}
+		if rewardItemIds, ok := m["rewardItemIds"].([]interface{}); ok {
+			mission.RewardItemIds = models.JSONB(map[string]interface{}{"reward_item_ids": rewardItemIds})
+		}
+		if xp, ok := m["xp"].(float64); ok {
+			mission.XP = int(xp)
+		}
 
 		// Store full data as JSONB
 		mission.Data = models.JSONB(m)
@@ -234,6 +248,16 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 		return err
 	}
 
+	// Get the default branch - try to get repo info, fallback to "main"
+	branch := "main"
+	repoInfo, _, err := s.githubClient.Repositories.Get(ctx, owner, repo)
+	if err == nil && repoInfo.DefaultBranch != nil {
+		branch = *repoInfo.DefaultBranch
+	}
+
+	// Base URL for GitHub raw content (free CDN via GitHub raw)
+	baseImageURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/images/items", owner, repo, branch)
+
 	for _, i := range items {
 		item := &models.Item{
 			SyncedAt: time.Now(),
@@ -250,8 +274,29 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 		if desc, ok := i["description"].(string); ok {
 			item.Description = desc
 		}
-		if img, ok := i["image_url"].(string); ok {
-			item.ImageURL = img
+		if itemType, ok := i["type"].(string); ok {
+			item.Type = itemType
+		}
+
+		// Handle image - check both imageFilename and image_url
+		var imagePath string
+		if imgFilename, ok := i["imageFilename"].(string); ok && imgFilename != "" {
+			item.ImageFilename = imgFilename
+			imagePath = imgFilename
+		} else if imgURL, ok := i["image_url"].(string); ok && imgURL != "" {
+			imagePath = imgURL
+		}
+
+		// Convert to GitHub raw URL if needed
+		if imagePath != "" {
+			// If it's already a full URL (http/https), use it as-is
+			if strings.HasPrefix(imagePath, "http://") || strings.HasPrefix(imagePath, "https://") {
+				item.ImageURL = imagePath
+			} else {
+				// Otherwise, treat it as a filename and construct GitHub raw URL
+				filename := strings.TrimPrefix(imagePath, "/")
+				item.ImageURL = fmt.Sprintf("%s/%s", baseImageURL, filename)
+			}
 		}
 
 		item.Data = models.JSONB(i)
@@ -304,6 +349,30 @@ func (s *SyncService) syncSkillNodes(ctx context.Context, owner, repo string) er
 		if desc, ok := sn["description"].(string); ok {
 			skillNode.Description = desc
 		}
+		if impactedSkill, ok := sn["impactedSkill"].(string); ok {
+			skillNode.ImpactedSkill = impactedSkill
+		}
+		if knownValue, ok := sn["knownValue"].([]interface{}); ok {
+			skillNode.KnownValue = models.JSONB(map[string]interface{}{"known_value": knownValue})
+		}
+		if category, ok := sn["category"].(string); ok {
+			skillNode.Category = category
+		}
+		if maxPoints, ok := sn["maxPoints"].(float64); ok {
+			skillNode.MaxPoints = int(maxPoints)
+		}
+		if iconName, ok := sn["iconName"].(string); ok {
+			skillNode.IconName = iconName
+		}
+		if isMajor, ok := sn["isMajor"].(bool); ok {
+			skillNode.IsMajor = isMajor
+		}
+		if position, ok := sn["position"].(map[string]interface{}); ok {
+			skillNode.Position = models.JSONB(position)
+		}
+		if prerequisiteNodeIds, ok := sn["prerequisiteNodeIds"].([]interface{}); ok {
+			skillNode.PrerequisiteNodeIds = models.JSONB(map[string]interface{}{"prerequisite_node_ids": prerequisiteNodeIds})
+		}
 
 		skillNode.Data = models.JSONB(sn)
 
@@ -354,6 +423,12 @@ func (s *SyncService) syncHideoutModules(ctx context.Context, owner, repo string
 		}
 		if desc, ok := hm["description"].(string); ok {
 			hideoutModule.Description = desc
+		}
+		if maxLevel, ok := hm["maxLevel"].(float64); ok {
+			hideoutModule.MaxLevel = int(maxLevel)
+		}
+		if levels, ok := hm["levels"].([]interface{}); ok {
+			hideoutModule.Levels = models.JSONB(map[string]interface{}{"levels": levels})
 		}
 
 		hideoutModule.Data = models.JSONB(hm)

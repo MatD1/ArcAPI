@@ -63,14 +63,23 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
                 <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{fields.name}</td>
                 {type === 'item' && 'image_url' in fields && fields.image_url && (
                   <td className="px-6 py-4 text-sm">
-                    <a
-                      href={fields.image_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400"
-                    >
-                      View
-                    </a>
+                    <img
+                      src={fields.image_url}
+                      alt={fields.name || 'Item image'}
+                      className="h-12 w-12 object-contain rounded"
+                      onError={(e) => {
+                        // Fallback to link if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const link = document.createElement('a');
+                        link.href = fields.image_url!;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.className = 'text-indigo-600 hover:text-indigo-900 dark:text-indigo-400';
+                        link.textContent = 'View';
+                        target.parentElement?.appendChild(link);
+                      }}
+                    />
                   </td>
                 )}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">

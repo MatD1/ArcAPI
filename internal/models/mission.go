@@ -29,14 +29,18 @@ func (j *JSONB) Scan(value interface{}) error {
 }
 
 type Mission struct {
-	ID          uint      `gorm:"primaryKey" json:"id"`
-	ExternalID  string    `gorm:"uniqueIndex;not null" json:"external_id"`
-	Name        string    `gorm:"not null" json:"name"`
-	Description string    `gorm:"type:text" json:"description"`
-	Data        JSONB     `gorm:"type:jsonb" json:"data,omitempty"`
-	SyncedAt    time.Time `json:"synced_at"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	ExternalID    string    `gorm:"uniqueIndex;not null" json:"external_id"`
+	Name          string    `gorm:"not null" json:"name"`
+	Description   string    `gorm:"type:text" json:"description"`
+	Trader        string    `json:"trader,omitempty"`
+	Objectives    JSONB     `gorm:"type:jsonb" json:"objectives,omitempty"`      // Array of strings
+	RewardItemIds JSONB     `gorm:"type:jsonb" json:"reward_item_ids,omitempty"` // Array of {itemId, quantity}
+	XP            int       `json:"xp,omitempty"`
+	Data          JSONB     `gorm:"type:jsonb" json:"data,omitempty"`
+	SyncedAt      time.Time `json:"synced_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 func (Mission) TableName() string {

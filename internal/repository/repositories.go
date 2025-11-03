@@ -176,7 +176,7 @@ func (r *MissionRepository) FindAll(offset, limit int) ([]models.Mission, int64,
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.Offset(offset).Limit(limit).Find(&missions).Error
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&missions).Error
 	return missions, count, err
 }
 
@@ -238,7 +238,7 @@ func (r *ItemRepository) FindAll(offset, limit int) ([]models.Item, int64, error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.Offset(offset).Limit(limit).Find(&items).Error
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&items).Error
 	return items, count, err
 }
 
@@ -300,7 +300,7 @@ func (r *SkillNodeRepository) FindAll(offset, limit int) ([]models.SkillNode, in
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.Offset(offset).Limit(limit).Find(&skillNodes).Error
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&skillNodes).Error
 	return skillNodes, count, err
 }
 
@@ -362,7 +362,7 @@ func (r *HideoutModuleRepository) FindAll(offset, limit int) ([]models.HideoutMo
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.Offset(offset).Limit(limit).Find(&hideoutModules).Error
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&hideoutModules).Error
 	return hideoutModules, count, err
 }
 

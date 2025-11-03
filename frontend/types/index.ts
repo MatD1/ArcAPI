@@ -30,6 +30,10 @@ export interface Mission {
   external_id: string;
   name: string;
   description?: string;
+  trader?: string;
+  objectives?: { objectives: string[] };
+  reward_item_ids?: { reward_item_ids: Array<{ itemId: string; quantity: number }> };
+  xp?: number;
   data?: Record<string, any>;
   synced_at: string;
   created_at: string;
@@ -41,7 +45,9 @@ export interface Item {
   external_id: string;
   name: string;
   description?: string;
+  type?: string;
   image_url?: string;
+  image_filename?: string;
   data?: Record<string, any>;
   synced_at: string;
   created_at: string;
@@ -53,6 +59,14 @@ export interface SkillNode {
   external_id: string;
   name: string;
   description?: string;
+  impacted_skill?: string;
+  known_value?: { known_value: any[] };
+  category?: string;
+  max_points?: number;
+  icon_name?: string;
+  is_major?: boolean;
+  position?: { x: number; y: number };
+  prerequisite_node_ids?: { prerequisite_node_ids: string[] };
   data?: Record<string, any>;
   synced_at: string;
   created_at: string;
@@ -64,6 +78,14 @@ export interface HideoutModule {
   external_id: string;
   name: string;
   description?: string;
+  max_level?: number;
+  levels?: {
+    levels: Array<{
+      level: number;
+      requirementItemIds?: Array<{ itemId: string; quantity: number }>;
+      prerequisites?: string[];
+    }>;
+  };
   data?: Record<string, any>;
   synced_at: string;
   created_at: string;
