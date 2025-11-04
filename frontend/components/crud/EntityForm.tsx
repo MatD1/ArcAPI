@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { Mission, Item, SkillNode, HideoutModule } from '@/types';
+import type { Quest, Item, SkillNode, HideoutModule } from '@/types';
 
-type Entity = Mission | Item | SkillNode | HideoutModule;
+type Entity = Quest | Item | SkillNode | HideoutModule;
 
 interface EntityFormProps {
   entity: Partial<Entity> | null;
-  type: 'mission' | 'item' | 'skill-node' | 'hideout-module';
+  type: 'quest' | 'item' | 'skill-node' | 'hideout-module';
   onSubmit: (data: Partial<Entity>) => Promise<void>;
   onCancel: () => void;
 }
@@ -25,8 +25,8 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
         description: (entity as any).description || '',
       };
 
-      if (type === 'mission') {
-        const m = entity as Mission;
+      if (type === 'quest') {
+        const m = entity as Quest;
         data.trader = m.trader || '';
         data.xp = m.xp || 0;
         data.objectives = m.objectives?.objectives || [];
@@ -60,7 +60,7 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
         name: '',
         description: '',
       };
-      if (type === 'mission') {
+      if (type === 'quest') {
         defaults.trader = '';
         defaults.xp = 0;
         defaults.objectives = [];
@@ -98,7 +98,7 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
         description: formData.description,
       };
 
-      if (type === 'mission') {
+      if (type === 'quest') {
         data.trader = formData.trader;
         data.xp = parseInt(formData.xp) || 0;
         data.objectives = { objectives: Array.isArray(formData.objectives) ? formData.objectives : [] };
@@ -192,8 +192,8 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
         />
       </div>
 
-      {/* Mission-specific fields */}
-      {type === 'mission' && (
+      {/* Quest-specific fields */}
+      {type === 'quest' && (
         <>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Trader</label>

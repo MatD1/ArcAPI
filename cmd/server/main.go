@@ -41,7 +41,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	apiKeyRepo := repository.NewAPIKeyRepository(db)
 	jwtTokenRepo := repository.NewJWTTokenRepository(db)
-	missionRepo := repository.NewMissionRepository(db)
+	questRepo := repository.NewQuestRepository(db)
 	itemRepo := repository.NewItemRepository(db)
 	skillNodeRepo := repository.NewSkillNodeRepository(db)
 	hideoutModuleRepo := repository.NewHideoutModuleRepository(db)
@@ -53,7 +53,7 @@ func main() {
 
 	// Initialize sync service
 	syncService := services.NewSyncService(
-		missionRepo,
+		questRepo,
 		itemRepo,
 		skillNodeRepo,
 		hideoutModuleRepo,
@@ -68,7 +68,8 @@ func main() {
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
-	missionHandler := handlers.NewMissionHandler(missionRepo)
+	questHandler := handlers.NewQuestHandler(questRepo)
+	missionHandler := questHandler // Backward compatibility - uses questHandler internally
 	itemHandler := handlers.NewItemHandler(itemRepo)
 	skillNodeHandler := handlers.NewSkillNodeHandler(skillNodeRepo)
 	hideoutModuleHandler := handlers.NewHideoutModuleHandler(hideoutModuleRepo)
@@ -78,6 +79,7 @@ func main() {
 		jwtTokenRepo,
 		auditLogRepo,
 	)
+	syncHandler := handlers.NewSyncHandler(syncService)
 
 	// Setup router
 	if cfg.LogLevel == "debug" {
@@ -107,7 +109,10 @@ func main() {
 		readOnly := api.Group("")
 		readOnly.Use(middleware.JWTAuthMiddleware(authService))
 		{
-			// Missions - Read
+			// Quests - Read
+			readOnly.GET("/quests", questHandler.List)
+			readOnly.GET("/quests/:id", questHandler.Get)
+			// Backward compatibility
 			readOnly.GET("/missions", missionHandler.List)
 			readOnly.GET("/missions/:id", missionHandler.Get)
 
@@ -128,7 +133,11 @@ func main() {
 		writeProtected := api.Group("")
 		writeProtected.Use(middleware.WriteAuthMiddleware(authService))
 		{
-			// Missions - Write
+			// Quests - Write
+			writeProtected.POST("/quests", questHandler.Create)
+			writeProtected.PUT("/quests/:id", questHandler.Update)
+			writeProtected.DELETE("/quests/:id", questHandler.Delete)
+			// Backward compatibility
 			writeProtected.POST("/missions", missionHandler.Create)
 			writeProtected.PUT("/missions/:id", missionHandler.Update)
 			writeProtected.DELETE("/missions/:id", missionHandler.Delete)
@@ -158,6 +167,8 @@ func main() {
 				admin.POST("/jwts/revoke", managementHandler.RevokeJWT)
 				admin.GET("/jwts", managementHandler.ListJWTs)
 				admin.GET("/logs", managementHandler.QueryLogs)
+				admin.POST("/sync/force", syncHandler.ForceSync)
+				admin.GET("/sync/status", syncHandler.SyncStatus)
 			}
 		}
 	}

@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
-import type { Mission, Item, SkillNode, HideoutModule } from '@/types';
+import type { Quest, Item, SkillNode, HideoutModule } from '@/types';
 import { formatDate } from '@/lib/utils';
 
-type Entity = Mission | Item | SkillNode | HideoutModule;
+type Entity = Quest | Item | SkillNode | HideoutModule;
 
 interface ViewModalProps {
   entity: Entity | null;
-  type: 'mission' | 'item' | 'skill-node' | 'hideout-module';
+  type: 'quest' | 'item' | 'skill-node' | 'hideout-module';
   onClose: () => void;
 }
 
@@ -76,8 +76,8 @@ export default function ViewModal({ entity, type, onClose }: ViewModalProps) {
 
     const fields: Array<{ label: string; value: any }> = [...commonFields];
 
-    if (type === 'mission') {
-      const m = entity as Mission;
+    if (type === 'quest') {
+      const m = entity as Quest;
       fields.push(
         { label: 'Trader', value: m.trader },
         { label: 'XP', value: m.xp },

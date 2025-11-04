@@ -18,7 +18,7 @@ import (
 )
 
 type SyncService struct {
-	missionRepo       *repository.MissionRepository
+	questRepo         *repository.QuestRepository
 	itemRepo          *repository.ItemRepository
 	skillNodeRepo     *repository.SkillNodeRepository
 	hideoutModuleRepo *repository.HideoutModuleRepository
@@ -30,7 +30,7 @@ type SyncService struct {
 }
 
 func NewSyncService(
-	missionRepo *repository.MissionRepository,
+	questRepo *repository.QuestRepository,
 	itemRepo *repository.ItemRepository,
 	skillNodeRepo *repository.SkillNodeRepository,
 	hideoutModuleRepo *repository.HideoutModuleRepository,
@@ -40,7 +40,7 @@ func NewSyncService(
 	client := github.NewClient(nil)
 
 	service := &SyncService{
-		missionRepo:       missionRepo,
+		questRepo:         questRepo,
 		itemRepo:          itemRepo,
 		skillNodeRepo:     skillNodeRepo,
 		hideoutModuleRepo: hideoutModuleRepo,
@@ -50,6 +50,17 @@ func NewSyncService(
 	}
 
 	return service
+}
+
+// NewSyncServiceWithMissionRepo is deprecated, use NewSyncService instead
+func NewSyncServiceWithMissionRepo(
+	missionRepo *repository.MissionRepository,
+	itemRepo *repository.ItemRepository,
+	skillNodeRepo *repository.SkillNodeRepository,
+	hideoutModuleRepo *repository.HideoutModuleRepository,
+	cfg *config.Config,
+) *SyncService {
+	return NewSyncService(missionRepo, itemRepo, skillNodeRepo, hideoutModuleRepo, cfg)
 }
 
 func (s *SyncService) Start() error {
@@ -71,6 +82,24 @@ func (s *SyncService) Start() error {
 
 func (s *SyncService) Stop() {
 	s.cron.Stop()
+}
+
+// ForceSync triggers a sync immediately, even if one is already running
+func (s *SyncService) ForceSync() error {
+	s.mu.Lock()
+	s.isRunning = false // Allow force sync even if one is running
+	s.mu.Unlock()
+
+	log.Println("Force sync triggered...")
+	go s.Sync()
+	return nil
+}
+
+// IsRunning returns whether a sync is currently in progress
+func (s *SyncService) IsRunning() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.isRunning
 }
 
 func (s *SyncService) Sync() {
@@ -102,8 +131,8 @@ func (s *SyncService) Sync() {
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		if err := s.syncMissions(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("missions sync error: %w", err)
+		if err := s.syncQuests(ctx, owner, repo); err != nil {
+			errorChan <- fmt.Errorf("quests sync error: %w", err)
 		}
 	}()
 
@@ -160,8 +189,8 @@ func (s *SyncService) fetchJSONFile(ctx context.Context, owner, repo, path strin
 	return decoded, nil
 }
 
-func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) error {
-	// Fetch quests.json for missions (in root of repo)
+func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error {
+	// Fetch quests.json (in root of repo)
 	paths := []string{"quests.json"}
 
 	var data []byte
@@ -178,53 +207,58 @@ func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) erro
 		return nil // Non-fatal
 	}
 
-	var missions []map[string]interface{}
-	if err := json.Unmarshal(data, &missions); err != nil {
+	var quests []map[string]interface{}
+	if err := json.Unmarshal(data, &quests); err != nil {
 		return err
 	}
 
-	for _, m := range missions {
-		mission := &models.Mission{
+	for _, q := range quests {
+		quest := &models.Quest{
 			SyncedAt: time.Now(),
 		}
 
 		// Extract common fields
-		if id, ok := m["id"].(string); ok {
-			mission.ExternalID = id
-		} else if id, ok := m["id"].(float64); ok {
-			mission.ExternalID = fmt.Sprintf("%.0f", id)
+		if id, ok := q["id"].(string); ok {
+			quest.ExternalID = id
+		} else if id, ok := q["id"].(float64); ok {
+			quest.ExternalID = fmt.Sprintf("%.0f", id)
 		}
-		if name, ok := m["name"].(string); ok {
-			mission.Name = name
+		if name, ok := q["name"].(string); ok {
+			quest.Name = name
 		}
-		if desc, ok := m["description"].(string); ok {
-			mission.Description = desc
+		if desc, ok := q["description"].(string); ok {
+			quest.Description = desc
 		}
-		if trader, ok := m["trader"].(string); ok {
-			mission.Trader = trader
+		if trader, ok := q["trader"].(string); ok {
+			quest.Trader = trader
 		}
-		if objectives, ok := m["objectives"].([]interface{}); ok {
+		if objectives, ok := q["objectives"].([]interface{}); ok {
 			// Store as array directly, but wrap for consistency with TypeScript types
-			mission.Objectives = models.JSONB(map[string]interface{}{"objectives": objectives})
+			quest.Objectives = models.JSONB(map[string]interface{}{"objectives": objectives})
 		}
-		if rewardItemIds, ok := m["rewardItemIds"].([]interface{}); ok {
-			mission.RewardItemIds = models.JSONB(map[string]interface{}{"reward_item_ids": rewardItemIds})
+		if rewardItemIds, ok := q["rewardItemIds"].([]interface{}); ok {
+			quest.RewardItemIds = models.JSONB(map[string]interface{}{"reward_item_ids": rewardItemIds})
 		}
-		if xp, ok := m["xp"].(float64); ok {
-			mission.XP = int(xp)
+		if xp, ok := q["xp"].(float64); ok {
+			quest.XP = int(xp)
 		}
 
 		// Store full data as JSONB
-		mission.Data = models.JSONB(m)
+		quest.Data = models.JSONB(q)
 
-		err := s.missionRepo.UpsertByExternalID(mission)
+		err := s.questRepo.UpsertByExternalID(quest)
 		if err != nil {
-			log.Printf("Error upserting mission %s: %v", mission.ExternalID, err)
+			log.Printf("Error upserting quest %s: %v", quest.ExternalID, err)
 		}
 	}
 
-	log.Printf("Synced %d missions from quests.json", len(missions))
+	log.Printf("Synced %d quests from quests.json", len(quests))
 	return nil
+}
+
+// syncMissions is deprecated, use syncQuests instead
+func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) error {
+	return s.syncQuests(ctx, owner, repo)
 }
 
 func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {

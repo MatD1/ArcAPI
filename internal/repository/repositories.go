@@ -139,66 +139,73 @@ func (r *JWTTokenRepository) RevokeByHash(hash string) error {
 	return r.db.Model(&models.JWTToken{}).Where("token_hash = ?", hash).Update("revoked_at", gorm.Expr("NOW()")).Error
 }
 
-type MissionRepository struct {
+type QuestRepository struct {
 	db *DB
 }
 
-func NewMissionRepository(db *DB) *MissionRepository {
-	return &MissionRepository{db: db}
+func NewQuestRepository(db *DB) *QuestRepository {
+	return &QuestRepository{db: db}
 }
 
-func (r *MissionRepository) Create(mission *models.Mission) error {
-	return r.db.Create(mission).Error
+func (r *QuestRepository) Create(quest *models.Quest) error {
+	return r.db.Create(quest).Error
 }
 
-func (r *MissionRepository) FindByID(id uint) (*models.Mission, error) {
-	var mission models.Mission
-	err := r.db.First(&mission, id).Error
+func (r *QuestRepository) FindByID(id uint) (*models.Quest, error) {
+	var quest models.Quest
+	err := r.db.First(&quest, id).Error
 	if err != nil {
 		return nil, err
 	}
-	return &mission, nil
+	return &quest, nil
 }
 
-func (r *MissionRepository) FindByExternalID(externalID string) (*models.Mission, error) {
-	var mission models.Mission
-	err := r.db.Where("external_id = ?", externalID).First(&mission).Error
+func (r *QuestRepository) FindByExternalID(externalID string) (*models.Quest, error) {
+	var quest models.Quest
+	err := r.db.Where("external_id = ?", externalID).First(&quest).Error
 	if err != nil {
 		return nil, err
 	}
-	return &mission, nil
+	return &quest, nil
 }
 
-func (r *MissionRepository) FindAll(offset, limit int) ([]models.Mission, int64, error) {
-	var missions []models.Mission
+func (r *QuestRepository) FindAll(offset, limit int) ([]models.Quest, int64, error) {
+	var quests []models.Quest
 	var count int64
-	err := r.db.Model(&models.Mission{}).Count(&count).Error
+	err := r.db.Model(&models.Quest{}).Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&missions).Error
-	return missions, count, err
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&quests).Error
+	return quests, count, err
 }
 
-func (r *MissionRepository) Update(mission *models.Mission) error {
-	return r.db.Save(mission).Error
+func (r *QuestRepository) Update(quest *models.Quest) error {
+	return r.db.Save(quest).Error
 }
 
-func (r *MissionRepository) Delete(id uint) error {
-	return r.db.Delete(&models.Mission{}, id).Error
+func (r *QuestRepository) Delete(id uint) error {
+	return r.db.Delete(&models.Quest{}, id).Error
 }
 
-func (r *MissionRepository) UpsertByExternalID(mission *models.Mission) error {
-	var existing models.Mission
-	err := r.db.Where("external_id = ?", mission.ExternalID).First(&existing).Error
+func (r *QuestRepository) UpsertByExternalID(quest *models.Quest) error {
+	var existing models.Quest
+	err := r.db.Where("external_id = ?", quest.ExternalID).First(&existing).Error
 	if err == gorm.ErrRecordNotFound {
-		return r.db.Create(mission).Error
+		return r.db.Create(quest).Error
 	}
 	if err != nil {
 		return err
 	}
-	mission.ID = existing.ID
-	return r.db.Save(mission).Error
+	quest.ID = existing.ID
+	return r.db.Save(quest).Error
+}
+
+// MissionRepository is deprecated, use QuestRepository instead
+type MissionRepository = QuestRepository
+
+func NewMissionRepository(db *DB) *MissionRepository {
+	return NewQuestRepository(db)
 }
 
 type ItemRepository struct {

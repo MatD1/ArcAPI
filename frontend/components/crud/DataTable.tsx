@@ -1,17 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import type { Mission, Item, SkillNode, HideoutModule } from '@/types';
+import type { Quest, Item, SkillNode, HideoutModule } from '@/types';
 import { formatDate } from '@/lib/utils';
 import ViewModal from './ViewModal';
 
-type Entity = Mission | Item | SkillNode | HideoutModule;
+type Entity = Quest | Item | SkillNode | HideoutModule;
+
+// Mission is deprecated, use Quest instead
+type Mission = Quest;
 
 interface DataTableProps {
   data: Entity[];
   onEdit: (item: Entity) => void;
   onDelete: (id: number) => void;
-  type: 'mission' | 'item' | 'skill-node' | 'hideout-module';
+  type: 'quest' | 'item' | 'skill-node' | 'hideout-module';
 }
 
 export default function DataTable({ data, onEdit, onDelete, type }: DataTableProps) {

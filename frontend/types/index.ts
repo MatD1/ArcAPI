@@ -25,7 +25,7 @@ export interface JWTToken {
   created_at: string;
 }
 
-export interface Mission {
+export interface Quest {
   id: number;
   external_id: string;
   name: string;
@@ -39,6 +39,9 @@ export interface Mission {
   created_at: string;
   updated_at: string;
 }
+
+// Mission is deprecated, use Quest instead
+export type Mission = Quest;
 
 export interface Item {
   id: number;

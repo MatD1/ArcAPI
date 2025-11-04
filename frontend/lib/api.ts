@@ -3,6 +3,7 @@ import type {
   User,
   APIKey,
   JWTToken,
+  Quest,
   Mission,
   Item,
   SkillNode,
@@ -104,31 +105,52 @@ class APIClient {
     return response.data;
   }
 
-  // Missions
-  async getMissions(page = 1, limit = 20): Promise<PaginatedResponse<Mission>> {
-    const response = await this.client.get<PaginatedResponse<Mission>>('/missions', {
+  // Quests
+  async getQuests(page = 1, limit = 20): Promise<PaginatedResponse<Quest>> {
+    const response = await this.client.get<PaginatedResponse<Quest>>('/quests', {
       params: { page, limit },
     });
     return response.data;
   }
 
-  async getMission(id: number): Promise<Mission> {
-    const response = await this.client.get<Mission>(`/missions/${id}`);
+  async getQuest(id: number): Promise<Quest> {
+    const response = await this.client.get<Quest>(`/quests/${id}`);
     return response.data;
+  }
+
+  async createQuest(data: Partial<Quest>): Promise<Quest> {
+    const response = await this.client.post<Quest>('/quests', data);
+    return response.data;
+  }
+
+  async updateQuest(id: number, data: Partial<Quest>): Promise<Quest> {
+    const response = await this.client.put<Quest>(`/quests/${id}`, data);
+    return response.data;
+  }
+
+  async deleteQuest(id: number): Promise<void> {
+    await this.client.delete(`/quests/${id}`);
+  }
+
+  // Missions (deprecated - use quests instead)
+  async getMissions(page = 1, limit = 20): Promise<PaginatedResponse<Mission>> {
+    return this.getQuests(page, limit);
+  }
+
+  async getMission(id: number): Promise<Mission> {
+    return this.getQuest(id);
   }
 
   async createMission(data: Partial<Mission>): Promise<Mission> {
-    const response = await this.client.post<Mission>('/missions', data);
-    return response.data;
+    return this.createQuest(data);
   }
 
   async updateMission(id: number, data: Partial<Mission>): Promise<Mission> {
-    const response = await this.client.put<Mission>(`/missions/${id}`, data);
-    return response.data;
+    return this.updateQuest(id, data);
   }
 
   async deleteMission(id: number): Promise<void> {
-    await this.client.delete(`/missions/${id}`);
+    return this.deleteQuest(id);
   }
 
   // Items
@@ -251,6 +273,17 @@ class APIClient {
     end_time?: string;
   }): Promise<PaginatedResponse<AuditLog>> {
     const response = await this.client.get<PaginatedResponse<AuditLog>>('/admin/logs', { params });
+    return response.data;
+  }
+
+  // Sync
+  async forceSync(): Promise<{ message: string; status: string }> {
+    const response = await this.client.post<{ message: string; status: string }>('/admin/sync/force');
+    return response.data;
+  }
+
+  async getSyncStatus(): Promise<{ is_running: boolean }> {
+    const response = await this.client.get<{ is_running: boolean }>('/admin/sync/status');
     return response.data;
   }
 }

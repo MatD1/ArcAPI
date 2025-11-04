@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard/' },
-  { name: 'Missions', href: '/missions/' },
+  { name: 'Quests', href: '/quests/' },
   { name: 'Items', href: '/items/' },
   { name: 'Skill Nodes', href: '/skill-nodes/' },
   { name: 'Hideout Modules', href: '/hideout-modules/' },

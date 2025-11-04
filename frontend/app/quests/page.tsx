@@ -5,34 +5,35 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuthStore } from '@/store/authStore';
 import { apiClient, getErrorMessage } from '@/lib/api';
-import type { Mission } from '@/types';
+import type { Quest } from '@/types';
 import DataTable from '@/components/crud/DataTable';
 import EntityForm from '@/components/crud/EntityForm';
 
-export default function MissionsPage() {
+export default function QuestsPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const [missions, setMissions] = useState<Mission[]>([]);
+  const [quests, setQuests] = useState<Quest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [editing, setEditing] = useState<Mission | null>(null);
+  const [editing, setEditing] = useState<Quest | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login/');
       return;
     }
-    loadMissions();
+    loadQuests();
   }, [isAuthenticated, router, page]);
 
-  const loadMissions = async () => {
+  const loadQuests = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getMissions(page, 20);
-      setMissions(response.data);
+      const response = await apiClient.getQuests(page, 20);
+      setQuests(response.data);
       setTotal(response.pagination.total);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -41,36 +42,53 @@ export default function MissionsPage() {
     }
   };
 
+  const handleForceSync = async () => {
+    if (!confirm('This will force a sync from GitHub. Continue?')) return;
+    try {
+      setSyncing(true);
+      await apiClient.forceSync();
+      alert('Sync triggered successfully. It may take a few moments to complete.');
+      // Wait a bit then reload
+      setTimeout(() => {
+        loadQuests();
+      }, 3000);
+    } catch (err) {
+      alert(getErrorMessage(err));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleCreate = () => {
     setEditing(null);
     setShowForm(true);
   };
 
-  const handleEdit = (mission: Mission) => {
-    setEditing(mission);
+  const handleEdit = (quest: Quest) => {
+    setEditing(quest);
     setShowForm(true);
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this mission?')) return;
+    if (!confirm('Are you sure you want to delete this quest?')) return;
     try {
-      await apiClient.deleteMission(id);
-      loadMissions();
+      await apiClient.deleteQuest(id);
+      loadQuests();
     } catch (err) {
       alert(getErrorMessage(err));
     }
   };
 
-  const handleSubmit = async (data: Partial<Mission>) => {
+  const handleSubmit = async (data: Partial<Quest>) => {
     try {
       if (editing) {
-        await apiClient.updateMission(editing.id, data);
+        await apiClient.updateQuest(editing.id, data);
       } else {
-        await apiClient.createMission(data);
+        await apiClient.createQuest(data);
       }
       setShowForm(false);
       setEditing(null);
-      loadMissions();
+      loadQuests();
     } catch (err) {
       throw err;
     }
@@ -82,23 +100,32 @@ export default function MissionsPage() {
     <DashboardLayout>
       <div className="px-4 py-6 sm:px-0">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Missions</h1>
-          <button
-            onClick={handleCreate}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-          >
-            Create Mission
-          </button>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Quests</h1>
+          <div className="flex gap-2">
+            <button
+              onClick={handleForceSync}
+              disabled={syncing}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+            >
+              {syncing ? 'Syncing...' : 'Force Sync'}
+            </button>
+            <button
+              onClick={handleCreate}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            >
+              Create Quest
+            </button>
+          </div>
         </div>
 
         {showForm && (
           <div className="mb-6 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-              {editing ? 'Edit Mission' : 'Create Mission'}
+              {editing ? 'Edit Quest' : 'Create Quest'}
             </h2>
             <EntityForm
               entity={editing}
-              type="mission"
+              type="quest"
               onSubmit={handleSubmit}
               onCancel={() => {
                 setShowForm(false);
@@ -120,10 +147,10 @@ export default function MissionsPage() {
           <>
             <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
               <DataTable
-                data={missions}
+                data={quests}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                type="mission"
+                type="quest"
               />
             </div>
             <div className="mt-4 flex justify-between">
@@ -151,4 +178,3 @@ export default function MissionsPage() {
     </DashboardLayout>
   );
 }
-
