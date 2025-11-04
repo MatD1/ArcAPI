@@ -130,6 +130,9 @@ export default function UsersPage() {
                             Access
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Via App
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Created
                           </th>
                           <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -175,6 +178,17 @@ export default function UsersPage() {
                                 }`}
                               >
                                 {u.can_access_data ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  u.created_via_app
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-200'
+                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                }`}
+                              >
+                                {u.created_via_app ? 'Yes' : 'No'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -269,6 +283,20 @@ export default function UsersPage() {
                         >
                           {selectedUser.user.can_access_data ? 'Disable Access' : 'Enable Access'}
                         </button>
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Created Via App</dt>
+                      <dd className="text-sm">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            selectedUser.user.created_via_app
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-200'
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          {selectedUser.user.created_via_app ? 'Yes' : 'No'}
+                        </span>
                       </dd>
                     </div>
                     <div className="flex justify-between">

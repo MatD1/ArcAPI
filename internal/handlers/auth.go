@@ -355,9 +355,18 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		email = user.GetLogin() + "@users.noreply.github.com"
 	}
 
+	// Decode state to check if user was created via mobile app
+	var createdViaApp bool
+	stateParam := c.Query("state")
+	if stateParam != "" {
+		if state, err := decodeState(stateParam); err == nil {
+			createdViaApp = (state.Client == ClientMobile)
+		}
+	}
+
 	// Create or update user
 	githubID := user.GetLogin()
-	dbUser, err := h.userService.CreateOrUpdateFromGithub(githubID, email, user.GetLogin())
+	dbUser, err := h.userService.CreateOrUpdateFromGithub(githubID, email, user.GetLogin(), createdViaApp)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user", "details": err.Error()})
 		return
@@ -410,8 +419,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	}
 	h.tempTokensMu.Unlock()
 
-	// Decode and validate state from OAuth callback
-	stateParam := c.Query("state")
+	// Decode and validate state from OAuth callback (we already decoded it earlier, but need to validate)
 	if stateParam == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing state parameter"})
 		return

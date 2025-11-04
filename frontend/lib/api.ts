@@ -11,6 +11,7 @@ import type {
   AuditLog,
   PaginatedResponse,
   LoginResponse,
+  RequiredItemsResponse,
 } from '@/types';
 
 // Use relative URL when embedded, or explicit URL if provided
@@ -178,6 +179,11 @@ class APIClient {
 
   async deleteItem(id: number): Promise<void> {
     await this.client.delete(`/items/${id}`);
+  }
+
+  async getRequiredItems(): Promise<RequiredItemsResponse> {
+    const response = await this.client.get<RequiredItemsResponse>('/items/required');
+    return response.data;
   }
 
   // Skill Nodes

@@ -5,6 +5,7 @@ export interface User {
   username: string;
   role: 'admin' | 'user';
   can_access_data: boolean;
+  created_via_app: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -122,5 +123,24 @@ export interface PaginatedResponse<T> {
 export interface LoginResponse {
   token: string;
   user: User;
+}
+
+export interface RequiredItemUsage {
+  source_type: 'quest' | 'hideout_module';
+  source_id: number;
+  source_name: string;
+  quantity: number;
+  level?: number;
+}
+
+export interface RequiredItemResponse {
+  item: Item;
+  total_quantity: number;
+  usages: RequiredItemUsage[];
+}
+
+export interface RequiredItemsResponse {
+  data: RequiredItemResponse[];
+  total: number;
 }
 

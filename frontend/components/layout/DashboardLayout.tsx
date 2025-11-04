@@ -9,6 +9,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard/', icon: '📊' },
   { name: 'Quests', href: '/quests/', icon: '🎯' },
   { name: 'Items', href: '/items/', icon: '📦' },
+  { name: 'Required Items', href: '/required-items/', icon: '📋' },
   { name: 'Skill Nodes', href: '/skill-nodes/', icon: '🔧' },
   { name: 'Hideout Modules', href: '/hideout-modules/', icon: '🏠' },
 ];

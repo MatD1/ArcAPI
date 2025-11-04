@@ -18,13 +18,17 @@ func NewUserService(userRepo *repository.UserRepository) *UserService {
 	}
 }
 
-func (s *UserService) CreateOrUpdateFromGithub(githubID string, email, username string) (*models.User, error) {
+func (s *UserService) CreateOrUpdateFromGithub(githubID string, email, username string, createdViaApp bool) (*models.User, error) {
 	// Try to find by GitHub ID
 	user, err := s.userRepo.FindByGithubID(githubID)
 	if err == nil {
 		// Update if found
 		user.Email = email
 		user.Username = username
+		// Only update CreatedViaApp if it's a new mobile app user (existing users won't change)
+		if createdViaApp && !user.CreatedViaApp {
+			user.CreatedViaApp = true
+		}
 		err = s.userRepo.Update(user)
 		return user, err
 	}
@@ -34,16 +38,21 @@ func (s *UserService) CreateOrUpdateFromGithub(githubID string, email, username 
 	if err == nil {
 		// Update GitHub ID
 		user.GithubID = &githubID
+		// Only update CreatedViaApp if it's a new mobile app user
+		if createdViaApp && !user.CreatedViaApp {
+			user.CreatedViaApp = true
+		}
 		err = s.userRepo.Update(user)
 		return user, err
 	}
 
 	// Create new user
 	user = &models.User{
-		GithubID: &githubID,
-		Email:    email,
-		Username: username,
-		Role:     models.RoleUser,
+		GithubID:      &githubID,
+		Email:         email,
+		Username:      username,
+		Role:          models.RoleUser,
+		CreatedViaApp: createdViaApp,
 	}
 	err = s.userRepo.Create(user)
 	if err != nil {

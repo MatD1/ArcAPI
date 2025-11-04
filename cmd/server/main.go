@@ -70,7 +70,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
 	questHandler := handlers.NewQuestHandler(questRepo)
 	missionHandler := questHandler // Backward compatibility - uses questHandler internally
-	itemHandler := handlers.NewItemHandler(itemRepo)
+	itemHandler := handlers.NewItemHandlerWithRepos(itemRepo, questRepo, hideoutModuleRepo)
 	skillNodeHandler := handlers.NewSkillNodeHandler(skillNodeRepo)
 	hideoutModuleHandler := handlers.NewHideoutModuleHandler(hideoutModuleRepo)
 	managementHandler := handlers.NewManagementHandler(
@@ -120,6 +120,7 @@ func main() {
 			// Items - Read
 			readOnly.GET("/items", itemHandler.List)
 			readOnly.GET("/items/:id", itemHandler.Get)
+			readOnly.GET("/items/required", itemHandler.RequiredItems) // Get all required items for quests and hideout modules
 
 			// Skill Nodes - Read
 			readOnly.GET("/skill-nodes", skillNodeHandler.List)
@@ -238,6 +239,12 @@ func main() {
 			})
 			r.GET("/items/*path", func(c *gin.Context) {
 				c.File(frontendDir + "/items/index.html")
+			})
+			r.GET("/required-items", func(c *gin.Context) {
+				c.File(frontendDir + "/required-items/index.html")
+			})
+			r.GET("/required-items/*path", func(c *gin.Context) {
+				c.File(frontendDir + "/required-items/index.html")
 			})
 			r.GET("/skill-nodes", func(c *gin.Context) {
 				c.File(frontendDir + "/skill-nodes/index.html")
