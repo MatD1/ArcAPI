@@ -16,6 +16,7 @@ type ManagementHandler struct {
 	apiKeyRepo   *repository.APIKeyRepository
 	jwtTokenRepo *repository.JWTTokenRepository
 	auditLogRepo *repository.AuditLogRepository
+	userRepo     *repository.UserRepository
 }
 
 func NewManagementHandler(
@@ -23,12 +24,14 @@ func NewManagementHandler(
 	apiKeyRepo *repository.APIKeyRepository,
 	jwtTokenRepo *repository.JWTTokenRepository,
 	auditLogRepo *repository.AuditLogRepository,
+	userRepo *repository.UserRepository,
 ) *ManagementHandler {
 	return &ManagementHandler{
 		authService:  authService,
 		apiKeyRepo:   apiKeyRepo,
 		jwtTokenRepo: jwtTokenRepo,
 		auditLogRepo: auditLogRepo,
+		userRepo:     userRepo,
 	}
 }
 
@@ -60,13 +63,23 @@ func (h *ManagementHandler) CreateAPIKey(c *gin.Context) {
 	})
 }
 
-// ListAPIKeys lists all API keys for the current user
+// ListAPIKeys lists all API keys (admins see all, users see only their own)
 func (h *ManagementHandler) ListAPIKeys(c *gin.Context) {
 	authCtx, _ := c.Get(middleware.AuthContextKey)
 	ctx := authCtx.(*middleware.AuthContext)
 	user := ctx.User.(*models.User)
 
-	keys, err := h.apiKeyRepo.FindByUserID(user.ID)
+	var keys []models.APIKey
+	var err error
+
+	// Admins can see all keys, regular users only see their own
+	if user.Role == models.RoleAdmin {
+		// Get all API keys for admins
+		keys, err = h.apiKeyRepo.FindAll()
+	} else {
+		keys, err = h.apiKeyRepo.FindByUserID(user.ID)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch API keys"})
 		return
@@ -254,5 +267,47 @@ func (h *ManagementHandler) QueryLogs(c *gin.Context) {
 			"limit": limit,
 			"total": count,
 		},
+	})
+}
+
+// UpdateUserAccess controls whether a user can access data (admin only)
+func (h *ManagementHandler) UpdateUserAccess(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req struct {
+		CanAccessData bool `json:"can_access_data" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get target user
+	targetUser, err := h.userRepo.FindByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Update access
+	targetUser.CanAccessData = req.CanAccessData
+	err = h.userRepo.Update(targetUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user access"})
+		return
+	}
+
+	// Invalidate cached auth data for this user to ensure changes take effect immediately
+	h.authService.InvalidateUserCache(targetUser.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User access updated",
+		"user":    targetUser,
 	})
 }

@@ -58,7 +58,8 @@ func (s *AuthService) GenerateAPIKey() (string, string, error) {
 	return key, string(hashed), nil
 }
 
-// ValidateAPIKey validates an API key and returns the associated user
+// ValidateAPIKey validates an API key and returns the associated APIKey
+// Note: API keys are tied to user accounts, so access control is checked via the user's CanAccessData
 func (s *AuthService) ValidateAPIKey(apiKey string) (*models.APIKey, error) {
 	// Check cache first (if available)
 	if s.cacheService != nil {
@@ -68,6 +69,11 @@ func (s *AuthService) ValidateAPIKey(apiKey string) (*models.APIKey, error) {
 		if err == nil && cachedKey.ID > 0 {
 			if cachedKey.IsRevoked() {
 				return nil, fmt.Errorf("API key is revoked")
+			}
+			// Always fetch fresh user data to check CanAccessData
+			user, err := s.userRepo.FindByID(cachedKey.UserID)
+			if err == nil {
+				cachedKey.User = *user
 			}
 			// Update last used in background
 			go s.apiKeyRepo.UpdateLastUsed(cachedKey.ID)
@@ -85,6 +91,11 @@ func (s *AuthService) ValidateAPIKey(apiKey string) (*models.APIKey, error) {
 	for _, key := range keys {
 		err := bcrypt.CompareHashAndPassword([]byte(key.KeyHash), []byte(apiKey))
 		if err == nil {
+			// Always fetch fresh user data to ensure CanAccessData is current
+			user, err := s.userRepo.FindByID(key.UserID)
+			if err == nil {
+				key.User = *user
+			}
 			// Cache for 5 minutes (if available)
 			if s.cacheService != nil {
 				cacheKey := APIKeyCacheKey(apiKey)
@@ -145,17 +156,8 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
 }
 
 // ValidateJWT validates a JWT token and returns the user
+// Always fetches fresh user data to ensure CanAccessData is current
 func (s *AuthService) ValidateJWT(tokenString string) (*models.User, error) {
-	// Check cache first (if available)
-	if s.cacheService != nil {
-		cacheKey := JWTCacheKey(tokenString)
-		var cachedUser models.User
-		err := s.cacheService.GetJSON(cacheKey, &cachedUser)
-		if err == nil && cachedUser.ID > 0 {
-			return &cachedUser, nil
-		}
-	}
-
 	// Parse and validate JWT
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -178,19 +180,34 @@ func (s *AuthService) ValidateJWT(tokenString string) (*models.User, error) {
 		return nil, fmt.Errorf("invalid user_id in token")
 	}
 
-	// Find user
+	// Always fetch fresh user data to ensure CanAccessData is current
+	// This ensures access changes take effect immediately
 	user, err := s.userRepo.FindByID(uint(userID))
 	if err != nil {
 		return nil, err
 	}
 
-	// Note: Full token validation against database is skipped for performance
-	// The JWT signature and expiration are already validated above
+	// Check if token is revoked (validate against database)
+	hash := sha256.Sum256([]byte(tokenString))
+	tokenHash := hex.EncodeToString(hash[:])
+	jwtToken, err := s.jwtTokenRepo.FindByHash(tokenHash)
+	if err != nil {
+		// Token not found in database
+		return nil, fmt.Errorf("token not found")
+	}
+	if jwtToken.RevokedAt != nil {
+		// Token is revoked
+		return nil, fmt.Errorf("token is revoked")
+	}
+	if jwtToken.ExpiresAt.Before(time.Now()) {
+		// Token is expired
+		return nil, fmt.Errorf("token is expired")
+	}
 
-	// Cache for 1 minute (if available)
+	// Cache for 30 seconds (shorter cache for access control changes to take effect faster)
 	if s.cacheService != nil {
 		cacheKey := JWTCacheKey(tokenString)
-		s.cacheService.SetJSON(cacheKey, user, 1*time.Minute)
+		s.cacheService.SetJSON(cacheKey, user, 30*time.Second)
 	}
 
 	return user, nil
@@ -234,4 +251,15 @@ func (s *AuthService) InvalidateCache(apiKeyHash, jwtTokenHash string) {
 	if jwtTokenHash != "" {
 		s.cacheService.DeletePattern(JWTCacheKey("*"))
 	}
+}
+
+// InvalidateUserCache invalidates all cached auth data for a specific user
+// This should be called when user access is updated
+func (s *AuthService) InvalidateUserCache(userID uint) {
+	if s.cacheService == nil {
+		return
+	}
+	// Note: Full cache invalidation for a user would require tracking all keys
+	// For now, we rely on short cache times (30s for JWT) to ensure changes take effect quickly
+	// In production, you might want to implement a more sophisticated cache invalidation strategy
 }

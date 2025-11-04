@@ -78,6 +78,7 @@ func main() {
 		apiKeyRepo,
 		jwtTokenRepo,
 		auditLogRepo,
+		userRepo,
 	)
 	syncHandler := handlers.NewSyncHandler(syncService)
 
@@ -169,9 +170,9 @@ func main() {
 				admin.GET("/logs", managementHandler.QueryLogs)
 				admin.POST("/sync/force", syncHandler.ForceSync)
 				admin.GET("/sync/status", syncHandler.SyncStatus)
+				admin.PUT("/users/:id/access", managementHandler.UpdateUserAccess)
 			}
 		}
-	}
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
@@ -214,6 +215,38 @@ func main() {
 		})
 		r.GET("/login/*path", func(c *gin.Context) {
 			c.File(frontendDir + "/login/index.html")
+		})
+
+		// Serve specific frontend routes
+		r.GET("/api-keys", func(c *gin.Context) {
+			c.File(frontendDir + "/api-keys/index.html")
+		})
+		r.GET("/api-keys/*path", func(c *gin.Context) {
+			c.File(frontendDir + "/api-keys/index.html")
+		})
+		r.GET("/quests", func(c *gin.Context) {
+			c.File(frontendDir + "/quests/index.html")
+		})
+		r.GET("/quests/*path", func(c *gin.Context) {
+			c.File(frontendDir + "/quests/index.html")
+		})
+		r.GET("/items", func(c *gin.Context) {
+			c.File(frontendDir + "/items/index.html")
+		})
+		r.GET("/items/*path", func(c *gin.Context) {
+			c.File(frontendDir + "/items/index.html")
+		})
+		r.GET("/skill-nodes", func(c *gin.Context) {
+			c.File(frontendDir + "/skill-nodes/index.html")
+		})
+		r.GET("/skill-nodes/*path", func(c *gin.Context) {
+			c.File(frontendDir + "/skill-nodes/index.html")
+		})
+		r.GET("/hideout-modules", func(c *gin.Context) {
+			c.File(frontendDir + "/hideout-modules/index.html")
+		})
+		r.GET("/hideout-modules/*path", func(c *gin.Context) {
+			c.File(frontendDir + "/hideout-modules/index.html")
 		})
 
 		// Catch-all for other frontend routes
