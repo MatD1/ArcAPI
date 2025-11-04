@@ -306,6 +306,11 @@ class APIClient {
     });
     return response.data;
   }
+
+  async deleteUser(userId: number): Promise<{ message: string }> {
+    const response = await this.client.delete<{ message: string }>(`/admin/users/${userId}`);
+    return response.data;
+  }
 }
 
 export const apiClient = new APIClient();

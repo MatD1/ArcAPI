@@ -173,6 +173,7 @@ func main() {
 				admin.GET("/users", managementHandler.ListUsers)
 				admin.GET("/users/:id", managementHandler.GetUser)
 				admin.PUT("/users/:id/access", managementHandler.UpdateUserAccess)
+				admin.DELETE("/users/:id", managementHandler.DeleteUser)
 			}
 		}
 

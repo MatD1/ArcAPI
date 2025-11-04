@@ -73,6 +73,19 @@ export default function UsersPage() {
     }
   };
 
+  const handleDeleteUser = async (userId: number, username: string) => {
+    if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone and will delete all associated API keys and tokens.`)) return;
+    try {
+      await apiClient.deleteUser(userId);
+      if (selectedUser && selectedUser.user.id === userId) {
+        setSelectedUser(null);
+      }
+      loadUsers();
+    } catch (err) {
+      alert(getErrorMessage(err));
+    }
+  };
+
   if (!isAuthenticated || user?.role !== 'admin') return null;
 
   return (
@@ -97,85 +110,93 @@ export default function UsersPage() {
             ) : (
               <>
                 <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-800">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                          ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                          Username
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                          Email
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                          Role
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                          Access
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                      {users.map((u) => (
-                        <tr
-                          key={u.id}
-                          onClick={() => loadUserDetails(u.id)}
-                          className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
-                            selectedUser?.user.id === u.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''
-                          }`}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {u.id}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {u.username}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {u.email}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                u.role === 'admin'
-                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-200'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                              }`}
-                            >
-                              {u.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                u.can_access_data
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200'
-                                  : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-200'
-                              }`}
-                            >
-                              {u.can_access_data ? 'Enabled' : 'Disabled'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => handleToggleAccess(u.id, u.can_access_data)}
-                              className={`px-3 py-1 text-xs rounded-md ${
-                                u.can_access_data
-                                  ? 'bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-200'
-                                  : 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/20 dark:text-green-200'
-                              }`}
-                            >
-                              {u.can_access_data ? 'Revoke' : 'Grant'}
-                            </button>
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-800">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Username
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Email
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Role
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Access
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Created
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Actions
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                        {users.map((u) => (
+                          <tr
+                            key={u.id}
+                            onClick={() => loadUserDetails(u.id)}
+                            className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+                              selectedUser?.user.id === u.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''
+                            }`}
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                              {u.id}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                              {u.username}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {u.email}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  u.role === 'admin'
+                                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-200'
+                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                }`}
+                              >
+                                {u.role}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  u.can_access_data
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200'
+                                    : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-200'
+                                }`}
+                              >
+                                {u.can_access_data ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {formatDate(u.created_at)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => handleToggleAccess(u.id, u.can_access_data)}
+                                className={`px-3 py-1 text-xs rounded-md mr-2 ${
+                                  u.can_access_data
+                                    ? 'bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-200'
+                                    : 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/20 dark:text-green-200'
+                                }`}
+                              >
+                                {u.can_access_data ? 'Revoke' : 'Grant'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
                 <div className="mt-4 flex justify-between">
                   <button
@@ -207,7 +228,17 @@ export default function UsersPage() {
               <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 space-y-6">
                 {/* User Info */}
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">User Information</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">User Information</h3>
+                    <button
+                      onClick={() => handleDeleteUser(selectedUser.user.id, selectedUser.user.username)}
+                      disabled={selectedUser.user.id === user?.id}
+                      className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={selectedUser.user.id === user?.id ? 'Cannot delete your own account' : 'Delete user'}
+                    >
+                      Delete User
+                    </button>
+                  </div>
                   <dl className="space-y-2">
                     <div className="flex justify-between">
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">ID</dt>
@@ -225,18 +256,19 @@ export default function UsersPage() {
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Role</dt>
                       <dd className="text-sm text-gray-900 dark:text-white">{selectedUser.user.role}</dd>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Data Access</dt>
                       <dd className="text-sm">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
+                        <button
+                          onClick={() => handleToggleAccess(selectedUser.user.id, selectedUser.user.can_access_data)}
+                          className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                             selectedUser.user.can_access_data
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-200'
+                              ? 'bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-200'
+                              : 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/20 dark:text-green-200'
                           }`}
                         >
-                          {selectedUser.user.can_access_data ? 'Enabled' : 'Disabled'}
-                        </span>
+                          {selectedUser.user.can_access_data ? 'Disable Access' : 'Enable Access'}
+                        </button>
                       </dd>
                     </div>
                     <div className="flex justify-between">
@@ -252,7 +284,7 @@ export default function UsersPage() {
                     API Keys ({selectedUser.apiKeys.length})
                   </h3>
                   {selectedUser.apiKeys.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
                       {selectedUser.apiKeys.map((key) => (
                         <div
                           key={key.id}
@@ -294,7 +326,7 @@ export default function UsersPage() {
                     Active JWT Tokens ({selectedUser.jwtTokens.length})
                   </h3>
                   {selectedUser.jwtTokens.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
                       {selectedUser.jwtTokens.map((token) => (
                         <div
                           key={token.id}
@@ -325,4 +357,3 @@ export default function UsersPage() {
     </DashboardLayout>
   );
 }
-
