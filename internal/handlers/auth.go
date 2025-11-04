@@ -136,7 +136,7 @@ func decodeState(encoded string) (*OAuthState, error) {
 }
 
 // validateRedirectURL validates that the redirect URL is safe
-// For mobile: must start with "arctracker://"
+// For mobile: must start with "arcdb://"
 // For web: must be http(s) URL
 func validateRedirectURL(redirectURL, client string) error {
 	if redirectURL == "" {
@@ -149,9 +149,9 @@ func validateRedirectURL(redirectURL, client string) error {
 	}
 
 	if client == ClientMobile {
-		// Mobile deep link must start with arctracker://
-		if parsed.Scheme != "arctracker" {
-			return fmt.Errorf("mobile redirect URL must use arctracker:// scheme, got: %s", parsed.Scheme)
+		// Mobile deep link must start with arcdb://
+		if parsed.Scheme != "arcdb" {
+			return fmt.Errorf("mobile redirect URL must use arcdb:// scheme, got: %s", parsed.Scheme)
 		}
 	} else {
 		// Web redirect must be http or https
