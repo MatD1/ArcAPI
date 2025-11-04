@@ -286,6 +286,26 @@ class APIClient {
     const response = await this.client.get<{ is_running: boolean }>('/admin/sync/status');
     return response.data;
   }
+
+  // Users
+  async getUsers(page = 1, limit = 50): Promise<PaginatedResponse<User>> {
+    const response = await this.client.get<PaginatedResponse<User>>('/admin/users', {
+      params: { page, limit },
+    });
+    return response.data;
+  }
+
+  async getUser(id: number): Promise<{ user: User; api_keys: APIKey[]; jwt_tokens: JWTToken[] }> {
+    const response = await this.client.get<{ user: User; api_keys: APIKey[]; jwt_tokens: JWTToken[] }>(`/admin/users/${id}`);
+    return response.data;
+  }
+
+  async updateUserAccess(userId: number, canAccessData: boolean): Promise<{ message: string; user: User }> {
+    const response = await this.client.put<{ message: string; user: User }>(`/admin/users/${userId}/access`, {
+      can_access_data: canAccessData,
+    });
+    return response.data;
+  }
 }
 
 export const apiClient = new APIClient();

@@ -48,6 +48,17 @@ func (r *UserRepository) Update(user *models.User) error {
 	return r.db.Save(user).Error
 }
 
+func (r *UserRepository) FindAll(offset, limit int) ([]models.User, int64, error) {
+	var users []models.User
+	var count int64
+	err := r.db.Model(&models.User{}).Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&users).Error
+	return users, count, err
+}
+
 type APIKeyRepository struct {
 	db *DB
 }

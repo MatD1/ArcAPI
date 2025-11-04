@@ -170,6 +170,8 @@ func main() {
 				admin.GET("/logs", managementHandler.QueryLogs)
 				admin.POST("/sync/force", syncHandler.ForceSync)
 				admin.GET("/sync/status", syncHandler.SyncStatus)
+				admin.GET("/users", managementHandler.ListUsers)
+				admin.GET("/users/:id", managementHandler.GetUser)
 				admin.PUT("/users/:id/access", managementHandler.UpdateUserAccess)
 			}
 		}
@@ -247,6 +249,12 @@ func main() {
 			})
 			r.GET("/hideout-modules/*path", func(c *gin.Context) {
 				c.File(frontendDir + "/hideout-modules/index.html")
+			})
+			r.GET("/users", func(c *gin.Context) {
+				c.File(frontendDir + "/users/index.html")
+			})
+			r.GET("/users/*path", func(c *gin.Context) {
+				c.File(frontendDir + "/users/index.html")
 			})
 
 			// Catch-all for other frontend routes

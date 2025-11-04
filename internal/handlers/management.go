@@ -311,3 +311,82 @@ func (h *ManagementHandler) UpdateUserAccess(c *gin.Context) {
 		"user":    targetUser,
 	})
 }
+
+// ListUsers lists all users (admin only)
+func (h *ManagementHandler) ListUsers(c *gin.Context) {
+	page := 1
+	limit := 50
+
+	if p := c.Query("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	offset := (page - 1) * limit
+	users, count, err := h.userRepo.FindAll(offset, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": users,
+		"pagination": gin.H{
+			"page":  page,
+			"limit": limit,
+			"total": count,
+		},
+	})
+}
+
+// GetUser gets a user with their API keys and JWT tokens (admin only)
+func (h *ManagementHandler) GetUser(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	user, err := h.userRepo.FindByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Get user's API keys
+	apiKeys, err := h.apiKeyRepo.FindByUserID(user.ID)
+	if err != nil {
+		// Log but don't fail
+		apiKeys = []models.APIKey{}
+	}
+
+	// Get user's active JWT tokens
+	jwtTokens, err := h.jwtTokenRepo.FindActiveByUserID(user.ID)
+	if err != nil {
+		// Log but don't fail
+		jwtTokens = []models.JWTToken{}
+	}
+
+	// Remove sensitive data from API keys
+	for i := range apiKeys {
+		apiKeys[i].KeyHash = ""
+	}
+
+	// Remove sensitive data from JWT tokens
+	for i := range jwtTokens {
+		jwtTokens[i].TokenHash = ""
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":       user,
+		"api_keys":   apiKeys,
+		"jwt_tokens": jwtTokens,
+	})
+}

@@ -10,6 +10,7 @@ const navigation = [
   { name: 'Items', href: '/items/' },
   { name: 'Skill Nodes', href: '/skill-nodes/' },
   { name: 'Hideout Modules', href: '/hideout-modules/' },
+  { name: 'Users', href: '/users/' },
   { name: 'API Keys', href: '/api-keys/' },
   { name: 'JWT Tokens', href: '/jwt-tokens/' },
   { name: 'Audit Logs', href: '/logs/' },

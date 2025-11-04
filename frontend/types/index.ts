@@ -4,6 +4,7 @@ export interface User {
   email: string;
   username: string;
   role: 'admin' | 'user';
+  can_access_data: boolean;
   created_at: string;
   updated_at: string;
 }
