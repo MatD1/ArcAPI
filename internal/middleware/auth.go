@@ -121,6 +121,56 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 	return WriteAuthMiddleware(authService)
 }
 
+// ProgressAuthMiddleware allows basic users to read and update their own progress
+// Admins can access any user's progress, basic users can only access their own
+func ProgressAuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get JWT token from Authorization header
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "JWT token required"})
+			c.Abort()
+			return
+		}
+
+		// Extract token from "Bearer <token>"
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
+			c.Abort()
+			return
+		}
+
+		tokenString := parts[1]
+
+		// Validate JWT
+		user, err := authService.ValidateJWT(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired JWT token"})
+			c.Abort()
+			return
+		}
+
+		// Check if user has access (admins always have access)
+		if user.Role != models.RoleAdmin && !user.CanAccessData {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied. Contact an administrator to enable data access."})
+			c.Abort()
+			return
+		}
+
+		// Store auth context
+		c.Set(AuthContextKey, &AuthContext{
+			User:     user,
+			APIKey:   nil,
+			JWTToken: tokenString,
+		})
+		c.Set("user", user)
+		c.Set("user_id", user.ID)
+
+		c.Next()
+	}
+}
+
 // AdminMiddleware checks if user has admin role
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

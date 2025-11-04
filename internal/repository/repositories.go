@@ -457,3 +457,158 @@ func (r *AuditLogRepository) FindByFilters(apiKeyID, jwtTokenID, userID *uint, e
 		Order("created_at DESC").Offset(offset).Limit(limit).Find(&logs).Error
 	return logs, count, err
 }
+
+// UserQuestProgressRepository handles user quest progress
+type UserQuestProgressRepository struct {
+	db *DB
+}
+
+func NewUserQuestProgressRepository(db *DB) *UserQuestProgressRepository {
+	return &UserQuestProgressRepository{db: db}
+}
+
+func (r *UserQuestProgressRepository) Upsert(userID, questID uint, completed bool) (*models.UserQuestProgress, error) {
+	var progress models.UserQuestProgress
+	err := r.db.Where("user_id = ? AND quest_id = ?", userID, questID).First(&progress).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new
+		progress = models.UserQuestProgress{
+			UserID:    userID,
+			QuestID:   questID,
+			Completed: completed,
+		}
+		err = r.db.Create(&progress).Error
+		return &progress, err
+	} else if err != nil {
+		return nil, err
+	}
+
+	// Update existing
+	progress.Completed = completed
+	err = r.db.Save(&progress).Error
+	return &progress, err
+}
+
+func (r *UserQuestProgressRepository) FindByUserID(userID uint) ([]models.UserQuestProgress, error) {
+	var progress []models.UserQuestProgress
+	err := r.db.Preload("Quest").Where("user_id = ?", userID).Order("id ASC").Find(&progress).Error
+	return progress, err
+}
+
+func (r *UserQuestProgressRepository) FindByUserAndQuest(userID, questID uint) (*models.UserQuestProgress, error) {
+	var progress models.UserQuestProgress
+	err := r.db.Preload("Quest").Where("user_id = ? AND quest_id = ?", userID, questID).First(&progress).Error
+	if err != nil {
+		return nil, err
+	}
+	return &progress, nil
+}
+
+func (r *UserQuestProgressRepository) Delete(userID, questID uint) error {
+	return r.db.Where("user_id = ? AND quest_id = ?", userID, questID).Delete(&models.UserQuestProgress{}).Error
+}
+
+// UserHideoutModuleProgressRepository handles user hideout module progress
+type UserHideoutModuleProgressRepository struct {
+	db *DB
+}
+
+func NewUserHideoutModuleProgressRepository(db *DB) *UserHideoutModuleProgressRepository {
+	return &UserHideoutModuleProgressRepository{db: db}
+}
+
+func (r *UserHideoutModuleProgressRepository) Upsert(userID, hideoutModuleID uint, unlocked bool, level int) (*models.UserHideoutModuleProgress, error) {
+	var progress models.UserHideoutModuleProgress
+	err := r.db.Where("user_id = ? AND hideout_module_id = ?", userID, hideoutModuleID).First(&progress).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new
+		progress = models.UserHideoutModuleProgress{
+			UserID:          userID,
+			HideoutModuleID: hideoutModuleID,
+			Unlocked:        unlocked,
+			Level:           level,
+		}
+		err = r.db.Create(&progress).Error
+		return &progress, err
+	} else if err != nil {
+		return nil, err
+	}
+
+	// Update existing
+	progress.Unlocked = unlocked
+	progress.Level = level
+	err = r.db.Save(&progress).Error
+	return &progress, err
+}
+
+func (r *UserHideoutModuleProgressRepository) FindByUserID(userID uint) ([]models.UserHideoutModuleProgress, error) {
+	var progress []models.UserHideoutModuleProgress
+	err := r.db.Preload("HideoutModule").Where("user_id = ?", userID).Order("id ASC").Find(&progress).Error
+	return progress, err
+}
+
+func (r *UserHideoutModuleProgressRepository) FindByUserAndModule(userID, hideoutModuleID uint) (*models.UserHideoutModuleProgress, error) {
+	var progress models.UserHideoutModuleProgress
+	err := r.db.Preload("HideoutModule").Where("user_id = ? AND hideout_module_id = ?", userID, hideoutModuleID).First(&progress).Error
+	if err != nil {
+		return nil, err
+	}
+	return &progress, nil
+}
+
+func (r *UserHideoutModuleProgressRepository) Delete(userID, hideoutModuleID uint) error {
+	return r.db.Where("user_id = ? AND hideout_module_id = ?", userID, hideoutModuleID).Delete(&models.UserHideoutModuleProgress{}).Error
+}
+
+// UserSkillNodeProgressRepository handles user skill node progress
+type UserSkillNodeProgressRepository struct {
+	db *DB
+}
+
+func NewUserSkillNodeProgressRepository(db *DB) *UserSkillNodeProgressRepository {
+	return &UserSkillNodeProgressRepository{db: db}
+}
+
+func (r *UserSkillNodeProgressRepository) Upsert(userID, skillNodeID uint, unlocked bool) (*models.UserSkillNodeProgress, error) {
+	var progress models.UserSkillNodeProgress
+	err := r.db.Where("user_id = ? AND skill_node_id = ?", userID, skillNodeID).First(&progress).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new
+		progress = models.UserSkillNodeProgress{
+			UserID:      userID,
+			SkillNodeID: skillNodeID,
+			Unlocked:    unlocked,
+		}
+		err = r.db.Create(&progress).Error
+		return &progress, err
+	} else if err != nil {
+		return nil, err
+	}
+
+	// Update existing
+	progress.Unlocked = unlocked
+	err = r.db.Save(&progress).Error
+	return &progress, err
+}
+
+func (r *UserSkillNodeProgressRepository) FindByUserID(userID uint) ([]models.UserSkillNodeProgress, error) {
+	var progress []models.UserSkillNodeProgress
+	err := r.db.Preload("SkillNode").Where("user_id = ?", userID).Order("id ASC").Find(&progress).Error
+	return progress, err
+}
+
+func (r *UserSkillNodeProgressRepository) FindByUserAndSkillNode(userID, skillNodeID uint) (*models.UserSkillNodeProgress, error) {
+	var progress models.UserSkillNodeProgress
+	err := r.db.Preload("SkillNode").Where("user_id = ? AND skill_node_id = ?", userID, skillNodeID).First(&progress).Error
+	if err != nil {
+		return nil, err
+	}
+	return &progress, nil
+}
+
+func (r *UserSkillNodeProgressRepository) Delete(userID, skillNodeID uint) error {
+	return r.db.Where("user_id = ? AND skill_node_id = ?", userID, skillNodeID).Delete(&models.UserSkillNodeProgress{}).Error
+}

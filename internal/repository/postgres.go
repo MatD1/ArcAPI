@@ -35,11 +35,14 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		&models.User{},
 		&models.APIKey{},
 		&models.JWTToken{},
-		&models.Mission{},
+		&models.Quest{},
 		&models.Item{},
 		&models.SkillNode{},
 		&models.HideoutModule{},
 		&models.AuditLog{},
+		&models.UserQuestProgress{},
+		&models.UserHideoutModuleProgress{},
+		&models.UserSkillNodeProgress{},
 	)
 	if err != nil {
 		return nil, err

@@ -46,6 +46,9 @@ func main() {
 	skillNodeRepo := repository.NewSkillNodeRepository(db)
 	hideoutModuleRepo := repository.NewHideoutModuleRepository(db)
 	auditLogRepo := repository.NewAuditLogRepository(db)
+	questProgressRepo := repository.NewUserQuestProgressRepository(db)
+	hideoutModuleProgressRepo := repository.NewUserHideoutModuleProgressRepository(db)
+	skillNodeProgressRepo := repository.NewUserSkillNodeProgressRepository(db)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, apiKeyRepo, jwtTokenRepo, cacheService, cfg)
@@ -81,6 +84,11 @@ func main() {
 		userRepo,
 	)
 	syncHandler := handlers.NewSyncHandler(syncService)
+	progressHandler := handlers.NewProgressHandler(
+		questProgressRepo,
+		hideoutModuleProgressRepo,
+		skillNodeProgressRepo,
+	)
 
 	// Setup router
 	if cfg.LogLevel == "debug" {
@@ -129,6 +137,23 @@ func main() {
 			// Hideout Modules - Read
 			readOnly.GET("/hideout-modules", hideoutModuleHandler.List)
 			readOnly.GET("/hideout-modules/:id", hideoutModuleHandler.Get)
+		}
+
+		// Progress routes (basic users can read and update their own progress)
+		progress := api.Group("/progress")
+		progress.Use(middleware.ProgressAuthMiddleware(authService))
+		{
+			// Quest Progress
+			progress.GET("/quests", progressHandler.GetMyQuestProgress)
+			progress.PUT("/quests/:quest_id", progressHandler.UpdateQuestProgress)
+
+			// Hideout Module Progress
+			progress.GET("/hideout-modules", progressHandler.GetMyHideoutModuleProgress)
+			progress.PUT("/hideout-modules/:module_id", progressHandler.UpdateHideoutModuleProgress)
+
+			// Skill Node Progress
+			progress.GET("/skill-nodes", progressHandler.GetMySkillNodeProgress)
+			progress.PUT("/skill-nodes/:skill_node_id", progressHandler.UpdateSkillNodeProgress)
 		}
 
 		// Write routes (require API key + JWT for regular users, or JWT only for admins)
