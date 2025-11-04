@@ -3,8 +3,10 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +36,20 @@ type OAuthTokenData struct {
 	APIKey    string
 	CreatedAt time.Time
 }
+
+// OAuthState represents the state passed through OAuth flow
+type OAuthState struct {
+	Redirect  string    `json:"redirect"`   // Deep link URL for mobile, or web callback
+	Client    string    `json:"client"`     // "mobile" or "web"
+	CSRFToken string    `json:"csrf_token"` // CSRF protection token
+	Timestamp time.Time `json:"timestamp"`  // State creation time
+}
+
+const (
+	ClientMobile = "mobile"
+	ClientWeb    = "web"
+	StateExpiry  = 10 * time.Minute
+)
 
 func NewAuthHandler(
 	authService *services.AuthService,
@@ -88,6 +104,80 @@ func (h *AuthHandler) generateTempToken() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
+// generateCSRFToken generates a random CSRF token
+func (h *AuthHandler) generateCSRFToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
+
+// encodeState encodes OAuthState to base64 URL-encoded string
+func encodeState(state *OAuthState) (string, error) {
+	data, err := json.Marshal(state)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal state: %w", err)
+	}
+	return base64.URLEncoding.EncodeToString(data), nil
+}
+
+// decodeState decodes base64 URL-encoded string to OAuthState
+func decodeState(encoded string) (*OAuthState, error) {
+	data, err := base64.URLEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode state: %w", err)
+	}
+
+	var state OAuthState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal state: %w", err)
+	}
+
+	return &state, nil
+}
+
+// validateRedirectURL validates that the redirect URL is safe
+// For mobile: must start with "arctracker://"
+// For web: must be http(s) URL
+func validateRedirectURL(redirectURL, client string) error {
+	if redirectURL == "" {
+		return fmt.Errorf("redirect URL is required")
+	}
+
+	parsed, err := url.Parse(redirectURL)
+	if err != nil {
+		return fmt.Errorf("invalid redirect URL: %w", err)
+	}
+
+	if client == ClientMobile {
+		// Mobile deep link must start with arctracker://
+		if parsed.Scheme != "arctracker" {
+			return fmt.Errorf("mobile redirect URL must use arctracker:// scheme, got: %s", parsed.Scheme)
+		}
+	} else {
+		// Web redirect must be http or https
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("web redirect URL must use http:// or https:// scheme, got: %s", parsed.Scheme)
+		}
+	}
+
+	return nil
+}
+
+// validateState validates state expiration and CSRF token
+func validateState(state *OAuthState) error {
+	// Check expiration
+	if time.Since(state.Timestamp) > StateExpiry {
+		return fmt.Errorf("state expired")
+	}
+
+	// CSRF token should not be empty
+	if state.CSRFToken == "" {
+		return fmt.Errorf("missing CSRF token")
+	}
+
+	return nil
+}
+
 // ExchangeTempToken exchanges a temporary token for actual auth data
 func (h *AuthHandler) ExchangeTempToken(c *gin.Context) {
 	tempToken := c.Query("token")
@@ -129,9 +219,9 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 		return
 	}
 
-	// Build redirect URL from request if not set in config
-	redirectURL := h.cfg.OAuthRedirectURL
-	if redirectURL == "" || strings.Contains(redirectURL, "localhost") {
+	// Build OAuth callback URL from request if not set in config
+	oauthCallbackURL := h.cfg.OAuthRedirectURL
+	if oauthCallbackURL == "" || strings.Contains(oauthCallbackURL, "localhost") {
 		scheme := "https"
 		// Check X-Forwarded-Proto header first (for proxies like Railway)
 		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
@@ -143,35 +233,77 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 		if host == "" {
 			host = c.Request.Host
 		}
-		redirectURL = fmt.Sprintf("%s://%s/api/v1/auth/github/callback", scheme, host)
+		oauthCallbackURL = fmt.Sprintf("%s://%s/api/v1/auth/github/callback", scheme, host)
 	}
 
 	// Update OAuth config with dynamic redirect URL
 	oauthConfig := *h.oauthConfig
-	oauthConfig.RedirectURL = redirectURL
+	oauthConfig.RedirectURL = oauthCallbackURL
 
-	// Optional deep-link redirect (e.g., flutter app scheme)
-	// Accept a `redirect` query param and stuff it into the OAuth state
-	// State format: base64url("key=value"), currently supports redirect=<url>
-	state := c.Query("state")
+	// Extract redirect and client parameters from query
 	redirectParam := strings.TrimSpace(c.Query("redirect"))
+	clientParam := strings.TrimSpace(c.Query("client"))
 
-	// Very light validation: allow http(s) or custom scheme ending with "://"
-	// Admins should set allowed schemes via proxy/firewall if needed
-	if redirectParam != "" {
-		// Encode into state to avoid leaking in provider redirects
-		enc := base64.URLEncoding.EncodeToString([]byte("redirect=" + redirectParam))
-		if state == "" {
-			state = enc
-		} else {
-			state = state + ":" + enc
+	// Default to web if client not specified
+	if clientParam == "" {
+		clientParam = ClientWeb
+	}
+
+	var state *OAuthState
+	var stateString string
+
+	// If mobile client with redirect, create state with mobile deep link
+	if clientParam == ClientMobile && redirectParam != "" {
+		// Validate mobile redirect URL
+		if err := validateRedirectURL(redirectParam, ClientMobile); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid redirect URL: %v", err)})
+			return
 		}
-	}
-	if state == "" {
-		state = "random-state"
+
+		state = &OAuthState{
+			Redirect:  redirectParam,
+			Client:    ClientMobile,
+			CSRFToken: h.generateCSRFToken(),
+			Timestamp: time.Now(),
+		}
+	} else if clientParam == ClientWeb {
+		// For web, use default frontend callback URL
+		webCallbackURL := h.cfg.FrontendCallbackURL
+		if webCallbackURL == "" || strings.Contains(webCallbackURL, "localhost") {
+			scheme := "https"
+			if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+				scheme = proto
+			} else if c.Request.TLS == nil {
+				scheme = "http"
+			}
+			host := c.GetHeader("X-Forwarded-Host")
+			if host == "" {
+				host = c.Request.Host
+			}
+			webCallbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/github/callback/", scheme, host)
+		}
+
+		state = &OAuthState{
+			Redirect:  webCallbackURL,
+			Client:    ClientWeb,
+			CSRFToken: h.generateCSRFToken(),
+			Timestamp: time.Now(),
+		}
+	} else {
+		// Invalid client type
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid client type: %s. Must be 'mobile' or 'web'", clientParam)})
+		return
 	}
 
-	url := oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOnline)
+	// Encode state
+	var err error
+	stateString, err = encodeState(state)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode state"})
+		return
+	}
+
+	url := oauthConfig.AuthCodeURL(stateString, oauth2.AccessTypeOnline)
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -278,46 +410,58 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	}
 	h.tempTokensMu.Unlock()
 
-	// Determine callback destination: prefer deep-link from state, else frontend callback
-	callbackURL := ""
+	// Decode and validate state from OAuth callback
+	stateParam := c.Query("state")
+	if stateParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing state parameter"})
+		return
+	}
 
-	// Parse optional redirect from state
-	if st := c.Query("state"); st != "" {
-		// State may include multiple base64url segments separated by ':'
-		parts := strings.Split(st, ":")
-		for _, p := range parts {
-			if dec, err := base64.URLEncoding.DecodeString(p); err == nil {
-				kv := string(dec)
-				if strings.HasPrefix(kv, "redirect=") {
-					val := strings.TrimPrefix(kv, "redirect=")
-					// Allow custom schemes or http(s)
-					if val != "" {
-						callbackURL = val
-						break
-					}
+	state, err := decodeState(stateParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid state: %v", err)})
+		return
+	}
+
+	// Validate state expiration and CSRF token
+	if err := validateState(state); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("State validation failed: %v", err)})
+		return
+	}
+
+	// Determine callback destination based on client type
+	var callbackURL string
+
+	if state.Client == ClientMobile {
+		// Mobile: redirect to deep link URL
+		callbackURL = state.Redirect
+		// Validate redirect URL one more time for safety
+		if err := validateRedirectURL(callbackURL, ClientMobile); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid redirect URL: %v", err)})
+			return
+		}
+	} else {
+		// Web: use state redirect (which should be the frontend callback URL)
+		callbackURL = state.Redirect
+		// Fallback to default if somehow empty
+		if callbackURL == "" {
+			callbackURL = h.cfg.FrontendCallbackURL
+			if callbackURL == "" || strings.Contains(callbackURL, "localhost") {
+				scheme := "https"
+				if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+					scheme = proto
+				} else if c.Request.TLS == nil {
+					scheme = "http"
 				}
+				host := c.GetHeader("X-Forwarded-Host")
+				if host == "" {
+					host = c.Request.Host
+				}
+				callbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/github/callback/", scheme, host)
 			}
 		}
 	}
 
-	// If no deep-link redirect provided, fall back to web callback
-	if callbackURL == "" {
-		callbackURL = h.cfg.FrontendCallbackURL
-		if callbackURL == "" || strings.Contains(callbackURL, "localhost") {
-			scheme := "https"
-			// Check X-Forwarded-Proto header first (for proxies like Railway)
-			if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
-				scheme = proto
-			} else if c.Request.TLS == nil {
-				scheme = "http"
-			}
-			host := c.GetHeader("X-Forwarded-Host")
-			if host == "" {
-				host = c.Request.Host
-			}
-			callbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/github/callback/", scheme, host)
-		}
-	}
 	// Append token appropriately
 	sep := "?"
 	if strings.Contains(callbackURL, "?") {
