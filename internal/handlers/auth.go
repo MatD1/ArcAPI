@@ -150,9 +150,25 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	oauthConfig := *h.oauthConfig
 	oauthConfig.RedirectURL = redirectURL
 
+	// Optional deep-link redirect (e.g., flutter app scheme)
+	// Accept a `redirect` query param and stuff it into the OAuth state
+	// State format: base64url("key=value"), currently supports redirect=<url>
 	state := c.Query("state")
+	redirectParam := strings.TrimSpace(c.Query("redirect"))
+
+	// Very light validation: allow http(s) or custom scheme ending with "://"
+	// Admins should set allowed schemes via proxy/firewall if needed
+	if redirectParam != "" {
+		// Encode into state to avoid leaking in provider redirects
+		enc := base64.URLEncoding.EncodeToString([]byte("redirect=" + redirectParam))
+		if state == "" {
+			state = enc
+		} else {
+			state = state + ":" + enc
+		}
+	}
 	if state == "" {
-		state = "random-state" // In production, generate secure random state
+		state = "random-state"
 	}
 
 	url := oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOnline)
@@ -262,24 +278,52 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	}
 	h.tempTokensMu.Unlock()
 
-	// Redirect to frontend callback with temp token
-	// Build callback URL from request if not set in config
-	callbackURL := h.cfg.FrontendCallbackURL
-	if callbackURL == "" || strings.Contains(callbackURL, "localhost") {
-		scheme := "https"
-		// Check X-Forwarded-Proto header first (for proxies like Railway)
-		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
-			scheme = proto
-		} else if c.Request.TLS == nil {
-			scheme = "http"
+	// Determine callback destination: prefer deep-link from state, else frontend callback
+	callbackURL := ""
+
+	// Parse optional redirect from state
+	if st := c.Query("state"); st != "" {
+		// State may include multiple base64url segments separated by ':'
+		parts := strings.Split(st, ":")
+		for _, p := range parts {
+			if dec, err := base64.URLEncoding.DecodeString(p); err == nil {
+				kv := string(dec)
+				if strings.HasPrefix(kv, "redirect=") {
+					val := strings.TrimPrefix(kv, "redirect=")
+					// Allow custom schemes or http(s)
+					if val != "" {
+						callbackURL = val
+						break
+					}
+				}
+			}
 		}
-		host := c.GetHeader("X-Forwarded-Host")
-		if host == "" {
-			host = c.Request.Host
-		}
-		callbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/github/callback/", scheme, host)
 	}
-	c.Redirect(http.StatusFound, callbackURL+"?token="+tempToken)
+
+	// If no deep-link redirect provided, fall back to web callback
+	if callbackURL == "" {
+		callbackURL = h.cfg.FrontendCallbackURL
+		if callbackURL == "" || strings.Contains(callbackURL, "localhost") {
+			scheme := "https"
+			// Check X-Forwarded-Proto header first (for proxies like Railway)
+			if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+				scheme = proto
+			} else if c.Request.TLS == nil {
+				scheme = "http"
+			}
+			host := c.GetHeader("X-Forwarded-Host")
+			if host == "" {
+				host = c.Request.Host
+			}
+			callbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/github/callback/", scheme, host)
+		}
+	}
+	// Append token appropriately
+	sep := "?"
+	if strings.Contains(callbackURL, "?") {
+		sep = "&"
+	}
+	c.Redirect(http.StatusFound, callbackURL+sep+"token="+tempToken)
 }
 
 // LoginWithAPIKey authenticates with API key and returns JWT
