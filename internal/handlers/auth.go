@@ -469,16 +469,37 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	if state.Client == ClientMobile {
 		log.Printf("[OAuth Callback] Processing mobile client callback")
-		// Mobile: redirect to deep link URL
-		callbackURL = state.Redirect
-		log.Printf("[OAuth Callback] Mobile redirect URL from state: %s", callbackURL)
+		// Mobile: redirect to web page first, which will then redirect to deep link
+		deepLinkURL := state.Redirect
+		log.Printf("[OAuth Callback] Mobile deep link URL from state: %s", deepLinkURL)
 		// Validate redirect URL one more time for safety
-		if err := validateRedirectURL(callbackURL, ClientMobile); err != nil {
+		if err := validateRedirectURL(deepLinkURL, ClientMobile); err != nil {
 			log.Printf("[OAuth Callback] ERROR: Invalid redirect URL: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid redirect URL: %v", err)})
 			return
 		}
-		log.Printf("[OAuth Callback] Mobile redirect URL validated successfully")
+		log.Printf("[OAuth Callback] Mobile deep link URL validated successfully")
+
+		// Build web callback URL that will redirect to the deep link
+		scheme := "https"
+		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+			scheme = proto
+		} else if c.Request.TLS == nil {
+			scheme = "http"
+		}
+		host := c.GetHeader("X-Forwarded-Host")
+		if host == "" {
+			host = c.Request.Host
+		}
+		callbackURL = fmt.Sprintf("%s://%s/auth/mobile-callback?token=%s&redirect=%s",
+			scheme,
+			host,
+			url.QueryEscape(tempToken),
+			url.QueryEscape(deepLinkURL),
+		)
+		log.Printf("[OAuth Callback] Redirecting mobile client to web callback page: %s", callbackURL)
+		c.Redirect(http.StatusFound, callbackURL)
+		return
 	} else {
 		log.Printf("[OAuth Callback] Processing web client callback")
 		// Web: use state redirect (which should be the frontend callback URL)
@@ -513,6 +534,63 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	finalRedirectURL := callbackURL + sep + "token=" + tempToken
 	log.Printf("[OAuth Callback] Final redirect URL: %s", finalRedirectURL)
 	c.Redirect(http.StatusFound, finalRedirectURL)
+}
+
+// MobileCallbackPage handles the web page that redirects mobile clients to deep links
+func (h *AuthHandler) MobileCallbackPage(c *gin.Context) {
+	token := c.Query("token")
+	redirect := c.Query("redirect")
+
+	if token == "" {
+		log.Printf("[Mobile Callback Page] ERROR: Missing token parameter")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing token parameter"})
+		return
+	}
+
+	if redirect == "" {
+		redirect = "arcdb://auth/callback"
+		log.Printf("[Mobile Callback Page] No redirect provided, using default: %s", redirect)
+	}
+
+	// Validate redirect URL scheme
+	parsed, err := url.Parse(redirect)
+	if err != nil || parsed.Scheme != "arcdb" {
+		log.Printf("[Mobile Callback Page] ERROR: Invalid redirect URL: %s", redirect)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid redirect URL"})
+		return
+	}
+
+	log.Printf("[Mobile Callback Page] Rendering redirect page - redirect: %s, token length: %d", redirect, len(token))
+
+	// Build deep link with token
+	deepLink := fmt.Sprintf("%s?token=%s", redirect, url.QueryEscape(token))
+
+	// Render HTML page that redirects to deep link
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Redirecting...</title>
+    <script>
+        (function() {
+            const deepLink = %q;
+            // Try to redirect immediately
+            window.location.href = deepLink;
+            // Fallback: if redirect doesn't work after 1 second, show message
+            setTimeout(function() {
+                document.body.innerHTML = '<div style="text-align: center; padding: 2rem;"><h2>Opening app...</h2><p>If the app doesn\'t open, <a href="' + deepLink + '">click here</a></p></div>';
+            }, 1000);
+        })();
+    </script>
+</head>
+<body style="font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: #fff;">
+    <p>Redirecting to app...</p>
+</body>
+</html>`, deepLink)
+
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
 // LoginWithAPIKey authenticates with API key and returns JWT

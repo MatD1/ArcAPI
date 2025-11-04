@@ -183,6 +183,9 @@ func main() {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 
+		// Mobile callback page (public route - redirects to deep link)
+		r.GET("/auth/mobile-callback", authHandler.MobileCallbackPage)
+
 		// Serve frontend static files
 		frontendDir := "./frontend/out"
 		if _, err := os.Stat(frontendDir); err == nil {
