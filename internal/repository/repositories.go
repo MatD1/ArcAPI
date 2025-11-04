@@ -84,12 +84,6 @@ func (r *APIKeyRepository) FindByUserID(userID uint) ([]models.APIKey, error) {
 	return keys, err
 }
 
-func (r *APIKeyRepository) FindAll() ([]models.APIKey, error) {
-	var keys []models.APIKey
-	err := r.db.Preload("User").Find(&keys).Error
-	return keys, err
-}
-
 func (r *APIKeyRepository) Revoke(id uint) error {
 	return r.db.Model(&models.APIKey{}).Where("id = ?", id).Update("revoked_at", gorm.Expr("NOW()")).Error
 }
