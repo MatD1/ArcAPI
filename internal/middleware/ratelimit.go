@@ -29,8 +29,8 @@ func RateLimitMiddleware(cacheService *services.CacheService) gin.HandlerFunc {
 		}
 
 		// Rate limit: 5 requests per 15 seconds
-		limit := 10
-		window := 20 * time.Second
+		limit := 20
+		window := 35 * time.Second
 		key := "rate_limit:" + identifier
 
 		if cacheService != nil {
