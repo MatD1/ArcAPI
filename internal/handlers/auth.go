@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -245,12 +244,9 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	redirectParam := strings.TrimSpace(c.Query("redirect"))
 	clientParam := strings.TrimSpace(c.Query("client"))
 
-	log.Printf("[OAuth Login] Received parameters - redirect: %q, client: %q", redirectParam, clientParam)
-
 	// Default to web if client not specified
 	if clientParam == "" {
 		clientParam = ClientWeb
-		log.Printf("[OAuth Login] No client specified, defaulting to: %s", clientParam)
 	}
 
 	var state *OAuthState
@@ -259,14 +255,11 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	// If mobile client with redirect, create state with mobile deep link
 	if clientParam == ClientMobile {
 		if redirectParam == "" {
-			log.Printf("[OAuth Login] ERROR: Mobile client requires redirect parameter")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Mobile client requires redirect parameter"})
 			return
 		}
-		log.Printf("[OAuth Login] Processing mobile client with redirect: %s", redirectParam)
 		// Validate mobile redirect URL
 		if err := validateRedirectURL(redirectParam, ClientMobile); err != nil {
-			log.Printf("[OAuth Login] Invalid redirect URL: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid redirect URL: %v", err)})
 			return
 		}
@@ -277,7 +270,6 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 			CSRFToken: h.generateCSRFToken(),
 			Timestamp: time.Now(),
 		}
-		log.Printf("[OAuth Login] Created mobile state - redirect: %s, client: %s", state.Redirect, state.Client)
 	} else if clientParam == ClientWeb {
 		// For web, use default frontend callback URL
 		webCallbackURL := h.cfg.FrontendCallbackURL
@@ -311,14 +303,11 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	var err error
 	stateString, err = encodeState(state)
 	if err != nil {
-		log.Printf("[OAuth Login] ERROR: Failed to encode state: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode state"})
 		return
 	}
 
-	log.Printf("[OAuth Login] Encoded state (length: %d), redirecting to GitHub OAuth", len(stateString))
 	url := oauthConfig.AuthCodeURL(stateString, oauth2.AccessTypeOnline)
-	log.Printf("[OAuth Login] GitHub OAuth URL generated, redirecting...")
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -373,16 +362,10 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	// Decode state to check if user was created via mobile app
 	var createdViaApp bool
 	stateParam := c.Query("state")
-	log.Printf("[OAuth Callback] Received state parameter (length: %d) from query", len(stateParam))
 	if stateParam != "" {
 		if state, err := decodeState(stateParam); err == nil {
 			createdViaApp = (state.Client == ClientMobile)
-			log.Printf("[OAuth Callback] Early state decode - client: %s, createdViaApp: %v", state.Client, createdViaApp)
-		} else {
-			log.Printf("[OAuth Callback] Warning: Failed to decode state early (non-fatal): %v", err)
 		}
-	} else {
-		log.Printf("[OAuth Callback] Warning: No state parameter in early check")
 	}
 
 	// Create or update user
@@ -442,24 +425,18 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	// Decode and validate state from OAuth callback (we already decoded it earlier, but need to validate)
 	if stateParam == "" {
-		log.Printf("[OAuth Callback] ERROR: Missing state parameter")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing state parameter"})
 		return
 	}
 
-	log.Printf("[OAuth Callback] Decoding state parameter (length: %d)", len(stateParam))
 	state, err := decodeState(stateParam)
 	if err != nil {
-		log.Printf("[OAuth Callback] ERROR: Failed to decode state: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid state: %v", err)})
 		return
 	}
 
-	log.Printf("[OAuth Callback] Decoded state - redirect: %s, client: %s", state.Redirect, state.Client)
-
 	// Validate state expiration and CSRF token
 	if err := validateState(state); err != nil {
-		log.Printf("[OAuth Callback] ERROR: State validation failed: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("State validation failed: %v", err)})
 		return
 	}
@@ -468,17 +445,13 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	var callbackURL string
 
 	if state.Client == ClientMobile {
-		log.Printf("[OAuth Callback] Processing mobile client callback")
 		// Mobile: redirect to web page first, which will then redirect to deep link
 		deepLinkURL := state.Redirect
-		log.Printf("[OAuth Callback] Mobile deep link URL from state: %s", deepLinkURL)
 		// Validate redirect URL one more time for safety
 		if err := validateRedirectURL(deepLinkURL, ClientMobile); err != nil {
-			log.Printf("[OAuth Callback] ERROR: Invalid redirect URL: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid redirect URL: %v", err)})
 			return
 		}
-		log.Printf("[OAuth Callback] Mobile deep link URL validated successfully")
 
 		// Build web callback URL that will redirect to the deep link
 		scheme := "https"
@@ -497,17 +470,13 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 			url.QueryEscape(tempToken),
 			url.QueryEscape(deepLinkURL),
 		)
-		log.Printf("[OAuth Callback] Redirecting mobile client to web callback page: %s", callbackURL)
 		c.Redirect(http.StatusFound, callbackURL)
 		return
 	} else {
-		log.Printf("[OAuth Callback] Processing web client callback")
 		// Web: use state redirect (which should be the frontend callback URL)
 		callbackURL = state.Redirect
-		log.Printf("[OAuth Callback] Web redirect URL from state: %s", callbackURL)
 		// Fallback to default if somehow empty
 		if callbackURL == "" {
-			log.Printf("[OAuth Callback] Web redirect URL is empty, using fallback")
 			callbackURL = h.cfg.FrontendCallbackURL
 			if callbackURL == "" || strings.Contains(callbackURL, "localhost") {
 				scheme := "https"
@@ -522,7 +491,6 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 				}
 				callbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/github/callback/", scheme, host)
 			}
-			log.Printf("[OAuth Callback] Using fallback web redirect URL: %s", callbackURL)
 		}
 	}
 
@@ -532,7 +500,6 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		sep = "&"
 	}
 	finalRedirectURL := callbackURL + sep + "token=" + tempToken
-	log.Printf("[OAuth Callback] Final redirect URL: %s", finalRedirectURL)
 	c.Redirect(http.StatusFound, finalRedirectURL)
 }
 
@@ -542,25 +509,20 @@ func (h *AuthHandler) MobileCallbackPage(c *gin.Context) {
 	redirect := c.Query("redirect")
 
 	if token == "" {
-		log.Printf("[Mobile Callback Page] ERROR: Missing token parameter")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing token parameter"})
 		return
 	}
 
 	if redirect == "" {
 		redirect = "arcdb://auth/callback"
-		log.Printf("[Mobile Callback Page] No redirect provided, using default: %s", redirect)
 	}
 
 	// Validate redirect URL scheme
 	parsed, err := url.Parse(redirect)
 	if err != nil || parsed.Scheme != "arcdb" {
-		log.Printf("[Mobile Callback Page] ERROR: Invalid redirect URL: %s", redirect)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid redirect URL"})
 		return
 	}
-
-	log.Printf("[Mobile Callback Page] Rendering redirect page - redirect: %s, token length: %d", redirect, len(token))
 
 	// Build deep link with token
 	deepLink := fmt.Sprintf("%s?token=%s", redirect, url.QueryEscape(token))
