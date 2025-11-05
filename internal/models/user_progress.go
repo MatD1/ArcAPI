@@ -47,6 +47,7 @@ type UserSkillNodeProgress struct {
 	UserID      uint      `gorm:"uniqueIndex:idx_user_skill_node;not null" json:"user_id"`
 	SkillNodeID uint      `gorm:"uniqueIndex:idx_user_skill_node;not null" json:"skill_node_id"`
 	Unlocked    bool      `gorm:"default:false;not null" json:"unlocked"`
+	Level       int       `gorm:"default:0;not null" json:"level"` // Current level (0 if not unlocked)
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 

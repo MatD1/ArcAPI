@@ -415,12 +415,14 @@ Authorization: Bearer <jwt-token>
       "user_id": 1,
       "skill_node_id": 10,
       "unlocked": true,
+      "level": 3,
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
       "skill_node": {
         "id": 10,
         "external_id": "skill_010",
         "name": "Skill Node Name",
+        "max_points": 5,
         ...
       }
     }
@@ -431,7 +433,7 @@ Authorization: Bearer <jwt-token>
 ##### 20. Update Skill Node Progress
 **Endpoint:** `PUT /progress/skill-nodes/:skill_node_id`
 
-**Description:** Updates skill node unlock status for the authenticated user.
+**Description:** Updates skill node progress (unlock status and level) for the authenticated user.
 
 **Path Parameters:**
 - `skill_node_id`: Skill node external_id (e.g., "skill_001", not the internal database ID)
@@ -439,7 +441,8 @@ Authorization: Bearer <jwt-token>
 **Request Body:**
 ```json
 {
-  "unlocked": true
+  "unlocked": true,
+  "level": 3
 }
 ```
 
@@ -450,6 +453,7 @@ Authorization: Bearer <jwt-token>
   "user_id": 1,
   "skill_node_id": 10,
   "unlocked": true,
+  "level": 3,
   "created_at": "2024-01-01T00:00:00Z",
   "updated_at": "2024-01-01T00:00:00Z"
 }
@@ -462,9 +466,12 @@ Content-Type: application/json
 Authorization: Bearer <jwt-token>
 
 {
-  "unlocked": true
+  "unlocked": true,
+  "level": 3
 }
 ```
+
+**Note:** Skill nodes can have multiple levels. Set `unlocked` to `true` and specify the `level` (0-based or 1-based depending on your game logic).
 
 ---
 

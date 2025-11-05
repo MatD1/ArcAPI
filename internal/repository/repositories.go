@@ -587,7 +587,7 @@ func NewUserSkillNodeProgressRepository(db *DB) *UserSkillNodeProgressRepository
 	return &UserSkillNodeProgressRepository{db: db}
 }
 
-func (r *UserSkillNodeProgressRepository) Upsert(userID, skillNodeID uint, unlocked bool) (*models.UserSkillNodeProgress, error) {
+func (r *UserSkillNodeProgressRepository) Upsert(userID, skillNodeID uint, unlocked bool, level int) (*models.UserSkillNodeProgress, error) {
 	var progress models.UserSkillNodeProgress
 	err := r.db.Where("user_id = ? AND skill_node_id = ?", userID, skillNodeID).First(&progress).Error
 
@@ -597,6 +597,7 @@ func (r *UserSkillNodeProgressRepository) Upsert(userID, skillNodeID uint, unloc
 			UserID:      userID,
 			SkillNodeID: skillNodeID,
 			Unlocked:    unlocked,
+			Level:       level,
 		}
 		err = r.db.Create(&progress).Error
 		return &progress, err
@@ -606,6 +607,7 @@ func (r *UserSkillNodeProgressRepository) Upsert(userID, skillNodeID uint, unloc
 
 	// Update existing
 	progress.Unlocked = unlocked
+	progress.Level = level
 	err = r.db.Save(&progress).Error
 	return &progress, err
 }

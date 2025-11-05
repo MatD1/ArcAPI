@@ -196,7 +196,8 @@ func (h *ProgressHandler) UpdateSkillNodeProgress(c *gin.Context) {
 	}
 
 	var req struct {
-		Unlocked bool `json:"unlocked" binding:"required"`
+		Unlocked bool `json:"unlocked"`
+		Level    int  `json:"level"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -204,7 +205,7 @@ func (h *ProgressHandler) UpdateSkillNodeProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := h.skillNodeProgressRepo.Upsert(userModel.ID, skillNode.ID, req.Unlocked)
+	progress, err := h.skillNodeProgressRepo.Upsert(userModel.ID, skillNode.ID, req.Unlocked, req.Level)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update skill node progress"})
 		return

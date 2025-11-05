@@ -12,7 +12,7 @@ type SkillNode struct {
 	ImpactedSkill       string    `json:"impacted_skill,omitempty"`
 	KnownValue          JSONB     `gorm:"type:jsonb" json:"known_value,omitempty"` // Array
 	Category            string    `json:"category,omitempty"`
-	MaxPoints           int       `json:"max_points,omitempty"`
+	MaxPoints           int       `json:"max_points,omitempty"` // Maximum level/points for this skill node (from GitHub maxPoints)
 	IconName            string    `json:"icon_name,omitempty"`
 	IsMajor             bool      `json:"is_major,omitempty"`
 	Position            JSONB     `gorm:"type:jsonb" json:"position,omitempty"`              // {x, y}
