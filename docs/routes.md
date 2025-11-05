@@ -112,11 +112,7 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
 ##### 6. List Quests
 **Endpoint:** `GET /quests`
 
-**Description:** Returns a paginated list of all quests.
-
-**Query Parameters:**
-- `page` (optional): Page number (default: 1)
-- `limit` (optional): Items per page (default: 20, max: 100)
+**Description:** Returns all quests (no pagination).
 
 **Response:**
 ```json
@@ -137,11 +133,7 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
       "updated_at": "2024-01-01T00:00:00Z"
     }
   ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 100
-  }
+  "total": 100
 }
 ```
 

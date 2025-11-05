@@ -18,34 +18,16 @@ func NewQuestHandler(repo *repository.QuestRepository) *QuestHandler {
 }
 
 func (h *QuestHandler) List(c *gin.Context) {
-	page := 1
-	limit := 20
-
-	if p := c.Query("page"); p != "" {
-		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-	if l := c.Query("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
-			limit = parsed
-		}
-	}
-
-	offset := (page - 1) * limit
-	quests, count, err := h.repo.FindAll(offset, limit)
+	// Return all quests without pagination
+	quests, count, err := h.repo.FindAll(0, 1000000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch quests"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": quests,
-		"pagination": gin.H{
-			"page":  page,
-			"limit": limit,
-			"total": count,
-		},
+		"data":  quests,
+		"total": count,
 	})
 }
 
