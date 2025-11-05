@@ -304,7 +304,7 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
 **Description:** Updates quest completion status for the authenticated user.
 
 **Path Parameters:**
-- `quest_id`: Quest ID
+- `quest_id`: Quest external_id (e.g., "ss1", not the internal database ID)
 
 **Request Body:**
 ```json
@@ -322,6 +322,17 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
   "completed": true,
   "created_at": "2024-01-01T00:00:00Z",
   "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+**Example:**
+```
+PUT /api/v1/progress/quests/ss1
+Content-Type: application/json
+Authorization: Bearer <jwt-token>
+
+{
+  "completed": true
 }
 ```
 
@@ -361,7 +372,7 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
 **Description:** Updates hideout module progress (unlocked status and level) for the authenticated user.
 
 **Path Parameters:**
-- `module_id`: Hideout module ID
+- `module_id`: Hideout module external_id (e.g., "module_001", not the internal database ID)
 
 **Request Body:**
 ```json
@@ -381,6 +392,18 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
   "level": 5,
   "created_at": "2024-01-01T00:00:00Z",
   "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+**Example:**
+```
+PUT /api/v1/progress/hideout-modules/module_001
+Content-Type: application/json
+Authorization: Bearer <jwt-token>
+
+{
+  "unlocked": true,
+  "level": 5
 }
 ```
 
@@ -419,7 +442,7 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
 **Description:** Updates skill node unlock status for the authenticated user.
 
 **Path Parameters:**
-- `skill_node_id`: Skill node ID
+- `skill_node_id`: Skill node external_id (e.g., "skill_001", not the internal database ID)
 
 **Request Body:**
 ```json
@@ -437,6 +460,17 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
   "unlocked": true,
   "created_at": "2024-01-01T00:00:00Z",
   "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+**Example:**
+```
+PUT /api/v1/progress/skill-nodes/skill_001
+Content-Type: application/json
+Authorization: Bearer <jwt-token>
+
+{
+  "unlocked": true
 }
 ```
 

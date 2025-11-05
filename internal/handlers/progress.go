@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mat/arcapi/internal/models"
@@ -13,17 +12,26 @@ type ProgressHandler struct {
 	questProgressRepo         *repository.UserQuestProgressRepository
 	hideoutModuleProgressRepo *repository.UserHideoutModuleProgressRepository
 	skillNodeProgressRepo     *repository.UserSkillNodeProgressRepository
+	questRepo                 *repository.QuestRepository
+	hideoutModuleRepo         *repository.HideoutModuleRepository
+	skillNodeRepo             *repository.SkillNodeRepository
 }
 
 func NewProgressHandler(
 	questProgressRepo *repository.UserQuestProgressRepository,
 	hideoutModuleProgressRepo *repository.UserHideoutModuleProgressRepository,
 	skillNodeProgressRepo *repository.UserSkillNodeProgressRepository,
+	questRepo *repository.QuestRepository,
+	hideoutModuleRepo *repository.HideoutModuleRepository,
+	skillNodeRepo *repository.SkillNodeRepository,
 ) *ProgressHandler {
 	return &ProgressHandler{
 		questProgressRepo:         questProgressRepo,
 		hideoutModuleProgressRepo: hideoutModuleProgressRepo,
 		skillNodeProgressRepo:     skillNodeProgressRepo,
+		questRepo:                 questRepo,
+		hideoutModuleRepo:         hideoutModuleRepo,
+		skillNodeRepo:             skillNodeRepo,
 	}
 }
 
@@ -46,6 +54,7 @@ func (h *ProgressHandler) GetMyQuestProgress(c *gin.Context) {
 }
 
 // UpdateQuestProgress updates quest completion status for the current user
+// Accepts external_id (e.g., "ss1") instead of internal database ID
 func (h *ProgressHandler) UpdateQuestProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -54,10 +63,16 @@ func (h *ProgressHandler) UpdateQuestProgress(c *gin.Context) {
 	}
 	userModel := user.(*models.User)
 
-	questIDStr := c.Param("quest_id")
-	questID, err := strconv.ParseUint(questIDStr, 10, 32)
+	questExternalID := c.Param("quest_id")
+	if questExternalID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Quest external_id is required"})
+		return
+	}
+
+	// Look up quest by external_id
+	quest, err := h.questRepo.FindByExternalID(questExternalID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid quest ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Quest not found"})
 		return
 	}
 
@@ -70,7 +85,7 @@ func (h *ProgressHandler) UpdateQuestProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := h.questProgressRepo.Upsert(userModel.ID, uint(questID), req.Completed)
+	progress, err := h.questProgressRepo.Upsert(userModel.ID, quest.ID, req.Completed)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update quest progress"})
 		return
@@ -98,6 +113,7 @@ func (h *ProgressHandler) GetMyHideoutModuleProgress(c *gin.Context) {
 }
 
 // UpdateHideoutModuleProgress updates hideout module progress for the current user
+// Accepts external_id (e.g., "module_001") instead of internal database ID
 func (h *ProgressHandler) UpdateHideoutModuleProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -106,10 +122,16 @@ func (h *ProgressHandler) UpdateHideoutModuleProgress(c *gin.Context) {
 	}
 	userModel := user.(*models.User)
 
-	moduleIDStr := c.Param("module_id")
-	moduleID, err := strconv.ParseUint(moduleIDStr, 10, 32)
+	moduleExternalID := c.Param("module_id")
+	if moduleExternalID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Hideout module external_id is required"})
+		return
+	}
+
+	// Look up hideout module by external_id
+	module, err := h.hideoutModuleRepo.FindByExternalID(moduleExternalID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid hideout module ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Hideout module not found"})
 		return
 	}
 
@@ -123,7 +145,7 @@ func (h *ProgressHandler) UpdateHideoutModuleProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := h.hideoutModuleProgressRepo.Upsert(userModel.ID, uint(moduleID), req.Unlocked, req.Level)
+	progress, err := h.hideoutModuleProgressRepo.Upsert(userModel.ID, module.ID, req.Unlocked, req.Level)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update hideout module progress"})
 		return
@@ -151,6 +173,7 @@ func (h *ProgressHandler) GetMySkillNodeProgress(c *gin.Context) {
 }
 
 // UpdateSkillNodeProgress updates skill node progress for the current user
+// Accepts external_id (e.g., "skill_001") instead of internal database ID
 func (h *ProgressHandler) UpdateSkillNodeProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -159,10 +182,16 @@ func (h *ProgressHandler) UpdateSkillNodeProgress(c *gin.Context) {
 	}
 	userModel := user.(*models.User)
 
-	skillNodeIDStr := c.Param("skill_node_id")
-	skillNodeID, err := strconv.ParseUint(skillNodeIDStr, 10, 32)
+	skillNodeExternalID := c.Param("skill_node_id")
+	if skillNodeExternalID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Skill node external_id is required"})
+		return
+	}
+
+	// Look up skill node by external_id
+	skillNode, err := h.skillNodeRepo.FindByExternalID(skillNodeExternalID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid skill node ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Skill node not found"})
 		return
 	}
 
@@ -175,7 +204,7 @@ func (h *ProgressHandler) UpdateSkillNodeProgress(c *gin.Context) {
 		return
 	}
 
-	progress, err := h.skillNodeProgressRepo.Upsert(userModel.ID, uint(skillNodeID), req.Unlocked)
+	progress, err := h.skillNodeProgressRepo.Upsert(userModel.ID, skillNode.ID, req.Unlocked)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update skill node progress"})
 		return

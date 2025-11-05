@@ -88,6 +88,9 @@ func main() {
 		questProgressRepo,
 		hideoutModuleProgressRepo,
 		skillNodeProgressRepo,
+		questRepo,
+		hideoutModuleRepo,
+		skillNodeRepo,
 	)
 
 	// Setup router
