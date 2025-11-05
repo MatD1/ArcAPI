@@ -292,10 +292,21 @@ func (h *ManagementHandler) UpdateUserAccess(c *gin.Context) {
 		return
 	}
 
+	// Get current user from context
+	authCtx, _ := c.Get(middleware.AuthContextKey)
+	ctx := authCtx.(*middleware.AuthContext)
+	currentUser := ctx.User.(*models.User)
+
 	// Get target user
 	targetUser, err := h.userRepo.FindByID(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Security check: Only admins can update user access (enforced by AdminMiddleware, but double-check)
+	if currentUser.Role != models.RoleAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can update user access"})
 		return
 	}
 
@@ -349,12 +360,24 @@ func (h *ManagementHandler) ListUsers(c *gin.Context) {
 	})
 }
 
-// GetUser gets a user with their API keys and JWT tokens (admin only)
+// GetUser gets a user with their API keys and JWT tokens
+// Admins can view any user, regular users can only view themselves
 func (h *ManagementHandler) GetUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Get current user from context
+	authCtx, _ := c.Get(middleware.AuthContextKey)
+	ctx := authCtx.(*middleware.AuthContext)
+	currentUser := ctx.User.(*models.User)
+
+	// Security check: Users can only view their own data unless they're admin
+	if currentUser.Role != models.RoleAdmin && currentUser.ID != uint(id) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only view your own user data"})
 		return
 	}
 
@@ -392,6 +415,64 @@ func (h *ManagementHandler) GetUser(c *gin.Context) {
 		"user":       user,
 		"api_keys":   apiKeys,
 		"jwt_tokens": jwtTokens,
+	})
+}
+
+// UpdateUserProfile allows users to update their own profile (email, username)
+// Admins can update any user's profile
+func (h *ManagementHandler) UpdateUserProfile(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Get current user from context
+	authCtx, _ := c.Get(middleware.AuthContextKey)
+	ctx := authCtx.(*middleware.AuthContext)
+	currentUser := ctx.User.(*models.User)
+
+	// Security check: Users can only update their own profile unless they're admin
+	if currentUser.Role != models.RoleAdmin && currentUser.ID != uint(id) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own profile"})
+		return
+	}
+
+	var req struct {
+		Email    *string `json:"email"`
+		Username *string `json:"username"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get target user
+	targetUser, err := h.userRepo.FindByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Update only allowed fields (non-admin users cannot change sensitive fields)
+	if req.Email != nil {
+		targetUser.Email = *req.Email
+	}
+	if req.Username != nil {
+		targetUser.Username = *req.Username
+	}
+
+	err = h.userRepo.Update(targetUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User profile updated",
+		"user":    targetUser,
 	})
 }
 

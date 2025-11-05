@@ -104,11 +104,16 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 
+	// Security middleware (CORS, security headers)
+	r.Use(middleware.SecurityMiddleware())
+
 	// Logger middleware (must be before auth middleware to log all requests)
 	r.Use(middleware.LoggerMiddleware(auditLogRepo))
 
 	// Public routes
 	api := r.Group("/api/v1")
+	// Rate limiting middleware (applied to all API routes)
+	api.Use(middleware.RateLimitMiddleware(cacheService))
 	{
 		auth := api.Group("/auth")
 		{
@@ -205,6 +210,13 @@ func main() {
 				admin.PUT("/users/:id/access", managementHandler.UpdateUserAccess)
 				admin.DELETE("/users/:id", managementHandler.DeleteUser)
 				admin.POST("/hideout-modules/cleanup-duplicates", managementHandler.CleanupDuplicateHideoutModules)
+			}
+
+			// User profile routes (users can update their own profile, admins can update any)
+			userProfile := writeProtected.Group("/users")
+			userProfile.Use(middleware.JWTAuthMiddleware(authService)) // Require JWT (already checked in writeProtected, but explicit)
+			{
+				userProfile.PUT("/:id/profile", managementHandler.UpdateUserProfile)
 			}
 		}
 

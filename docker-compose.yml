@@ -45,8 +45,9 @@ services:
       DB_PASSWORD: postgres
       DB_NAME: arcapi
       DB_SSL_MODE: disable
-      REDIS_ADDR: redis:6379
-      REDIS_PASSWORD: ""
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: change-me-in-production-use-secure-random-key
       JWT_EXPIRY_HOURS: 72
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}

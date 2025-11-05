@@ -16,9 +16,10 @@ type Config struct {
 	DBName     string `envconfig:"DB_NAME" default:"arcapi"`
 	DBSSLMode  string `envconfig:"DB_SSL_MODE" default:"disable"`
 
-	// Redis
-	RedisAddr     string `envconfig:"REDIS_ADDR" default:"localhost:6379"`
-	RedisPassword string `envconfig:"REDIS_PASSWORD" default:""`
+	// Redis - supports both URL format (redis://password@host:port) or separate config
+	RedisURL      string `envconfig:"REDIS_URL" default:""`                // Single URL format: redis://password@host:port or redis://host:port
+	RedisAddr     string `envconfig:"REDIS_ADDR" default:"localhost:6379"` // Fallback if REDIS_URL not set
+	RedisPassword string `envconfig:"REDIS_PASSWORD" default:""`           // Fallback if REDIS_URL not set
 
 	// JWT
 	JWTSecret      string `envconfig:"JWT_SECRET" required:"true"`

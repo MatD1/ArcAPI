@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -16,11 +19,57 @@ type CacheService struct {
 }
 
 func NewCacheService(cfg *config.Config) (*CacheService, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisAddr,
-		Password: cfg.RedisPassword,
-		DB:       0,
-	})
+	var redisOpts *redis.Options
+
+	// Parse Redis URL if provided, otherwise use separate config
+	if cfg.RedisURL != "" {
+		parsedURL, err := url.Parse(cfg.RedisURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid Redis URL: %w", err)
+		}
+
+		// Extract password from URL if present (format: redis://password@host:port)
+		password := ""
+		if parsedURL.User != nil {
+			password, _ = parsedURL.User.Password()
+			if password == "" {
+				password = parsedURL.User.Username() // Sometimes password is provided as username
+			}
+		}
+
+		// Extract host and port
+		host := parsedURL.Hostname()
+		port := parsedURL.Port()
+		if port == "" {
+			port = "6379" // Default Redis port
+		}
+		addr := fmt.Sprintf("%s:%s", host, port)
+
+		redisOpts = &redis.Options{
+			Addr:     addr,
+			Password: password,
+			DB:       0,
+		}
+	} else {
+		// Fallback to separate config
+		redisOpts = &redis.Options{
+			Addr:     cfg.RedisAddr,
+			Password: cfg.RedisPassword,
+			DB:       0,
+		}
+	}
+
+	// Try to parse DB number from URL path if present (redis://host:port/0)
+	if cfg.RedisURL != "" {
+		parsedURL, _ := url.Parse(cfg.RedisURL)
+		if parsedURL != nil && parsedURL.Path != "" {
+			if dbNum, err := strconv.Atoi(strings.TrimPrefix(parsedURL.Path, "/")); err == nil {
+				redisOpts.DB = dbNum
+			}
+		}
+	}
+
+	client := redis.NewClient(redisOpts)
 
 	ctx := context.Background()
 	_, err := client.Ping(ctx).Result()
@@ -85,6 +134,16 @@ func (s *CacheService) DeletePattern(pattern string) error {
 
 func (s *CacheService) Close() error {
 	return s.client.Close()
+}
+
+// Client returns the underlying Redis client (for advanced operations like rate limiting)
+func (s *CacheService) Client() *redis.Client {
+	return s.client
+}
+
+// Context returns the context used by the cache service
+func (s *CacheService) Context() context.Context {
+	return s.ctx
 }
 
 // Cache key helpers
