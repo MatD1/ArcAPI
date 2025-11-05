@@ -379,13 +379,29 @@ func (r *HideoutModuleRepository) FindByExternalID(externalID string) (*models.H
 
 func (r *HideoutModuleRepository) FindAll(offset, limit int) ([]models.HideoutModule, int64, error) {
 	var hideoutModules []models.HideoutModule
-	var count int64
-	err := r.db.Model(&models.HideoutModule{}).Count(&count).Error
+
+	// Use DISTINCT ON to get unique records by external_id, keeping the one with lowest ID
+	// PostgreSQL syntax: SELECT DISTINCT ON (external_id) * FROM ... ORDER BY external_id, id ASC
+	// We use Raw() to execute the query, then scan into the model
+	err := r.db.Raw(`
+		SELECT DISTINCT ON (external_id) 
+			id, external_id, name, description, max_level, levels, data, synced_at, created_at, updated_at
+		FROM hideout_modules
+		ORDER BY external_id, id ASC
+		OFFSET ? LIMIT ?
+	`, offset, limit).Scan(&hideoutModules).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&hideoutModules).Error
-	return hideoutModules, count, err
+
+	// Count unique external_ids
+	var count int64
+	err = r.db.Raw(`SELECT COUNT(DISTINCT external_id) FROM hideout_modules`).Scan(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return hideoutModules, count, nil
 }
 
 func (r *HideoutModuleRepository) Update(hideoutModule *models.HideoutModule) error {
