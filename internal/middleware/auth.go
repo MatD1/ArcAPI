@@ -121,8 +121,9 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 	return WriteAuthMiddleware(authService)
 }
 
-// ProgressAuthMiddleware allows basic users to read and update their own progress
-// Admins can access any user's progress, basic users can only access their own
+// ProgressAuthMiddleware allows all authenticated users to read and update their own progress
+// Progress endpoints are always accessible regardless of can_access_data status
+// Users can only access/modify their own progress (handled by handlers using authenticated user ID)
 func ProgressAuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get JWT token from Authorization header
@@ -151,12 +152,8 @@ func ProgressAuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		// Check if user has access (admins always have access)
-		if user.Role != models.RoleAdmin && !user.CanAccessData {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied. Contact an administrator to enable data access."})
-			c.Abort()
-			return
-		}
+		// Progress endpoints are always accessible - no can_access_data check needed
+		// Users can only access/modify their own progress (handlers ensure this)
 
 		// Store auth context
 		c.Set(AuthContextKey, &AuthContext{

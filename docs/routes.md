@@ -255,11 +255,11 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
 
 ---
 
-### Progress Endpoints (Require JWT Token - Basic Users Can Update Own Progress)
+### Progress Endpoints (Require JWT Token - All Users Can Update Own Progress)
 
 **Authentication:** `Authorization: Bearer <jwt-token>`
 
-**Note:** All progress endpoints allow basic users to read and update their own progress. Admins can access any user's progress (future enhancement).
+**Note:** Progress endpoints are always accessible to all authenticated users, regardless of `can_access_data` status. Users can only read and update their own progress (handlers automatically use the authenticated user's ID). This allows users to track their game progress even if their API access is otherwise restricted.
 
 #### Quest Progress
 
@@ -788,7 +788,7 @@ Authorization: Bearer <jwt-token>
 
 ### Basic Users (role: "user")
 - ✅ Can read all data (if `can_access_data` is enabled)
-- ✅ Can read and update their own progress (quests, hideout modules, skill nodes)
+- ✅ Can read and update their own progress (quests, hideout modules, skill nodes) - **Always accessible, regardless of `can_access_data` status**
 - ❌ Cannot create, update, or delete game data (quests, items, skill nodes, hideout modules)
 - ❌ Cannot access admin endpoints
 
