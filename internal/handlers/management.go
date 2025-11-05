@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -12,11 +13,12 @@ import (
 )
 
 type ManagementHandler struct {
-	authService  *services.AuthService
-	apiKeyRepo   *repository.APIKeyRepository
-	jwtTokenRepo *repository.JWTTokenRepository
-	auditLogRepo *repository.AuditLogRepository
-	userRepo     *repository.UserRepository
+	authService       *services.AuthService
+	apiKeyRepo        *repository.APIKeyRepository
+	jwtTokenRepo      *repository.JWTTokenRepository
+	auditLogRepo      *repository.AuditLogRepository
+	userRepo          *repository.UserRepository
+	hideoutModuleRepo *repository.HideoutModuleRepository
 }
 
 func NewManagementHandler(
@@ -25,13 +27,15 @@ func NewManagementHandler(
 	jwtTokenRepo *repository.JWTTokenRepository,
 	auditLogRepo *repository.AuditLogRepository,
 	userRepo *repository.UserRepository,
+	hideoutModuleRepo *repository.HideoutModuleRepository,
 ) *ManagementHandler {
 	return &ManagementHandler{
-		authService:  authService,
-		apiKeyRepo:   apiKeyRepo,
-		jwtTokenRepo: jwtTokenRepo,
-		auditLogRepo: auditLogRepo,
-		userRepo:     userRepo,
+		authService:       authService,
+		apiKeyRepo:        apiKeyRepo,
+		jwtTokenRepo:      jwtTokenRepo,
+		auditLogRepo:      auditLogRepo,
+		userRepo:          userRepo,
+		hideoutModuleRepo: hideoutModuleRepo,
 	}
 }
 
@@ -425,4 +429,62 @@ func (h *ManagementHandler) DeleteUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}
+
+// CleanupDuplicateHideoutModules removes duplicate hideout modules, keeping the one with the lowest ID
+func (h *ManagementHandler) CleanupDuplicateHideoutModules(c *gin.Context) {
+	// Find all hideout modules (using a large limit to get all)
+	allModules, _, err := h.hideoutModuleRepo.FindAll(0, 1000000)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch hideout modules"})
+		return
+	}
+
+	// Group by external_id
+	externalIDMap := make(map[string][]models.HideoutModule)
+	for _, module := range allModules {
+		externalIDMap[module.ExternalID] = append(externalIDMap[module.ExternalID], module)
+	}
+
+	var deletedCount int
+	var keptCount int
+
+	// For each external_id with duplicates, keep the one with lowest ID and delete the rest
+	for _, modules := range externalIDMap {
+		if len(modules) > 1 {
+			// Find the one with lowest ID to keep
+			lowestID := modules[0].ID
+			lowestIndex := 0
+			for i, m := range modules {
+				if m.ID < lowestID {
+					lowestID = m.ID
+					lowestIndex = i
+				}
+			}
+
+			// Delete all except the one with lowest ID
+			for i, m := range modules {
+				if i != lowestIndex {
+					if err := h.hideoutModuleRepo.Delete(m.ID); err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{
+							"error": fmt.Sprintf("Failed to delete duplicate module %d: %v", m.ID, err),
+						})
+						return
+					}
+					deletedCount++
+				}
+			}
+			keptCount++
+		} else {
+			keptCount++
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Cleanup completed",
+		"deleted":      deletedCount,
+		"kept":         keptCount,
+		"total_before": len(allModules),
+		"total_after":  len(allModules) - deletedCount,
+	})
 }

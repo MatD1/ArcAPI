@@ -82,6 +82,7 @@ func main() {
 		jwtTokenRepo,
 		auditLogRepo,
 		userRepo,
+		hideoutModuleRepo,
 	)
 	syncHandler := handlers.NewSyncHandler(syncService)
 	progressHandler := handlers.NewProgressHandler(
@@ -203,6 +204,7 @@ func main() {
 				admin.GET("/users/:id", managementHandler.GetUser)
 				admin.PUT("/users/:id/access", managementHandler.UpdateUserAccess)
 				admin.DELETE("/users/:id", managementHandler.DeleteUser)
+				admin.POST("/hideout-modules/cleanup-duplicates", managementHandler.CleanupDuplicateHideoutModules)
 			}
 		}
 
