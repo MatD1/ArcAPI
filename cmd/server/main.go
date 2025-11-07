@@ -56,14 +56,34 @@ func main() {
 	authService := services.NewAuthService(userRepo, apiKeyRepo, jwtTokenRepo, cacheService, cfg)
 	userService := services.NewUserService(userRepo)
 
-	// Initialize sync service
-	syncService := services.NewSyncService(
-		questRepo,
-		itemRepo,
-		skillNodeRepo,
-		hideoutModuleRepo,
-		cfg,
-	)
+	// Initialize data cache service (only if cache is available)
+	var dataCacheService *services.DataCacheService
+	if cacheService != nil {
+		dataCacheService = services.NewDataCacheService(cacheService, itemRepo, questRepo)
+		dataCacheService.Start()
+		log.Println("Data cache service started - will refresh items and quests every 15 minutes")
+	}
+
+	// Initialize sync service (with cache service if available)
+	var syncService *services.SyncService
+	if dataCacheService != nil {
+		syncService = services.NewSyncServiceWithCache(
+			questRepo,
+			itemRepo,
+			skillNodeRepo,
+			hideoutModuleRepo,
+			dataCacheService,
+			cfg,
+		)
+	} else {
+		syncService = services.NewSyncService(
+			questRepo,
+			itemRepo,
+			skillNodeRepo,
+			hideoutModuleRepo,
+			cfg,
+		)
+	}
 
 	// Start sync service
 	if err := syncService.Start(); err != nil {
@@ -71,15 +91,40 @@ func main() {
 	}
 	defer syncService.Stop()
 
+	// Initialize traders service (only if cache is available)
+	var tradersService *services.TradersService
+	if cacheService != nil {
+		tradersService = services.NewTradersService(cacheService)
+		tradersService.Start()
+		log.Println("Traders service started - will refresh every 15 minutes")
+	}
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
-	questHandler := handlers.NewQuestHandler(questRepo)
+
+	// Use cache-enabled handlers if cache is available
+	var questHandler *handlers.QuestHandler
+	if dataCacheService != nil {
+		questHandler = handlers.NewQuestHandlerWithCache(questRepo, dataCacheService)
+	} else {
+		questHandler = handlers.NewQuestHandler(questRepo)
+	}
 	missionHandler := questHandler // Backward compatibility - uses questHandler internally
-	itemHandler := handlers.NewItemHandlerWithRepos(itemRepo, questRepo, hideoutModuleRepo)
+
+	var itemHandler *handlers.ItemHandler
+	if dataCacheService != nil {
+		itemHandler = handlers.NewItemHandlerWithCache(itemRepo, questRepo, hideoutModuleRepo, dataCacheService)
+	} else {
+		itemHandler = handlers.NewItemHandlerWithRepos(itemRepo, questRepo, hideoutModuleRepo)
+	}
 	skillNodeHandler := handlers.NewSkillNodeHandler(skillNodeRepo)
 	hideoutModuleHandler := handlers.NewHideoutModuleHandler(hideoutModuleRepo)
 	enemyTypeHandler := handlers.NewEnemyTypeHandler(enemyTypeRepo)
 	alertHandler := handlers.NewAlertHandler(alertRepo)
+	var tradersHandler *handlers.TradersHandler
+	if tradersService != nil {
+		tradersHandler = handlers.NewTradersHandler(tradersService)
+	}
 	managementHandler := handlers.NewManagementHandler(
 		authService,
 		apiKeyRepo,
@@ -162,6 +207,11 @@ func main() {
 			readOnly.GET("/alerts", alertHandler.List)
 			readOnly.GET("/alerts/active", alertHandler.GetActive) // For mobile apps to fetch active alerts
 			readOnly.GET("/alerts/:id", alertHandler.Get)
+
+			// Traders - Read (cached from external API)
+			if tradersHandler != nil {
+				readOnly.GET("/traders", tradersHandler.GetTraders)
+			}
 		}
 
 		// Progress routes (basic users can read and update their own progress)

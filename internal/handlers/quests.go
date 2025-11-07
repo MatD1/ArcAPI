@@ -7,19 +7,39 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/repository"
+	"github.com/mat/arcapi/internal/services"
 )
 
 type QuestHandler struct {
-	repo *repository.QuestRepository
+	repo             *repository.QuestRepository
+	dataCacheService *services.DataCacheService
 }
 
 func NewQuestHandler(repo *repository.QuestRepository) *QuestHandler {
 	return &QuestHandler{repo: repo}
 }
 
+func NewQuestHandlerWithCache(repo *repository.QuestRepository, dataCacheService *services.DataCacheService) *QuestHandler {
+	return &QuestHandler{
+		repo:             repo,
+		dataCacheService: dataCacheService,
+	}
+}
+
 func (h *QuestHandler) List(c *gin.Context) {
 	// Return all quests without pagination
-	quests, count, err := h.repo.FindAll(0, 1000000)
+	var quests []models.Quest
+	var count int64
+	var err error
+
+	// Use cache service if available
+	if h.dataCacheService != nil {
+		quests, count, err = h.dataCacheService.GetQuests()
+	} else {
+		// Fallback to direct database query
+		quests, count, err = h.repo.FindAll(0, 1000000)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch quests"})
 		return
@@ -66,6 +86,11 @@ func (h *QuestHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache on create
+	if h.dataCacheService != nil {
+		h.dataCacheService.InvalidateQuestsCache()
+	}
+
 	c.JSON(http.StatusCreated, quest)
 }
 
@@ -90,6 +115,11 @@ func (h *QuestHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache on update
+	if h.dataCacheService != nil {
+		h.dataCacheService.InvalidateQuestsCache()
+	}
+
 	c.JSON(http.StatusOK, quest)
 }
 
@@ -105,6 +135,11 @@ func (h *QuestHandler) Delete(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete quest"})
 		return
+	}
+
+	// Invalidate cache on delete
+	if h.dataCacheService != nil {
+		h.dataCacheService.InvalidateQuestsCache()
 	}
 
 	c.JSON(http.StatusNoContent, nil)

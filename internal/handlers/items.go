@@ -10,12 +10,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/repository"
+	"github.com/mat/arcapi/internal/services"
 )
 
 type ItemHandler struct {
 	repo              *repository.ItemRepository
 	questRepo         *repository.QuestRepository
 	hideoutModuleRepo *repository.HideoutModuleRepository
+	dataCacheService  *services.DataCacheService
 }
 
 func NewItemHandler(repo *repository.ItemRepository) *ItemHandler {
@@ -31,6 +33,20 @@ func NewItemHandlerWithRepos(
 		repo:              repo,
 		questRepo:         questRepo,
 		hideoutModuleRepo: hideoutModuleRepo,
+	}
+}
+
+func NewItemHandlerWithCache(
+	repo *repository.ItemRepository,
+	questRepo *repository.QuestRepository,
+	hideoutModuleRepo *repository.HideoutModuleRepository,
+	dataCacheService *services.DataCacheService,
+) *ItemHandler {
+	return &ItemHandler{
+		repo:              repo,
+		questRepo:         questRepo,
+		hideoutModuleRepo: hideoutModuleRepo,
+		dataCacheService:  dataCacheService,
 	}
 }
 
@@ -50,7 +66,18 @@ func (h *ItemHandler) List(c *gin.Context) {
 	}
 
 	offset := (page - 1) * limit
-	items, count, err := h.repo.FindAll(offset, limit)
+	var items []models.Item
+	var count int64
+	var err error
+
+	// Use cache service if available
+	if h.dataCacheService != nil {
+		items, count, err = h.dataCacheService.GetItems(offset, limit)
+	} else {
+		// Fallback to direct database query
+		items, count, err = h.repo.FindAll(offset, limit)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch items"})
 		return
@@ -101,6 +128,11 @@ func (h *ItemHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache on create
+	if h.dataCacheService != nil {
+		h.dataCacheService.InvalidateItemsCache()
+	}
+
 	c.JSON(http.StatusCreated, item)
 }
 
@@ -125,6 +157,11 @@ func (h *ItemHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache on update
+	if h.dataCacheService != nil {
+		h.dataCacheService.InvalidateItemsCache()
+	}
+
 	c.JSON(http.StatusOK, item)
 }
 
@@ -140,6 +177,11 @@ func (h *ItemHandler) Delete(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete item"})
 		return
+	}
+
+	// Invalidate cache on delete
+	if h.dataCacheService != nil {
+		h.dataCacheService.InvalidateItemsCache()
 	}
 
 	c.JSON(http.StatusNoContent, nil)

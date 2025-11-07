@@ -22,6 +22,7 @@ type SyncService struct {
 	itemRepo          *repository.ItemRepository
 	skillNodeRepo     *repository.SkillNodeRepository
 	hideoutModuleRepo *repository.HideoutModuleRepository
+	dataCacheService  *DataCacheService
 	githubClient      *github.Client
 	cfg               *config.Config
 	cron              *cron.Cron
@@ -36,6 +37,17 @@ func NewSyncService(
 	hideoutModuleRepo *repository.HideoutModuleRepository,
 	cfg *config.Config,
 ) *SyncService {
+	return NewSyncServiceWithCache(questRepo, itemRepo, skillNodeRepo, hideoutModuleRepo, nil, cfg)
+}
+
+func NewSyncServiceWithCache(
+	questRepo *repository.QuestRepository,
+	itemRepo *repository.ItemRepository,
+	skillNodeRepo *repository.SkillNodeRepository,
+	hideoutModuleRepo *repository.HideoutModuleRepository,
+	dataCacheService *DataCacheService,
+	cfg *config.Config,
+) *SyncService {
 	// GitHub client without auth for public repo
 	client := github.NewClient(nil)
 
@@ -44,6 +56,7 @@ func NewSyncService(
 		itemRepo:          itemRepo,
 		skillNodeRepo:     skillNodeRepo,
 		hideoutModuleRepo: hideoutModuleRepo,
+		dataCacheService:  dataCacheService,
 		githubClient:      client,
 		cfg:               cfg,
 		cron:              cron.New(),
@@ -253,6 +266,16 @@ func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error 
 	}
 
 	log.Printf("Synced %d quests from quests.json", len(quests))
+
+	// Invalidate quests cache after sync
+	if s.dataCacheService != nil {
+		if err := s.dataCacheService.InvalidateQuestsCache(); err != nil {
+			log.Printf("Failed to invalidate quests cache: %v", err)
+		} else {
+			log.Println("Quests cache invalidated after sync")
+		}
+	}
+
 	return nil
 }
 
@@ -351,6 +374,16 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 	}
 
 	log.Printf("Synced %d items", len(items))
+
+	// Invalidate items cache after sync
+	if s.dataCacheService != nil {
+		if err := s.dataCacheService.InvalidateItemsCache(); err != nil {
+			log.Printf("Failed to invalidate items cache: %v", err)
+		} else {
+			log.Println("Items cache invalidated after sync")
+		}
+	}
+
 	return nil
 }
 
