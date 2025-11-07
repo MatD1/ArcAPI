@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import type { Quest, Item, SkillNode, HideoutModule } from '@/types';
 import { formatDate } from '@/lib/utils';
+import { getMultilingualText, getMultilingualArray } from '@/lib/i18n';
 
 type Entity = Quest | Item | SkillNode | HideoutModule;
 
@@ -42,7 +43,41 @@ export default function ViewModal({ entity, type, onClose }: ViewModalProps) {
       return value ? 'Yes' : 'No';
     }
 
+    // Handle arrays (e.g., objectives)
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return <span className="text-gray-400 italic">Empty</span>;
+      }
+      return (
+        <ul className="list-disc list-inside space-y-1">
+          {value.map((item, idx) => (
+            <li key={idx} className="break-words">{String(item)}</li>
+          ))}
+        </ul>
+      );
+    }
+
     if (typeof value === 'object') {
+      // Check if it's a multilingual object (has language codes as keys)
+      const keys = Object.keys(value);
+      const languageCodes = ['en', 'de', 'es', 'fr', 'it', 'ja', 'kr', 'no', 'pl', 'pt', 'ru', 'tr', 'uk', 'zh-CN', 'zh-TW', 'da', 'hr', 'sr'];
+      const isMultilingual = keys.some(key => languageCodes.includes(key));
+      
+      if (isMultilingual) {
+        // Display as a simple list of language: text
+        return (
+          <div className="space-y-1">
+            {Object.entries(value).map(([lang, text]) => (
+              <div key={lang} className="text-sm">
+                <span className="font-medium text-gray-500 dark:text-gray-400">{lang}:</span>{' '}
+                <span className="break-words">{String(text)}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      
+      // Otherwise render as JSON
       return (
         <pre className="bg-gray-100 dark:bg-gray-800 p-3 rounded text-xs overflow-x-auto">
           {JSON.stringify(value, null, 2)}
@@ -67,22 +102,44 @@ export default function ViewModal({ entity, type, onClose }: ViewModalProps) {
   };
 
   const renderEntityDetails = () => {
+    const data = (entity as any).data || {};
+    
+    // Extract multilingual name and description
+    let displayName = (entity as any).name;
+    if (!displayName || displayName === '') {
+      displayName = getMultilingualText(data.name);
+    }
+    
+    let displayDescription = (entity as any).description;
+    if (!displayDescription || displayDescription === '') {
+      displayDescription = getMultilingualText(data.description);
+    }
+
     const commonFields = [
       { label: 'ID', value: entity.id },
       { label: 'External ID', value: (entity as any).external_id },
-      { label: 'Name', value: (entity as any).name },
-      { label: 'Description', value: (entity as any).description },
+      { label: 'Name', value: displayName || (entity as any).external_id },
+      { label: 'Description', value: displayDescription },
     ];
 
     const fields: Array<{ label: string; value: any }> = [...commonFields];
 
     if (type === 'quest') {
       const m = entity as Quest;
+      
+      // Extract multilingual objectives
+      let objectives: string[] = [];
+      if (m.objectives && m.objectives.objectives) {
+        objectives = getMultilingualArray(m.objectives.objectives);
+      } else if (data.objectives && Array.isArray(data.objectives)) {
+        objectives = getMultilingualArray(data.objectives);
+      }
+      
       fields.push(
-        { label: 'Trader', value: m.trader },
-        { label: 'XP', value: m.xp },
-        { label: 'Objectives', value: m.objectives },
-        { label: 'Reward Item IDs', value: m.reward_item_ids }
+        { label: 'Trader', value: m.trader || data.trader },
+        { label: 'XP', value: m.xp !== undefined ? m.xp : data.xp },
+        { label: 'Objectives', value: objectives.length > 0 ? objectives : m.objectives },
+        { label: 'Reward Item IDs', value: m.reward_item_ids || data.rewardItemIds }
       );
     } else if (type === 'item') {
       const i = entity as Item;
@@ -93,21 +150,32 @@ export default function ViewModal({ entity, type, onClose }: ViewModalProps) {
       );
     } else if (type === 'skill-node') {
       const sn = entity as SkillNode;
+      
+      // Extract multilingual impacted skill
+      let impactedSkill = sn.impacted_skill;
+      if (!impactedSkill && data.impactedSkill) {
+        if (typeof data.impactedSkill === 'object') {
+          impactedSkill = getMultilingualText(data.impactedSkill);
+        } else {
+          impactedSkill = data.impactedSkill;
+        }
+      }
+      
       fields.push(
-        { label: 'Impacted Skill', value: sn.impacted_skill },
-        { label: 'Category', value: sn.category },
-        { label: 'Max Points', value: sn.max_points },
-        { label: 'Icon Name', value: sn.icon_name },
-        { label: 'Is Major', value: sn.is_major },
-        { label: 'Position', value: sn.position },
-        { label: 'Known Value', value: sn.known_value },
-        { label: 'Prerequisite Node IDs', value: sn.prerequisite_node_ids }
+        { label: 'Impacted Skill', value: impactedSkill },
+        { label: 'Category', value: sn.category || data.category },
+        { label: 'Max Points', value: sn.max_points !== undefined ? sn.max_points : data.maxPoints },
+        { label: 'Icon Name', value: sn.icon_name || data.iconName },
+        { label: 'Is Major', value: sn.is_major !== undefined ? sn.is_major : data.isMajor },
+        { label: 'Position', value: sn.position || data.position },
+        { label: 'Known Value', value: sn.known_value || data.knownValue },
+        { label: 'Prerequisite Node IDs', value: sn.prerequisite_node_ids || data.prerequisiteNodeIds }
       );
     } else if (type === 'hideout-module') {
       const hm = entity as HideoutModule;
       fields.push(
-        { label: 'Max Level', value: hm.max_level },
-        { label: 'Levels', value: hm.levels }
+        { label: 'Max Level', value: hm.max_level !== undefined ? hm.max_level : data.maxLevel },
+        { label: 'Levels', value: hm.levels || data.levels }
       );
     }
 
@@ -163,7 +231,7 @@ export default function ViewModal({ entity, type, onClose }: ViewModalProps) {
               <div className="mb-6 flex justify-center">
                 <img
                   src={(entity as Item).image_url}
-                  alt={(entity as Item).name || 'Item image'}
+                  alt={getMultilingualText((entity as any).data?.name) || (entity as Item).name || 'Item image'}
                   className="max-h-64 max-w-full object-contain rounded-lg border border-gray-200 dark:border-gray-700"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;

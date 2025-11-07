@@ -178,12 +178,40 @@ func (h *ItemHandler) RequiredItems(c *gin.Context) {
 		return
 	}
 
+	// Helper function to extract multilingual name from item
+	extractItemName := func(item models.Item) string {
+		name := item.Name
+		if name == "" && item.Data != nil {
+			dataMap := map[string]interface{}(item.Data)
+			if nameObj, ok := dataMap["name"].(map[string]interface{}); ok {
+				// Try English first
+				if enName, ok := nameObj["en"].(string); ok && enName != "" {
+					name = enName
+				} else {
+					// Try any available language
+					for _, val := range nameObj {
+						if nameStr, ok := val.(string); ok && nameStr != "" {
+							name = nameStr
+							break
+						}
+					}
+				}
+			}
+		}
+		return name
+	}
+
 	// Create a map for quick item lookup by name (case-insensitive)
+	// Uses multilingual names when available
 	itemNameMap := make(map[string]string) // lowercase name -> external_id
 	for _, item := range allItems {
-		itemNameMap[strings.ToLower(item.Name)] = item.ExternalID
+		itemName := extractItemName(item)
+		if itemName == "" {
+			itemName = item.ExternalID // Fallback to external_id
+		}
+		itemNameLower := strings.ToLower(itemName)
+		itemNameMap[itemNameLower] = item.ExternalID
 		// Also add partial matches for common variations
-		itemNameLower := strings.ToLower(item.Name)
 		// Add without spaces, with underscores, etc.
 		itemNameMap[strings.ReplaceAll(itemNameLower, " ", "")] = item.ExternalID
 		itemNameMap[strings.ReplaceAll(itemNameLower, " ", "_")] = item.ExternalID
@@ -216,6 +244,94 @@ func (h *ItemHandler) RequiredItems(c *gin.Context) {
 	for _, module := range hideoutModules {
 		if module.Levels != nil {
 			h.extractItemsFromHideoutModule(module, itemMap)
+		}
+	}
+
+	// Helper function to extract multilingual name (prefers English, falls back to first available)
+	extractMultilingualName := func(data map[string]interface{}, defaultName string) string {
+		if data == nil {
+			return defaultName
+		}
+		if nameObj, ok := data["name"].(map[string]interface{}); ok {
+			// Try English first
+			if enName, ok := nameObj["en"].(string); ok && enName != "" {
+				return enName
+			}
+			// Try any available language
+			for _, val := range nameObj {
+				if nameStr, ok := val.(string); ok && nameStr != "" {
+					return nameStr
+				}
+			}
+		}
+		return defaultName
+	}
+
+	// Helper function to extract multilingual text from item data
+	extractMultilingualText := func(data map[string]interface{}, field string, defaultText string) string {
+		if data == nil {
+			return defaultText
+		}
+		if fieldObj, ok := data[field].(map[string]interface{}); ok {
+			// Try English first
+			if enText, ok := fieldObj["en"].(string); ok && enText != "" {
+				return enText
+			}
+			// Try any available language
+			for _, val := range fieldObj {
+				if textStr, ok := val.(string); ok && textStr != "" {
+					return textStr
+				}
+			}
+		}
+		return defaultText
+	}
+
+	// Update source names in the item map with multilingual names
+	for _, reqItem := range itemMap {
+		// Update item name and description if multilingual data exists
+		if reqItem.Item != nil && reqItem.Item.Data != nil {
+			dataMap := map[string]interface{}(reqItem.Item.Data)
+			if reqItem.Item.Name == "" {
+				if name := extractMultilingualText(dataMap, "name", ""); name != "" {
+					reqItem.Item.Name = name
+				}
+			}
+			if reqItem.Item.Description == "" {
+				if desc := extractMultilingualText(dataMap, "description", ""); desc != "" {
+					reqItem.Item.Description = desc
+				}
+			}
+		}
+
+		// Update usage source names
+		for i := range reqItem.Usages {
+			usage := &reqItem.Usages[i]
+			if usage.SourceType == "quest" {
+				// Find the quest to get its data
+				for _, quest := range quests {
+					if quest.ID == usage.SourceID {
+						if quest.Data != nil {
+							if name := extractMultilingualName(map[string]interface{}(quest.Data), usage.SourceName); name != "" {
+								usage.SourceName = name
+							}
+						}
+						break
+					}
+				}
+			} else if usage.SourceType == "hideout_module" {
+				// Find the hideout module to get its data
+				for _, module := range hideoutModules {
+					if module.ID == usage.SourceID {
+						if module.Data != nil {
+							if name := extractMultilingualName(map[string]interface{}(module.Data), usage.SourceName); name != "" {
+								usage.SourceName = name
+							}
+						}
+						break
+					}
+				}
+			}
 		}
 	}
 
@@ -316,11 +432,60 @@ func (h *ItemHandler) GetBlueprints(c *gin.Context) {
 		}
 
 		if isBlueprint {
+			// Extract multilingual name and description
+			displayName := item.Name
+			displayDescription := item.Description
+
+			if item.Data != nil {
+				dataMap := map[string]interface{}(item.Data)
+
+				// Extract multilingual name
+				if displayName == "" {
+					if nameObj, ok := dataMap["name"].(map[string]interface{}); ok {
+						// Try English first
+						if enName, ok := nameObj["en"].(string); ok && enName != "" {
+							displayName = enName
+						} else {
+							// Try any available language
+							for _, val := range nameObj {
+								if nameStr, ok := val.(string); ok && nameStr != "" {
+									displayName = nameStr
+									break
+								}
+							}
+						}
+					}
+				}
+
+				// Extract multilingual description
+				if displayDescription == "" {
+					if descObj, ok := dataMap["description"].(map[string]interface{}); ok {
+						// Try English first
+						if enDesc, ok := descObj["en"].(string); ok && enDesc != "" {
+							displayDescription = enDesc
+						} else {
+							// Try any available language
+							for _, val := range descObj {
+								if descStr, ok := val.(string); ok && descStr != "" {
+									displayDescription = descStr
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// Fallback to external_id if no name found
+			if displayName == "" {
+				displayName = item.ExternalID
+			}
+
 			blueprint := BlueprintItem{
 				ID:            item.ID,
 				ExternalID:    item.ExternalID,
-				Name:          item.Name,
-				Description:   item.Description,
+				Name:          displayName,
+				Description:   displayDescription,
 				Type:          item.Type,
 				ImageURL:      item.ImageURL,
 				ImageFilename: item.ImageFilename,
@@ -376,7 +541,7 @@ func (h *ItemHandler) extractItemsFromQuest(quest models.Quest, itemMap map[stri
 			}
 		}
 
-		// Try data.objectives - objectives might be objects with requirementItemIds or text strings
+		// Try data.objectives - objectives might be objects with requirementItemIds or text strings (or multilingual objects)
 		if objectives, ok := quest.Data["objectives"].([]interface{}); ok {
 			for _, obj := range objectives {
 				// Check if objective is a string (text objective like "Get 3 ARC Alloy for Shani")
@@ -389,6 +554,51 @@ func (h *ItemHandler) extractItemsFromQuest(quest models.Quest, itemMap map[stri
 						}
 					}
 					continue
+				}
+
+				// Check if objective is a multilingual object (has language codes as keys)
+				if objMap, ok := obj.(map[string]interface{}); ok {
+					// Check if it's a multilingual text object (has language codes like "en", "de", etc.)
+					languageCodes := []string{"en", "de", "es", "fr", "it", "ja", "kr", "no", "pl", "pt", "ru", "tr", "uk", "zh-CN", "zh-TW", "da", "hr", "sr"}
+					isMultilingual := false
+					for key := range objMap {
+						for _, lang := range languageCodes {
+							if key == lang {
+								isMultilingual = true
+								break
+							}
+						}
+						if isMultilingual {
+							break
+						}
+					}
+
+					if isMultilingual {
+						// Extract English text first, fallback to any language
+						var objectiveText string
+						if enText, ok := objMap["en"].(string); ok && enText != "" {
+							objectiveText = enText
+						} else {
+							// Try any available language
+							for _, lang := range languageCodes {
+								if text, ok := objMap[lang].(string); ok && text != "" {
+									objectiveText = text
+									break
+								}
+							}
+						}
+
+						if objectiveText != "" {
+							if itemID, qty := h.parseTextObjective(objectiveText, itemNameMap, allItems); itemID != "" && qty > 0 {
+								key := fmt.Sprintf("quest:%d:%s", quest.ID, itemID)
+								if !processedItems[key] {
+									h.addItemRequirement(itemMap, itemID, "quest", quest.ID, quest.Name, qty, nil)
+									processedItems[key] = true
+								}
+							}
+						}
+						continue
+					}
 				}
 
 				// Check if objective is an object/map
@@ -446,6 +656,51 @@ func (h *ItemHandler) extractItemsFromQuest(quest models.Quest, itemMap map[stri
 						}
 					}
 					continue
+				}
+
+				// Check if objective is a multilingual object (has language codes as keys)
+				if objMap, ok := obj.(map[string]interface{}); ok {
+					// Check if it's a multilingual text object (has language codes like "en", "de", etc.)
+					languageCodes := []string{"en", "de", "es", "fr", "it", "ja", "kr", "no", "pl", "pt", "ru", "tr", "uk", "zh-CN", "zh-TW", "da", "hr", "sr"}
+					isMultilingual := false
+					for key := range objMap {
+						for _, lang := range languageCodes {
+							if key == lang {
+								isMultilingual = true
+								break
+							}
+						}
+						if isMultilingual {
+							break
+						}
+					}
+
+					if isMultilingual {
+						// Extract English text first, fallback to any language
+						var objectiveText string
+						if enText, ok := objMap["en"].(string); ok && enText != "" {
+							objectiveText = enText
+						} else {
+							// Try any available language
+							for _, lang := range languageCodes {
+								if text, ok := objMap[lang].(string); ok && text != "" {
+									objectiveText = text
+									break
+								}
+							}
+						}
+
+						if objectiveText != "" {
+							if itemID, qty := h.parseTextObjective(objectiveText, itemNameMap, allItems); itemID != "" && qty > 0 {
+								key := fmt.Sprintf("quest:%d:%s", quest.ID, itemID)
+								if !processedItems[key] {
+									h.addItemRequirement(itemMap, itemID, "quest", quest.ID, quest.Name, qty, nil)
+									processedItems[key] = true
+								}
+							}
+						}
+						continue
+					}
 				}
 
 				if objMap, ok := obj.(map[string]interface{}); ok {
@@ -621,8 +876,32 @@ func (h *ItemHandler) parseTextObjective(objectiveText string, itemNameMap map[s
 			}
 
 			// Try partial match - search through all items
+			// Helper to extract multilingual item name
+			getItemDisplayName := func(item models.Item) string {
+				name := item.Name
+				if name == "" && item.Data != nil {
+					dataMap := map[string]interface{}(item.Data)
+					if nameObj, ok := dataMap["name"].(map[string]interface{}); ok {
+						// Try English first
+						if enName, ok := nameObj["en"].(string); ok && enName != "" {
+							name = enName
+						} else {
+							// Try any available language
+							for _, val := range nameObj {
+								if nameStr, ok := val.(string); ok && nameStr != "" {
+									name = nameStr
+									break
+								}
+							}
+						}
+					}
+				}
+				return name
+			}
+
 			for _, item := range allItems {
-				itemNameLowerDB := strings.ToLower(item.Name)
+				itemDisplayName := getItemDisplayName(item)
+				itemNameLowerDB := strings.ToLower(itemDisplayName)
 				// Exact match
 				if itemNameLowerDB == itemNameLower {
 					return item.ExternalID, qty

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuthStore } from '@/store/authStore';
 import { apiClient, getErrorMessage } from '@/lib/api';
+import { getMultilingualText } from '@/lib/i18n';
 import type { RequiredItemResponse } from '@/types';
 
 export default function RequiredItemsPage() {
@@ -100,7 +101,7 @@ export default function RequiredItemsPage() {
                             )}
                             <div>
                               <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                {reqItem.item.name}
+                                {getMultilingualText(reqItem.item.data?.name) || reqItem.item.name || reqItem.item.external_id}
                               </div>
                               {reqItem.item.type && (
                                 <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -131,7 +132,7 @@ export default function RequiredItemsPage() {
                                   )}
                                 </span>
                                 <span className="text-gray-900 dark:text-white">
-                                  {usage.source_name}
+                                  {usage.source_name || usage.source_id.toString()}
                                 </span>
                                 {usage.level && (
                                   <span className="text-gray-500 dark:text-gray-400 ml-1">

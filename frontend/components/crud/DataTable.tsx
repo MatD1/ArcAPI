@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Quest, Item, SkillNode, HideoutModule } from '@/types';
 import { formatDate } from '@/lib/utils';
+import { getMultilingualText } from '@/lib/i18n';
 import ViewModal from './ViewModal';
 
 type Entity = Quest | Item | SkillNode | HideoutModule;
@@ -20,7 +21,21 @@ interface DataTableProps {
 export default function DataTable({ data, onEdit, onDelete, type }: DataTableProps) {
   const [viewingEntity, setViewingEntity] = useState<Entity | null>(null);
   const getDisplayFields = (item: Entity) => {
-    const base = { id: item.id, external_id: (item as any).external_id, name: (item as any).name };
+    // Extract multilingual name
+    let displayName = (item as any).name;
+    if (!displayName || displayName === '') {
+      // Try to get from data.name if it's a multilingual object
+      const data = (item as any).data;
+      if (data && data.name && typeof data.name === 'object') {
+        displayName = getMultilingualText(data.name);
+      }
+    }
+    
+    const base = { 
+      id: item.id, 
+      external_id: (item as any).external_id, 
+      name: displayName || (item as any).external_id // Fallback to external_id if no name
+    };
     if (type === 'item') {
       return { ...base, image_url: (item as Item).image_url } as typeof base & { image_url?: string };
     }
