@@ -483,6 +483,52 @@ func (r *EnemyTypeRepository) Delete(id uint) error {
 	return r.db.Delete(&models.EnemyType{}, id).Error
 }
 
+type AlertRepository struct {
+	db *DB
+}
+
+func NewAlertRepository(db *DB) *AlertRepository {
+	return &AlertRepository{db: db}
+}
+
+func (r *AlertRepository) Create(alert *models.Alert) error {
+	return r.db.Create(alert).Error
+}
+
+func (r *AlertRepository) FindByID(id uint) (*models.Alert, error) {
+	var alert models.Alert
+	err := r.db.First(&alert, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &alert, nil
+}
+
+func (r *AlertRepository) FindAll(offset, limit int) ([]models.Alert, int64, error) {
+	var alerts []models.Alert
+	var count int64
+	err := r.db.Model(&models.Alert{}).Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&alerts).Error
+	return alerts, count, err
+}
+
+func (r *AlertRepository) FindActive() ([]models.Alert, error) {
+	var alerts []models.Alert
+	err := r.db.Where("is_active = ?", true).Order("created_at DESC").Find(&alerts).Error
+	return alerts, err
+}
+
+func (r *AlertRepository) Update(alert *models.Alert) error {
+	return r.db.Save(alert).Error
+}
+
+func (r *AlertRepository) Delete(id uint) error {
+	return r.db.Delete(&models.Alert{}, id).Error
+}
+
 type AuditLogRepository struct {
 	db *DB
 }

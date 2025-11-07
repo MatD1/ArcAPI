@@ -19,6 +19,7 @@ const adminNavigation = [
   { name: 'Users', href: '/users/', icon: '👥' },
   { name: 'API Keys', href: '/api-keys/', icon: '🔑' },
   { name: 'JWT Tokens', href: '/jwt-tokens/', icon: '🎫' },
+  { name: 'Alerts', href: '/alerts/', icon: '🚨' },
   { name: 'Audit Logs', href: '/logs/', icon: '📋' },
   { name: 'API Test', href: '/dashboard/api-test/', icon: '🧪' },
 ];

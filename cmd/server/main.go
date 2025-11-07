@@ -46,6 +46,7 @@ func main() {
 	skillNodeRepo := repository.NewSkillNodeRepository(db)
 	hideoutModuleRepo := repository.NewHideoutModuleRepository(db)
 	enemyTypeRepo := repository.NewEnemyTypeRepository(db)
+	alertRepo := repository.NewAlertRepository(db)
 	auditLogRepo := repository.NewAuditLogRepository(db)
 	questProgressRepo := repository.NewUserQuestProgressRepository(db)
 	hideoutModuleProgressRepo := repository.NewUserHideoutModuleProgressRepository(db)
@@ -78,6 +79,7 @@ func main() {
 	skillNodeHandler := handlers.NewSkillNodeHandler(skillNodeRepo)
 	hideoutModuleHandler := handlers.NewHideoutModuleHandler(hideoutModuleRepo)
 	enemyTypeHandler := handlers.NewEnemyTypeHandler(enemyTypeRepo)
+	alertHandler := handlers.NewAlertHandler(alertRepo)
 	managementHandler := handlers.NewManagementHandler(
 		authService,
 		apiKeyRepo,
@@ -155,6 +157,11 @@ func main() {
 			// Enemy Types - Read
 			readOnly.GET("/enemy-types", enemyTypeHandler.List)
 			readOnly.GET("/enemy-types/:id", enemyTypeHandler.Get)
+
+			// Alerts - Read
+			readOnly.GET("/alerts", alertHandler.List)
+			readOnly.GET("/alerts/active", alertHandler.GetActive) // For mobile apps to fetch active alerts
+			readOnly.GET("/alerts/:id", alertHandler.Get)
 		}
 
 		// Progress routes (basic users can read and update their own progress)
@@ -206,6 +213,11 @@ func main() {
 			writeProtected.POST("/enemy-types", enemyTypeHandler.Create)
 			writeProtected.PUT("/enemy-types/:id", enemyTypeHandler.Update)
 			writeProtected.DELETE("/enemy-types/:id", enemyTypeHandler.Delete)
+
+			// Alerts - Write (admin only)
+			writeProtected.POST("/alerts", alertHandler.Create)
+			writeProtected.PUT("/alerts/:id", alertHandler.Update)
+			writeProtected.DELETE("/alerts/:id", alertHandler.Delete)
 
 			// Management API (admin only)
 			admin := writeProtected.Group("/admin")
@@ -326,6 +338,12 @@ func main() {
 			})
 			r.GET("/enemy-types/*path", func(c *gin.Context) {
 				c.File(frontendDir + "/enemy-types/index.html")
+			})
+			r.GET("/alerts", func(c *gin.Context) {
+				c.File(frontendDir + "/alerts/index.html")
+			})
+			r.GET("/alerts/*path", func(c *gin.Context) {
+				c.File(frontendDir + "/alerts/index.html")
 			})
 			r.GET("/users", func(c *gin.Context) {
 				c.File(frontendDir + "/users/index.html")

@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { Quest, Item, SkillNode, HideoutModule, EnemyType } from '@/types';
+import type { Quest, Item, SkillNode, HideoutModule, EnemyType, Alert } from '@/types';
 
-type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType;
+type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType | Alert;
 
 interface EntityFormProps {
   entity: Partial<Entity> | null;
-  type: 'quest' | 'item' | 'skill-node' | 'hideout-module' | 'enemy-type';
+  type: 'quest' | 'item' | 'skill-node' | 'hideout-module' | 'enemy-type' | 'alert';
   onSubmit: (data: Partial<Entity>) => Promise<void>;
   onCancel: () => void;
 }
@@ -56,16 +56,22 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
         data.image_url = et.image_url || '';
         data.image_filename = et.image_filename || '';
         data.weakpoints = et.weakpoints || {};
+      } else if (type === 'alert') {
+        const a = entity as Alert;
+        data.severity = a.severity || 'info';
+        data.is_active = a.is_active !== undefined ? a.is_active : true;
       }
 
       setFormData(data);
     } else {
       // Default empty form
       const defaults: any = {
-        external_id: '',
         name: '',
         description: '',
       };
+      if (type !== 'alert') {
+        defaults.external_id = '';
+      }
       if (type === 'quest') {
         defaults.trader = '';
         defaults.xp = 0;
@@ -92,6 +98,9 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
         defaults.image_url = '';
         defaults.image_filename = '';
         defaults.weakpoints = {};
+      } else if (type === 'alert') {
+        defaults.severity = 'info';
+        defaults.is_active = true;
       }
       setFormData(defaults);
     }
@@ -104,10 +113,12 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
 
     try {
       const data: any = {
-        external_id: formData.external_id,
         name: formData.name,
         description: formData.description,
       };
+      if (type !== 'alert') {
+        data.external_id = formData.external_id;
+      }
 
       if (type === 'quest') {
         data.trader = formData.trader;
@@ -135,6 +146,9 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
         data.image_url = formData.image_url;
         data.image_filename = formData.image_filename;
         data.weakpoints = formData.weakpoints || {};
+      } else if (type === 'alert') {
+        data.severity = formData.severity || 'info';
+        data.is_active = formData.is_active !== undefined ? formData.is_active : true;
       }
 
       await onSubmit(data);
@@ -477,6 +491,39 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
               placeholder='{"head": 2.0, "body": 1.0}'
               className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm font-mono text-xs"
             />
+          </div>
+        </>
+      )}
+
+      {/* Alert-specific fields */}
+      {type === 'alert' && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Severity</label>
+            <select
+              value={formData.severity || 'info'}
+              onChange={(e) => updateField('severity', e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+            >
+              <option value="info">Info</option>
+              <option value="warning">Warning</option>
+              <option value="error">Error</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.is_active !== undefined ? formData.is_active : true}
+                onChange={(e) => updateField('is_active', e.target.checked)}
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700"
+              />
+              <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
+            </label>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Active alerts will be displayed to mobile app users
+            </p>
           </div>
         </>
       )}

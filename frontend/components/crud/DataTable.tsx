@@ -1,21 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import type { Quest, Item, SkillNode, HideoutModule, EnemyType } from '@/types';
+import type { Quest, Item, SkillNode, HideoutModule, EnemyType, Alert } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { getMultilingualText } from '@/lib/i18n';
 import ViewModal from './ViewModal';
 
-type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType;
+type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType | Alert;
 
 // Mission is deprecated, use Quest instead
 type Mission = Quest;
 
 interface DataTableProps {
   data: Entity[];
-  onEdit: (item: Entity) => void;
-  onDelete: (id: number) => void;
-  type: 'quest' | 'item' | 'skill-node' | 'hideout-module' | 'enemy-type';
+  onEdit?: (item: Entity) => void;
+  onDelete?: (id: number) => void;
+  type: 'quest' | 'item' | 'skill-node' | 'hideout-module' | 'enemy-type' | 'alert';
 }
 
 export default function DataTable({ data, onEdit, onDelete, type }: DataTableProps) {
@@ -33,13 +33,28 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
     
     const base = { 
       id: item.id, 
-      external_id: (item as any).external_id, 
-      name: displayName || (item as any).external_id // Fallback to external_id if no name
+      external_id: type === 'alert' ? undefined : (item as any).external_id, 
+      name: displayName || (type === 'alert' ? 'Unnamed Alert' : (item as any).external_id) // Fallback
     };
     if (type === 'item' || type === 'enemy-type') {
       return { ...base, image_url: (item as Item | EnemyType).image_url } as typeof base & { image_url?: string };
     }
     return base as typeof base & { image_url?: string };
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'info':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300';
+      case 'warning':
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300';
+      case 'error':
+        return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300';
+      case 'critical':
+        return 'bg-red-200 text-red-900 dark:bg-red-900/40 dark:text-red-200';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    }
   };
 
   return (
@@ -50,12 +65,24 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               ID
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              External ID
-            </th>
+            {type !== 'alert' && (
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                External ID
+              </th>
+            )}
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Name
             </th>
+            {type === 'alert' && (
+              <>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Severity
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Status
+                </th>
+              </>
+            )}
             {(type === 'item' || type === 'enemy-type') && (
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Image
@@ -81,10 +108,30 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                   {item.id}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {fields.external_id}
-                </td>
+                {type !== 'alert' && (
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {fields.external_id}
+                  </td>
+                )}
                 <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{fields.name}</td>
+                {type === 'alert' && (
+                  <>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getSeverityColor((item as Alert).severity)}`}>
+                        {(item as Alert).severity.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        (item as Alert).is_active
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                      }`}>
+                        {(item as Alert).is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                  </>
+                )}
                 {(type === 'item' || type === 'enemy-type') && (
                   <td className="px-6 py-4 text-sm">
                     {fields.image_url ? (
@@ -123,18 +170,24 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
                   >
                     View
                   </button>
-                  <button
-                    onClick={() => onEdit(item)}
-                    className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 mr-4"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => onDelete(item.id)}
-                    className="text-red-600 hover:text-red-900 dark:text-red-400"
-                  >
-                    Delete
-                  </button>
+                  {onEdit && (
+                    <button
+                      onClick={() => onEdit(item)}
+                      className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 mr-4"
+                      title="Edit"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(item.id)}
+                      className="text-red-600 hover:text-red-900 dark:text-red-400"
+                      title="Delete"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             );

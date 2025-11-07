@@ -112,6 +112,17 @@ export interface EnemyType {
   updated_at: string;
 }
 
+export interface Alert {
+  id: number;
+  name: string;
+  description?: string;
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  is_active: boolean;
+  data?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLog {
   id: number;
   api_key_id?: number;

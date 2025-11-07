@@ -40,6 +40,7 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		&models.SkillNode{},
 		&models.HideoutModule{},
 		&models.EnemyType{},
+		&models.Alert{},
 		&models.AuditLog{},
 		&models.UserQuestProgress{},
 		&models.UserHideoutModuleProgress{},

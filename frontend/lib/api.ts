@@ -9,6 +9,7 @@ import type {
   SkillNode,
   HideoutModule,
   EnemyType,
+  Alert,
   AuditLog,
   PaginatedResponse,
   LoginResponse,
@@ -266,6 +267,38 @@ class APIClient {
 
   async deleteEnemyType(id: number): Promise<void> {
     await this.client.delete(`/enemy-types/${id}`);
+  }
+
+  // Alerts
+  async getAlerts(page = 1, limit = 20): Promise<PaginatedResponse<Alert>> {
+    const response = await this.client.get<PaginatedResponse<Alert>>('/alerts', {
+      params: { page, limit },
+    });
+    return response.data;
+  }
+
+  async getActiveAlerts(): Promise<{ data: Alert[] }> {
+    const response = await this.client.get<{ data: Alert[] }>('/alerts/active');
+    return response.data;
+  }
+
+  async getAlert(id: number): Promise<Alert> {
+    const response = await this.client.get<Alert>(`/alerts/${id}`);
+    return response.data;
+  }
+
+  async createAlert(data: Partial<Alert>): Promise<Alert> {
+    const response = await this.client.post<Alert>('/alerts', data);
+    return response.data;
+  }
+
+  async updateAlert(id: number, data: Partial<Alert>): Promise<Alert> {
+    const response = await this.client.put<Alert>(`/alerts/${id}`, data);
+    return response.data;
+  }
+
+  async deleteAlert(id: number): Promise<void> {
+    await this.client.delete(`/alerts/${id}`);
   }
 
   // Management API (Admin only)
