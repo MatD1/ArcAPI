@@ -8,6 +8,7 @@ import type {
   Item,
   SkillNode,
   HideoutModule,
+  EnemyType,
   AuditLog,
   PaginatedResponse,
   LoginResponse,
@@ -238,6 +239,33 @@ class APIClient {
 
   async deleteHideoutModule(id: number): Promise<void> {
     await this.client.delete(`/hideout-modules/${id}`);
+  }
+
+  // Enemy Types
+  async getEnemyTypes(page = 1, limit = 20): Promise<PaginatedResponse<EnemyType>> {
+    const response = await this.client.get<PaginatedResponse<EnemyType>>('/enemy-types', {
+      params: { page, limit },
+    });
+    return response.data;
+  }
+
+  async getEnemyType(id: number): Promise<EnemyType> {
+    const response = await this.client.get<EnemyType>(`/enemy-types/${id}`);
+    return response.data;
+  }
+
+  async createEnemyType(data: Partial<EnemyType>): Promise<EnemyType> {
+    const response = await this.client.post<EnemyType>('/enemy-types', data);
+    return response.data;
+  }
+
+  async updateEnemyType(id: number, data: Partial<EnemyType>): Promise<EnemyType> {
+    const response = await this.client.put<EnemyType>(`/enemy-types/${id}`, data);
+    return response.data;
+  }
+
+  async deleteEnemyType(id: number): Promise<void> {
+    await this.client.delete(`/enemy-types/${id}`);
   }
 
   // Management API (Admin only)

@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import type { Quest, Item, SkillNode, HideoutModule } from '@/types';
+import type { Quest, Item, SkillNode, HideoutModule, EnemyType } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { getMultilingualText } from '@/lib/i18n';
 import ViewModal from './ViewModal';
 
-type Entity = Quest | Item | SkillNode | HideoutModule;
+type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType;
 
 // Mission is deprecated, use Quest instead
 type Mission = Quest;
@@ -15,7 +15,7 @@ interface DataTableProps {
   data: Entity[];
   onEdit: (item: Entity) => void;
   onDelete: (id: number) => void;
-  type: 'quest' | 'item' | 'skill-node' | 'hideout-module';
+  type: 'quest' | 'item' | 'skill-node' | 'hideout-module' | 'enemy-type';
 }
 
 export default function DataTable({ data, onEdit, onDelete, type }: DataTableProps) {
@@ -36,8 +36,8 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
       external_id: (item as any).external_id, 
       name: displayName || (item as any).external_id // Fallback to external_id if no name
     };
-    if (type === 'item') {
-      return { ...base, image_url: (item as Item).image_url } as typeof base & { image_url?: string };
+    if (type === 'item' || type === 'enemy-type') {
+      return { ...base, image_url: (item as Item | EnemyType).image_url } as typeof base & { image_url?: string };
     }
     return base as typeof base & { image_url?: string };
   };
@@ -56,9 +56,9 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Name
             </th>
-            {type === 'item' && (
+            {(type === 'item' || type === 'enemy-type') && (
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Image URL
+                Image
               </th>
             )}
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -85,12 +85,12 @@ export default function DataTable({ data, onEdit, onDelete, type }: DataTablePro
                   {fields.external_id}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{fields.name}</td>
-                {type === 'item' && (
+                {(type === 'item' || type === 'enemy-type') && (
                   <td className="px-6 py-4 text-sm">
                     {fields.image_url ? (
                       <img
                         src={fields.image_url}
-                        alt={fields.name || 'Item image'}
+                        alt={fields.name || (type === 'enemy-type' ? 'Enemy image' : 'Item image')}
                         className="h-12 w-12 object-contain rounded"
                         onError={(e) => {
                           // Replace image with a broken image icon or placeholder

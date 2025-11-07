@@ -45,6 +45,7 @@ func main() {
 	itemRepo := repository.NewItemRepository(db)
 	skillNodeRepo := repository.NewSkillNodeRepository(db)
 	hideoutModuleRepo := repository.NewHideoutModuleRepository(db)
+	enemyTypeRepo := repository.NewEnemyTypeRepository(db)
 	auditLogRepo := repository.NewAuditLogRepository(db)
 	questProgressRepo := repository.NewUserQuestProgressRepository(db)
 	hideoutModuleProgressRepo := repository.NewUserHideoutModuleProgressRepository(db)
@@ -76,6 +77,7 @@ func main() {
 	itemHandler := handlers.NewItemHandlerWithRepos(itemRepo, questRepo, hideoutModuleRepo)
 	skillNodeHandler := handlers.NewSkillNodeHandler(skillNodeRepo)
 	hideoutModuleHandler := handlers.NewHideoutModuleHandler(hideoutModuleRepo)
+	enemyTypeHandler := handlers.NewEnemyTypeHandler(enemyTypeRepo)
 	managementHandler := handlers.NewManagementHandler(
 		authService,
 		apiKeyRepo,
@@ -149,6 +151,10 @@ func main() {
 			// Hideout Modules - Read
 			readOnly.GET("/hideout-modules", hideoutModuleHandler.List)
 			readOnly.GET("/hideout-modules/:id", hideoutModuleHandler.Get)
+
+			// Enemy Types - Read
+			readOnly.GET("/enemy-types", enemyTypeHandler.List)
+			readOnly.GET("/enemy-types/:id", enemyTypeHandler.Get)
 		}
 
 		// Progress routes (basic users can read and update their own progress)
@@ -195,6 +201,11 @@ func main() {
 			writeProtected.POST("/hideout-modules", hideoutModuleHandler.Create)
 			writeProtected.PUT("/hideout-modules/:id", hideoutModuleHandler.Update)
 			writeProtected.DELETE("/hideout-modules/:id", hideoutModuleHandler.Delete)
+
+			// Enemy Types - Write
+			writeProtected.POST("/enemy-types", enemyTypeHandler.Create)
+			writeProtected.PUT("/enemy-types/:id", enemyTypeHandler.Update)
+			writeProtected.DELETE("/enemy-types/:id", enemyTypeHandler.Delete)
 
 			// Management API (admin only)
 			admin := writeProtected.Group("/admin")
@@ -309,6 +320,12 @@ func main() {
 			})
 			r.GET("/hideout-modules/*path", func(c *gin.Context) {
 				c.File(frontendDir + "/hideout-modules/index.html")
+			})
+			r.GET("/enemy-types", func(c *gin.Context) {
+				c.File(frontendDir + "/enemy-types/index.html")
+			})
+			r.GET("/enemy-types/*path", func(c *gin.Context) {
+				c.File(frontendDir + "/enemy-types/index.html")
 			})
 			r.GET("/users", func(c *gin.Context) {
 				c.File(frontendDir + "/users/index.html")

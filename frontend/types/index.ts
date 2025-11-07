@@ -97,6 +97,21 @@ export interface HideoutModule {
   updated_at: string;
 }
 
+export interface EnemyType {
+  id: number;
+  external_id: string;
+  name: string;
+  description?: string;
+  type?: string;
+  image_url?: string;
+  image_filename?: string;
+  weakpoints?: Record<string, any>;
+  data?: Record<string, any>;
+  synced_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLog {
   id: number;
   api_key_id?: number;

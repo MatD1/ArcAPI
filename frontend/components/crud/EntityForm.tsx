@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { Quest, Item, SkillNode, HideoutModule } from '@/types';
+import type { Quest, Item, SkillNode, HideoutModule, EnemyType } from '@/types';
 
-type Entity = Quest | Item | SkillNode | HideoutModule;
+type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType;
 
 interface EntityFormProps {
   entity: Partial<Entity> | null;
-  type: 'quest' | 'item' | 'skill-node' | 'hideout-module';
+  type: 'quest' | 'item' | 'skill-node' | 'hideout-module' | 'enemy-type';
   onSubmit: (data: Partial<Entity>) => Promise<void>;
   onCancel: () => void;
 }
@@ -50,6 +50,12 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
         const hm = entity as HideoutModule;
         data.max_level = hm.max_level || 0;
         data.levels = hm.levels?.levels || [];
+      } else if (type === 'enemy-type') {
+        const et = entity as EnemyType;
+        data.type = et.type || '';
+        data.image_url = et.image_url || '';
+        data.image_filename = et.image_filename || '';
+        data.weakpoints = et.weakpoints || {};
       }
 
       setFormData(data);
@@ -81,6 +87,11 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
       } else if (type === 'hideout-module') {
         defaults.max_level = 0;
         defaults.levels = [];
+      } else if (type === 'enemy-type') {
+        defaults.type = '';
+        defaults.image_url = '';
+        defaults.image_filename = '';
+        defaults.weakpoints = {};
       }
       setFormData(defaults);
     }
@@ -119,6 +130,11 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
       } else if (type === 'hideout-module') {
         data.max_level = parseInt(formData.max_level) || 0;
         data.levels = { levels: Array.isArray(formData.levels) ? formData.levels : [] };
+      } else if (type === 'enemy-type') {
+        data.type = formData.type;
+        data.image_url = formData.image_url;
+        data.image_filename = formData.image_filename;
+        data.weakpoints = formData.weakpoints || {};
       }
 
       await onSubmit(data);
@@ -406,6 +422,59 @@ export default function EntityForm({ entity, type, onSubmit, onCancel }: EntityF
               }}
               rows={12}
               placeholder='[{"level": 1, "requirementItemIds": []}]'
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm font-mono text-xs"
+            />
+          </div>
+        </>
+      )}
+
+      {/* Enemy Type-specific fields */}
+      {type === 'enemy-type' && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Type</label>
+            <input
+              type="text"
+              value={formData.type || ''}
+              onChange={(e) => updateField('type', e.target.value)}
+              placeholder="e.g., Human, Robot, Alien"
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Image URL</label>
+            <input
+              type="text"
+              value={formData.image_url || ''}
+              onChange={(e) => updateField('image_url', e.target.value)}
+              placeholder="https://..."
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Image Filename</label>
+            <input
+              type="text"
+              value={formData.image_filename || ''}
+              onChange={(e) => updateField('image_filename', e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Weakpoints (JSON format)
+            </label>
+            <textarea
+              value={JSON.stringify(formData.weakpoints || {}, null, 2)}
+              onChange={(e) => {
+                try {
+                  updateField('weakpoints', JSON.parse(e.target.value));
+                } catch {
+                  // Invalid JSON, ignore
+                }
+              }}
+              rows={8}
+              placeholder='{"head": 2.0, "body": 1.0}'
               className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm font-mono text-xs"
             />
           </div>

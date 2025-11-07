@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect } from 'react';
-import type { Quest, Item, SkillNode, HideoutModule } from '@/types';
+import type { Quest, Item, SkillNode, HideoutModule, EnemyType } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { getMultilingualText, getMultilingualArray } from '@/lib/i18n';
 
-type Entity = Quest | Item | SkillNode | HideoutModule;
+type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType;
 
 interface ViewModalProps {
   entity: Entity | null;
-  type: 'quest' | 'item' | 'skill-node' | 'hideout-module';
+  type: 'quest' | 'item' | 'skill-node' | 'hideout-module' | 'enemy-type';
   onClose: () => void;
 }
 

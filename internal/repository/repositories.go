@@ -434,6 +434,55 @@ func (r *HideoutModuleRepository) UpsertByExternalID(hideoutModule *models.Hideo
 	return r.db.Save(hideoutModule).Error
 }
 
+type EnemyTypeRepository struct {
+	db *DB
+}
+
+func NewEnemyTypeRepository(db *DB) *EnemyTypeRepository {
+	return &EnemyTypeRepository{db: db}
+}
+
+func (r *EnemyTypeRepository) Create(enemyType *models.EnemyType) error {
+	return r.db.Create(enemyType).Error
+}
+
+func (r *EnemyTypeRepository) FindByID(id uint) (*models.EnemyType, error) {
+	var enemyType models.EnemyType
+	err := r.db.First(&enemyType, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &enemyType, nil
+}
+
+func (r *EnemyTypeRepository) FindByExternalID(externalID string) (*models.EnemyType, error) {
+	var enemyType models.EnemyType
+	err := r.db.Where("external_id = ?", externalID).First(&enemyType).Error
+	if err != nil {
+		return nil, err
+	}
+	return &enemyType, nil
+}
+
+func (r *EnemyTypeRepository) FindAll(offset, limit int) ([]models.EnemyType, int64, error) {
+	var enemyTypes []models.EnemyType
+	var count int64
+	err := r.db.Model(&models.EnemyType{}).Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&enemyTypes).Error
+	return enemyTypes, count, err
+}
+
+func (r *EnemyTypeRepository) Update(enemyType *models.EnemyType) error {
+	return r.db.Save(enemyType).Error
+}
+
+func (r *EnemyTypeRepository) Delete(id uint) error {
+	return r.db.Delete(&models.EnemyType{}, id).Error
+}
+
 type AuditLogRepository struct {
 	db *DB
 }
