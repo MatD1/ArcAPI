@@ -179,8 +179,12 @@ export default function ViewModal({ entity, type, onClose }: ViewModalProps) {
       );
     }
 
+    // Only show synced_at if the entity has it (alerts don't have synced_at)
+    if ('synced_at' in entity && entity.synced_at) {
+      fields.push({ label: 'Synced At', value: formatDate(entity.synced_at) });
+    }
+    
     fields.push(
-      { label: 'Synced At', value: entity.synced_at ? formatDate(entity.synced_at) : null },
       { label: 'Created At', value: formatDate(entity.created_at) },
       { label: 'Updated At', value: formatDate(entity.updated_at) },
       { label: 'Full Data (JSON)', value: (entity as any).data }
