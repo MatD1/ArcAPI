@@ -39,8 +39,19 @@ func NewManagementHandler(
 	}
 }
 
-// CreateAPIKey creates a new API key
+// CreateAPIKey creates a new API key (admin only)
 func (h *ManagementHandler) CreateAPIKey(c *gin.Context) {
+	// Get current user from context
+	authCtx, _ := c.Get(middleware.AuthContextKey)
+	ctx := authCtx.(*middleware.AuthContext)
+	user := ctx.User.(*models.User)
+
+	// Security check: Only admins can create API keys
+	if user.Role != models.RoleAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only administrators can create API keys"})
+		return
+	}
+
 	var req struct {
 		Name string `json:"name" binding:"required"`
 	}
@@ -49,10 +60,6 @@ func (h *ManagementHandler) CreateAPIKey(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	authCtx, _ := c.Get(middleware.AuthContextKey)
-	ctx := authCtx.(*middleware.AuthContext)
-	user := ctx.User.(*models.User)
 
 	key, err := h.authService.CreateAPIKey(user.ID, req.Name)
 	if err != nil {
@@ -418,8 +425,9 @@ func (h *ManagementHandler) GetUser(c *gin.Context) {
 	})
 }
 
-// UpdateUserProfile allows users to update their own profile (email, username)
-// Admins can update any user's profile
+// UpdateUserProfile allows users to update their own profile
+// Regular users can ONLY update their username (not email or other fields)
+// Admins can update any user's profile including email
 func (h *ManagementHandler) UpdateUserProfile(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -456,12 +464,24 @@ func (h *ManagementHandler) UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Update only allowed fields (non-admin users cannot change sensitive fields)
-	if req.Email != nil {
-		targetUser.Email = *req.Email
-	}
-	if req.Username != nil {
-		targetUser.Username = *req.Username
+	// Permission check: Regular users can only update username, admins can update everything
+	if currentUser.Role != models.RoleAdmin {
+		// Regular user can only update username
+		if req.Email != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your username. Contact an administrator to change your email."})
+			return
+		}
+		if req.Username != nil {
+			targetUser.Username = *req.Username
+		}
+	} else {
+		// Admin can update everything
+		if req.Email != nil {
+			targetUser.Email = *req.Email
+		}
+		if req.Username != nil {
+			targetUser.Username = *req.Username
+		}
 	}
 
 	err = h.userRepo.Update(targetUser)

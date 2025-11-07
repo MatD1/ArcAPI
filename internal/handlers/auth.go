@@ -21,13 +21,14 @@ import (
 )
 
 type AuthHandler struct {
-	authService  *services.AuthService
-	userService  *services.UserService
-	cfg          *config.Config
-	oauthConfig  *oauth2.Config
-	apiKeyRepo   *repository.APIKeyRepository
-	tempTokens   map[string]OAuthTokenData
-	tempTokensMu sync.RWMutex
+	authService        *services.AuthService
+	userService        *services.UserService
+	cfg                *config.Config
+	githubOAuthConfig  *oauth2.Config
+	discordOAuthConfig *oauth2.Config
+	apiKeyRepo         *repository.APIKeyRepository
+	tempTokens         map[string]OAuthTokenData
+	tempTokensMu       sync.RWMutex
 }
 
 type OAuthTokenData struct {
@@ -57,21 +58,39 @@ func NewAuthHandler(
 	cfg *config.Config,
 	apiKeyRepo *repository.APIKeyRepository,
 ) *AuthHandler {
-	oauthConfig := &oauth2.Config{
-		ClientID:     cfg.GitHubClientID,
-		ClientSecret: cfg.GitHubClientSecret,
-		RedirectURL:  cfg.OAuthRedirectURL,
-		Scopes:       []string{"user:email"},
-		Endpoint:     githubOAuth.Endpoint,
+	var githubOAuthConfig *oauth2.Config
+	if cfg.IsGitHubOAuthEnabled() {
+		githubOAuthConfig = &oauth2.Config{
+			ClientID:     cfg.GitHubClientID,
+			ClientSecret: cfg.GitHubClientSecret,
+			RedirectURL:  cfg.OAuthRedirectURL,
+			Scopes:       []string{"user:email"},
+			Endpoint:     githubOAuth.Endpoint,
+		}
+	}
+
+	var discordOAuthConfig *oauth2.Config
+	if cfg.IsDiscordOAuthEnabled() {
+		discordOAuthConfig = &oauth2.Config{
+			ClientID:     cfg.DiscordClientID,
+			ClientSecret: cfg.DiscordClientSecret,
+			RedirectURL:  cfg.DiscordRedirectURL,
+			Scopes:       []string{"identify", "email"},
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://discord.com/api/oauth2/authorize",
+				TokenURL: "https://discord.com/api/oauth2/token",
+			},
+		}
 	}
 
 	handler := &AuthHandler{
-		authService: authService,
-		userService: userService,
-		cfg:         cfg,
-		oauthConfig: oauthConfig,
-		apiKeyRepo:  apiKeyRepo,
-		tempTokens:  make(map[string]OAuthTokenData),
+		authService:        authService,
+		userService:        userService,
+		cfg:                cfg,
+		githubOAuthConfig:  githubOAuthConfig,
+		discordOAuthConfig: discordOAuthConfig,
+		apiKeyRepo:         apiKeyRepo,
+		tempTokens:         make(map[string]OAuthTokenData),
 	}
 
 	// Cleanup old tokens periodically
@@ -214,8 +233,8 @@ func (h *AuthHandler) ExchangeTempToken(c *gin.Context) {
 
 // GitHubLogin initiates GitHub OAuth flow
 func (h *AuthHandler) GitHubLogin(c *gin.Context) {
-	if !h.cfg.IsOAuthEnabled() {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "OAuth is disabled"})
+	if !h.cfg.IsGitHubOAuthEnabled() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub OAuth is not configured"})
 		return
 	}
 
@@ -237,7 +256,7 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	}
 
 	// Update OAuth config with dynamic redirect URL
-	oauthConfig := *h.oauthConfig
+	oauthConfig := *h.githubOAuthConfig
 	oauthConfig.RedirectURL = oauthCallbackURL
 
 	// Extract redirect and client parameters from query
@@ -325,14 +344,14 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	token, err := h.oauthConfig.Exchange(ctx, code)
+	token, err := h.githubOAuthConfig.Exchange(ctx, code)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to exchange token"})
 		return
 	}
 
 	// Get user info from GitHub
-	oauthClient := h.oauthConfig.Client(ctx, token)
+	oauthClient := h.githubOAuthConfig.Client(ctx, token)
 	client := github.NewClient(oauthClient)
 
 	user, _, err := client.Users.Get(ctx, "")
@@ -553,6 +572,289 @@ func (h *AuthHandler) MobileCallbackPage(c *gin.Context) {
 
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
+// DiscordLogin initiates Discord OAuth flow
+func (h *AuthHandler) DiscordLogin(c *gin.Context) {
+	if !h.cfg.IsDiscordOAuthEnabled() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Discord OAuth is not configured"})
+		return
+	}
+
+	// Build OAuth callback URL from request if not set in config
+	oauthCallbackURL := h.cfg.DiscordRedirectURL
+	if oauthCallbackURL == "" || strings.Contains(oauthCallbackURL, "localhost") {
+		scheme := "https"
+		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+			scheme = proto
+		} else if c.Request.TLS == nil {
+			scheme = "http"
+		}
+		host := c.GetHeader("X-Forwarded-Host")
+		if host == "" {
+			host = c.Request.Host
+		}
+		oauthCallbackURL = fmt.Sprintf("%s://%s/api/v1/auth/discord/callback", scheme, host)
+	}
+
+	// Update OAuth config with dynamic redirect URL
+	oauthConfig := *h.discordOAuthConfig
+	oauthConfig.RedirectURL = oauthCallbackURL
+
+	// Extract redirect and client parameters from query
+	redirectParam := strings.TrimSpace(c.Query("redirect"))
+	clientParam := strings.TrimSpace(c.Query("client"))
+
+	// Default to web if client not specified
+	if clientParam == "" {
+		clientParam = ClientWeb
+	}
+
+	var state *OAuthState
+	var stateString string
+
+	// If mobile client with redirect, create state with mobile deep link
+	if clientParam == ClientMobile {
+		if redirectParam == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Mobile client requires redirect parameter"})
+			return
+		}
+		if err := validateRedirectURL(redirectParam, ClientMobile); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid redirect URL: %v", err)})
+			return
+		}
+
+		state = &OAuthState{
+			Redirect:  redirectParam,
+			Client:    ClientMobile,
+			CSRFToken: h.generateCSRFToken(),
+			Timestamp: time.Now(),
+		}
+	} else if clientParam == ClientWeb {
+		webCallbackURL := h.cfg.FrontendCallbackURL
+		if webCallbackURL == "" || strings.Contains(webCallbackURL, "localhost") {
+			scheme := "https"
+			if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+				scheme = proto
+			} else if c.Request.TLS == nil {
+				scheme = "http"
+			}
+			host := c.GetHeader("X-Forwarded-Host")
+			if host == "" {
+				host = c.Request.Host
+			}
+			webCallbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/discord/callback/", scheme, host)
+		}
+
+		state = &OAuthState{
+			Redirect:  webCallbackURL,
+			Client:    ClientWeb,
+			CSRFToken: h.generateCSRFToken(),
+			Timestamp: time.Now(),
+		}
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid client type: %s. Must be 'mobile' or 'web'", clientParam)})
+		return
+	}
+
+	// Encode state
+	var err error
+	stateString, err = encodeState(state)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode state"})
+		return
+	}
+
+	url := oauthConfig.AuthCodeURL(stateString, oauth2.AccessTypeOnline)
+	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+// DiscordCallback handles Discord OAuth callback
+func (h *AuthHandler) DiscordCallback(c *gin.Context) {
+	if !h.cfg.IsDiscordOAuthEnabled() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Discord OAuth is not configured"})
+		return
+	}
+
+	code := c.Query("code")
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing authorization code"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	token, err := h.discordOAuthConfig.Exchange(ctx, code)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to exchange token"})
+		return
+	}
+
+	// Get user info from Discord API
+	oauthClient := h.discordOAuthConfig.Client(ctx, token)
+	req, err := http.NewRequest("GET", "https://discord.com/api/users/@me", nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
+		return
+	}
+
+	resp, err := oauthClient.Do(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+	defer resp.Body.Close()
+
+	var discordUser struct {
+		ID            string `json:"id"`
+		Username      string `json:"username"`
+		Email         string `json:"email"`
+		Discriminator string `json:"discriminator"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&discordUser); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode user info"})
+		return
+	}
+
+	// Use email if available, otherwise use username
+	email := discordUser.Email
+	if email == "" {
+		email = discordUser.Username + "@discord.noreply.com"
+	}
+
+	// Decode state to check if user was created via mobile app
+	var createdViaApp bool
+	stateParam := c.Query("state")
+	if stateParam != "" {
+		if state, err := decodeState(stateParam); err == nil {
+			createdViaApp = (state.Client == ClientMobile)
+		}
+	}
+
+	// Create or update user
+	discordID := discordUser.ID
+	dbUser, err := h.userService.CreateOrUpdateFromDiscord(discordID, email, discordUser.Username, createdViaApp)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user", "details": err.Error()})
+		return
+	}
+
+	// Validate user was created/updated successfully
+	if dbUser == nil || dbUser.ID == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user after creation"})
+		return
+	}
+
+	// Generate JWT token
+	jwtToken, err := h.authService.GenerateJWT(dbUser)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token", "details": err.Error()})
+		return
+	}
+
+	// Check if user has any active API keys - only create if they don't have any
+	var apiKey string
+	apiKeys, _ := h.apiKeyRepo.FindByUserID(dbUser.ID)
+	hasActiveKey := false
+	for _, key := range apiKeys {
+		if key.RevokedAt == nil {
+			hasActiveKey = true
+			break
+		}
+	}
+
+	if !hasActiveKey {
+		newKey, err := h.authService.CreateAPIKey(dbUser.ID, "OAuth Auto-Generated")
+		if err == nil {
+			apiKey = newKey
+		}
+	}
+
+	// Generate temporary token for frontend to exchange
+	tempToken := h.generateTempToken()
+
+	// Store token data temporarily
+	h.tempTokensMu.Lock()
+	h.tempTokens[tempToken] = OAuthTokenData{
+		Token:     jwtToken,
+		User:      dbUser,
+		APIKey:    apiKey,
+		CreatedAt: time.Now(),
+	}
+	h.tempTokensMu.Unlock()
+
+	// Decode and validate state
+	if stateParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing state parameter"})
+		return
+	}
+
+	state, err := decodeState(stateParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid state: %v", err)})
+		return
+	}
+
+	if err := validateState(state); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("State validation failed: %v", err)})
+		return
+	}
+
+	// Determine callback destination based on client type
+	var callbackURL string
+
+	if state.Client == ClientMobile {
+		deepLinkURL := state.Redirect
+		if err := validateRedirectURL(deepLinkURL, ClientMobile); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid redirect URL: %v", err)})
+			return
+		}
+
+		scheme := "https"
+		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+			scheme = proto
+		} else if c.Request.TLS == nil {
+			scheme = "http"
+		}
+		host := c.GetHeader("X-Forwarded-Host")
+		if host == "" {
+			host = c.Request.Host
+		}
+		callbackURL = fmt.Sprintf("%s://%s/auth/mobile-callback?token=%s&redirect=%s",
+			scheme,
+			host,
+			url.QueryEscape(tempToken),
+			url.QueryEscape(deepLinkURL),
+		)
+		c.Redirect(http.StatusFound, callbackURL)
+		return
+	} else {
+		callbackURL = state.Redirect
+		if callbackURL == "" {
+			callbackURL = h.cfg.FrontendCallbackURL
+			if callbackURL == "" || strings.Contains(callbackURL, "localhost") {
+				scheme := "https"
+				if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+					scheme = proto
+				} else if c.Request.TLS == nil {
+					scheme = "http"
+				}
+				host := c.GetHeader("X-Forwarded-Host")
+				if host == "" {
+					host = c.Request.Host
+				}
+				callbackURL = fmt.Sprintf("%s://%s/dashboard/api/auth/discord/callback/", scheme, host)
+			}
+		}
+	}
+
+	// Append token appropriately
+	sep := "?"
+	if strings.Contains(callbackURL, "?") {
+		sep = "&"
+	}
+	finalRedirectURL := callbackURL + sep + "token=" + tempToken
+	c.Redirect(http.StatusFound, finalRedirectURL)
 }
 
 // LoginWithAPIKey authenticates with API key and returns JWT

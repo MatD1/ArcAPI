@@ -25,11 +25,17 @@ type Config struct {
 	JWTSecret      string `envconfig:"JWT_SECRET" required:"true"`
 	JWTExpiryHours int    `envconfig:"JWT_EXPIRY_HOURS" default:"72"`
 
-	// OAuth
-	GitHubClientID      string `envconfig:"GITHUB_CLIENT_ID" default:""`
-	GitHubClientSecret  string `envconfig:"GITHUB_CLIENT_SECRET" default:""`
+	// OAuth - GitHub
+	GitHubClientID     string `envconfig:"GITHUB_CLIENT_ID" default:""`
+	GitHubClientSecret string `envconfig:"GITHUB_CLIENT_SECRET" default:""`
+
+	// OAuth - Discord
+	DiscordClientID     string `envconfig:"DISCORD_CLIENT_ID" default:""`
+	DiscordClientSecret string `envconfig:"DISCORD_CLIENT_SECRET" default:""`
+
 	OAuthEnabled        bool   `envconfig:"OAUTH_ENABLED" default:"true"`
 	OAuthRedirectURL    string `envconfig:"OAUTH_REDIRECT_URL" default:"http://localhost:8080/api/v1/auth/github/callback"`
+	DiscordRedirectURL  string `envconfig:"DISCORD_REDIRECT_URL" default:"http://localhost:8080/api/v1/auth/discord/callback"`
 	FrontendCallbackURL string `envconfig:"FRONTEND_CALLBACK_URL" default:"http://localhost:8080/dashboard/api/auth/github/callback/"`
 
 	// Sync
@@ -59,5 +65,13 @@ func (c *Config) GetDSN() string {
 }
 
 func (c *Config) IsOAuthEnabled() bool {
+	return c.OAuthEnabled && (c.GitHubClientID != "" && c.GitHubClientSecret != "" || c.DiscordClientID != "" && c.DiscordClientSecret != "")
+}
+
+func (c *Config) IsGitHubOAuthEnabled() bool {
 	return c.OAuthEnabled && c.GitHubClientID != "" && c.GitHubClientSecret != ""
+}
+
+func (c *Config) IsDiscordOAuthEnabled() bool {
+	return c.OAuthEnabled && c.DiscordClientID != "" && c.DiscordClientSecret != ""
 }

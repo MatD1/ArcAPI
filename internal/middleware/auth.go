@@ -46,12 +46,7 @@ func JWTAuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		// Check if user has access (admins always have access)
-		if user.Role != models.RoleAdmin && !user.CanAccessData {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied. Contact an administrator to enable data access."})
-			c.Abort()
-			return
-		}
+		// All authenticated users have read access by default (no CanAccessData check needed)
 
 		// Store auth context
 		c.Set(AuthContextKey, &AuthContext{

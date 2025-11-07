@@ -231,6 +231,119 @@ func (h *ItemHandler) RequiredItems(c *gin.Context) {
 	})
 }
 
+// BlueprintItem represents a blueprint item with relevant information
+type BlueprintItem struct {
+	ID            uint                   `json:"id"`
+	ExternalID    string                 `json:"external_id"`
+	Name          string                 `json:"name"`
+	Description   string                 `json:"description,omitempty"`
+	Type          string                 `json:"type,omitempty"`
+	ImageURL      string                 `json:"image_url,omitempty"`
+	ImageFilename string                 `json:"image_filename,omitempty"`
+	Data          map[string]interface{} `json:"data,omitempty"`
+	SyncedAt      string                 `json:"synced_at"`
+	CreatedAt     string                 `json:"created_at"`
+	UpdatedAt     string                 `json:"updated_at"`
+}
+
+// GetBlueprints returns all blueprint items
+// Blueprints are identified by:
+// 1. Type field containing "Blueprint" (case-insensitive)
+// 2. Name containing "Blueprint" (case-insensitive)
+// 3. Data field containing blueprint-related keys
+func (h *ItemHandler) GetBlueprints(c *gin.Context) {
+	// Get all items
+	allItems, _, err := h.repo.FindAll(0, 100000) // Get all items
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch items"})
+		return
+	}
+
+	var blueprints []BlueprintItem
+
+	for _, item := range allItems {
+		isBlueprint := false
+
+		// Check 1: Type field
+		if strings.Contains(strings.ToLower(item.Type), "blueprint") {
+			isBlueprint = true
+		}
+
+		// Check 2: Name contains "Blueprint"
+		if !isBlueprint && strings.Contains(strings.ToLower(item.Name), "blueprint") {
+			isBlueprint = true
+		}
+
+		// Check 3: Data field contains blueprint indicators
+		if !isBlueprint && item.Data != nil {
+			dataMap := map[string]interface{}(item.Data)
+
+			// Check for common blueprint-related fields
+			blueprintFields := []string{
+				"blueprint", "isBlueprint", "is_blueprint", "blueprintType",
+				"blueprint_type", "craftable", "consumable", "recipe",
+			}
+
+			for _, field := range blueprintFields {
+				if val, exists := dataMap[field]; exists {
+					// If field exists and is truthy, it's likely a blueprint
+					if boolVal, ok := val.(bool); ok && boolVal {
+						isBlueprint = true
+						break
+					} else if val != nil && val != "" {
+						isBlueprint = true
+						break
+					}
+				}
+			}
+
+			// Also check if type in data is blueprint
+			if typeVal, ok := dataMap["type"].(string); ok {
+				if strings.Contains(strings.ToLower(typeVal), "blueprint") {
+					isBlueprint = true
+				}
+			}
+		}
+
+		// Check 4: External ID pattern (some games use IDs like "bp_*" or "*_blueprint")
+		if !isBlueprint {
+			lowerID := strings.ToLower(item.ExternalID)
+			if strings.Contains(lowerID, "blueprint") ||
+				strings.HasPrefix(lowerID, "bp_") ||
+				strings.HasSuffix(lowerID, "_bp") {
+				isBlueprint = true
+			}
+		}
+
+		if isBlueprint {
+			blueprint := BlueprintItem{
+				ID:            item.ID,
+				ExternalID:    item.ExternalID,
+				Name:          item.Name,
+				Description:   item.Description,
+				Type:          item.Type,
+				ImageURL:      item.ImageURL,
+				ImageFilename: item.ImageFilename,
+				SyncedAt:      item.SyncedAt.Format("2006-01-02T15:04:05Z07:00"),
+				CreatedAt:     item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				UpdatedAt:     item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			}
+
+			// Include full data if present
+			if item.Data != nil {
+				blueprint.Data = map[string]interface{}(item.Data)
+			}
+
+			blueprints = append(blueprints, blueprint)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  blueprints,
+		"total": len(blueprints),
+	})
+}
+
 // extractItemsFromQuest extracts required items from a quest's data
 func (h *ItemHandler) extractItemsFromQuest(quest models.Quest, itemMap map[string]*RequiredItemResponse, itemNameMap map[string]string, allItems []models.Item) {
 	// Track processed items to avoid duplicates

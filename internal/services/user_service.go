@@ -89,6 +89,73 @@ func (s *UserService) GetByID(id uint) (*models.User, error) {
 	return s.userRepo.FindByID(id)
 }
 
+func (s *UserService) CreateOrUpdateFromDiscord(discordID string, email, username string, createdViaApp bool) (*models.User, error) {
+	// Try to find by Discord ID
+	user, err := s.userRepo.FindByDiscordID(discordID)
+	if err == nil {
+		// Update if found
+		user.Email = email
+		user.Username = username
+		// Only update CreatedViaApp if it's a new mobile app user (existing users won't change)
+		if createdViaApp && !user.CreatedViaApp {
+			user.CreatedViaApp = true
+		}
+		err = s.userRepo.Update(user)
+		return user, err
+	}
+
+	// Try to find by email
+	user, err = s.userRepo.FindByEmail(email)
+	if err == nil {
+		// Update Discord ID
+		user.DiscordID = &discordID
+		// Only update CreatedViaApp if it's a new mobile app user
+		if createdViaApp && !user.CreatedViaApp {
+			user.CreatedViaApp = true
+		}
+		err = s.userRepo.Update(user)
+		return user, err
+	}
+
+	// Create new user
+	user = &models.User{
+		DiscordID:     &discordID,
+		Email:         email,
+		Username:      username,
+		Role:          models.RoleUser,
+		CreatedViaApp: createdViaApp,
+	}
+	err = s.userRepo.Create(user)
+	if err != nil {
+		// Check for unique constraint violations
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+			// Try to find the user again (might have been created in another request)
+			user, findErr := s.userRepo.FindByEmail(email)
+			if findErr == nil {
+				return user, nil
+			}
+			user, findErr = s.userRepo.FindByDiscordID(discordID)
+			if findErr == nil {
+				return user, nil
+			}
+		}
+		log.Printf("Error creating user: %v", err)
+		return nil, err
+	}
+
+	// Ensure ID is set (GORM should set this, but verify)
+	if user.ID == 0 {
+		log.Printf("Warning: User created but ID is still 0")
+		// Try to find the user we just created
+		user, err = s.userRepo.FindByEmail(email)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return user, nil
+}
+
 func (s *UserService) IsAdmin(user *models.User) bool {
 	return user.Role == models.RoleAdmin
 }

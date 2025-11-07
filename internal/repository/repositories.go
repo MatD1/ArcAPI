@@ -44,6 +44,15 @@ func (r *UserRepository) FindByGithubID(githubID string) (*models.User, error) {
 	return &user, nil
 }
 
+func (r *UserRepository) FindByDiscordID(discordID string) (*models.User, error) {
+	var user models.User
+	err := r.db.Where("discord_id = ?", discordID).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *UserRepository) Update(user *models.User) error {
 	return r.db.Save(user).Error
 }

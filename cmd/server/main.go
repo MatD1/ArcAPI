@@ -119,6 +119,8 @@ func main() {
 		{
 			auth.GET("/github/login", authHandler.GitHubLogin)
 			auth.GET("/github/callback", authHandler.GitHubCallback)
+			auth.GET("/discord/login", authHandler.DiscordLogin)
+			auth.GET("/discord/callback", authHandler.DiscordCallback)
 			auth.GET("/exchange-token", authHandler.ExchangeTempToken) // Public endpoint to exchange temp token
 			auth.POST("/login", authHandler.LoginWithAPIKey)
 		}
@@ -137,7 +139,8 @@ func main() {
 			// Items - Read
 			readOnly.GET("/items", itemHandler.List)
 			readOnly.GET("/items/:id", itemHandler.Get)
-			readOnly.GET("/items/required", itemHandler.RequiredItems) // Get all required items for quests and hideout modules
+			readOnly.GET("/items/required", itemHandler.RequiredItems)   // Get all required items for quests and hideout modules
+			readOnly.GET("/items/blueprints", itemHandler.GetBlueprints) // Get all blueprint items
 
 			// Skill Nodes - Read
 			readOnly.GET("/skill-nodes", skillNodeHandler.List)
@@ -241,9 +244,13 @@ func main() {
 			r.GET("/dashboard/*path", func(c *gin.Context) {
 				path := c.Param("path")
 
-				// Handle OAuth callback route specially
+				// Handle OAuth callback routes specially
 				if strings.HasPrefix(path, "/api/auth/github/callback") {
 					c.File(frontendDir + "/api/auth/github/callback/index.html")
+					return
+				}
+				if strings.HasPrefix(path, "/api/auth/discord/callback") {
+					c.File(frontendDir + "/api/auth/discord/callback/index.html")
 					return
 				}
 
