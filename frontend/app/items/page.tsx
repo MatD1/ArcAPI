@@ -8,6 +8,9 @@ import { apiClient, getErrorMessage } from '@/lib/api';
 import type { Item } from '@/types';
 import DataTable from '@/components/crud/DataTable';
 import EntityForm from '@/components/crud/EntityForm';
+import type { Quest, SkillNode, HideoutModule, EnemyType, Alert } from '@/types';
+
+type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType | Alert;
 
 export default function ItemsPage() {
   const router = useRouter();
@@ -46,8 +49,9 @@ export default function ItemsPage() {
     setShowForm(true);
   };
 
-  const handleEdit = (item: Item) => {
-    setEditing(item);
+  const handleEdit = (entity: Entity) => {
+    // Type assertion is safe here since we know type="item"
+    setEditing(entity as Item);
     setShowForm(true);
   };
 

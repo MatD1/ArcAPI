@@ -8,6 +8,9 @@ import { apiClient, getErrorMessage } from '@/lib/api';
 import type { HideoutModule } from '@/types';
 import DataTable from '@/components/crud/DataTable';
 import EntityForm from '@/components/crud/EntityForm';
+import type { Quest, Item, SkillNode, EnemyType, Alert } from '@/types';
+
+type Entity = Quest | Item | SkillNode | HideoutModule | EnemyType | Alert;
 
 export default function HideoutModulesPage() {
   const router = useRouter();
@@ -46,8 +49,9 @@ export default function HideoutModulesPage() {
     setShowForm(true);
   };
 
-  const handleEdit = (hideoutModule: HideoutModule) => {
-    setEditing(hideoutModule);
+  const handleEdit = (item: Entity) => {
+    // Type assertion is safe here since we know type="hideout-module"
+    setEditing(item as HideoutModule);
     setShowForm(true);
   };
 
