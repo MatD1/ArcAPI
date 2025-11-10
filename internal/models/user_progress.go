@@ -59,3 +59,21 @@ type UserSkillNodeProgress struct {
 func (UserSkillNodeProgress) TableName() string {
 	return "user_skill_node_progress"
 }
+
+// UserBlueprintProgress tracks blueprint consumption for a user
+type UserBlueprintProgress struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	UserID       uint      `gorm:"uniqueIndex:idx_user_blueprint;not null" json:"user_id"`
+	ItemID       uint      `gorm:"uniqueIndex:idx_user_blueprint;not null" json:"item_id"`
+	Consumed     bool      `gorm:"default:false;not null" json:"consumed"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+
+	// Relations
+	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Item Item `gorm:"foreignKey:ItemID" json:"item,omitempty"`
+}
+
+func (UserBlueprintProgress) TableName() string {
+	return "user_blueprint_progress"
+}

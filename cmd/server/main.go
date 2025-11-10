@@ -60,6 +60,7 @@ func main() {
 	questProgressRepo := repository.NewUserQuestProgressRepository(db)
 	hideoutModuleProgressRepo := repository.NewUserHideoutModuleProgressRepository(db)
 	skillNodeProgressRepo := repository.NewUserSkillNodeProgressRepository(db)
+	blueprintProgressRepo := repository.NewUserBlueprintProgressRepository(db)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, apiKeyRepo, jwtTokenRepo, cacheService, cfg)
@@ -147,9 +148,11 @@ func main() {
 		questProgressRepo,
 		hideoutModuleProgressRepo,
 		skillNodeProgressRepo,
+		blueprintProgressRepo,
 		questRepo,
 		hideoutModuleRepo,
 		skillNodeRepo,
+		itemRepo,
 	)
 
 	// Setup router
@@ -241,6 +244,10 @@ func main() {
 			// Skill Node Progress
 			progress.GET("/skill-nodes", progressHandler.GetMySkillNodeProgress)
 			progress.PUT("/skill-nodes/:skill_node_id", progressHandler.UpdateSkillNodeProgress)
+
+			// Blueprint Progress
+			progress.GET("/blueprints", progressHandler.GetMyBlueprintProgress)
+			progress.PUT("/blueprints/:item_id", progressHandler.UpdateBlueprintProgress)
 		}
 
 		// Write routes (require API key + JWT for regular users, or JWT only for admins)

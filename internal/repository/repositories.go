@@ -734,3 +734,54 @@ func (r *UserSkillNodeProgressRepository) FindByUserAndSkillNode(userID, skillNo
 func (r *UserSkillNodeProgressRepository) Delete(userID, skillNodeID uint) error {
 	return r.db.Where("user_id = ? AND skill_node_id = ?", userID, skillNodeID).Delete(&models.UserSkillNodeProgress{}).Error
 }
+
+// UserBlueprintProgressRepository handles user blueprint progress (tracking consumed blueprints)
+type UserBlueprintProgressRepository struct {
+	db *DB
+}
+
+func NewUserBlueprintProgressRepository(db *DB) *UserBlueprintProgressRepository {
+	return &UserBlueprintProgressRepository{db: db}
+}
+
+func (r *UserBlueprintProgressRepository) Upsert(userID, itemID uint, consumed bool) (*models.UserBlueprintProgress, error) {
+	var progress models.UserBlueprintProgress
+	err := r.db.Where("user_id = ? AND item_id = ?", userID, itemID).First(&progress).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Create new
+		progress = models.UserBlueprintProgress{
+			UserID:   userID,
+			ItemID:   itemID,
+			Consumed: consumed,
+		}
+		err = r.db.Create(&progress).Error
+		return &progress, err
+	} else if err != nil {
+		return nil, err
+	}
+
+	// Update existing
+	progress.Consumed = consumed
+	err = r.db.Save(&progress).Error
+	return &progress, err
+}
+
+func (r *UserBlueprintProgressRepository) FindByUserID(userID uint) ([]models.UserBlueprintProgress, error) {
+	var progress []models.UserBlueprintProgress
+	err := r.db.Preload("Item").Where("user_id = ?", userID).Order("id ASC").Find(&progress).Error
+	return progress, err
+}
+
+func (r *UserBlueprintProgressRepository) FindByUserAndItem(userID, itemID uint) (*models.UserBlueprintProgress, error) {
+	var progress models.UserBlueprintProgress
+	err := r.db.Preload("Item").Where("user_id = ? AND item_id = ?", userID, itemID).First(&progress).Error
+	if err != nil {
+		return nil, err
+	}
+	return &progress, nil
+}
+
+func (r *UserBlueprintProgressRepository) Delete(userID, itemID uint) error {
+	return r.db.Where("user_id = ? AND item_id = ?", userID, itemID).Delete(&models.UserBlueprintProgress{}).Error
+}

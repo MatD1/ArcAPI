@@ -62,6 +62,7 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		&models.UserQuestProgress{},
 		&models.UserHideoutModuleProgress{},
 		&models.UserSkillNodeProgress{},
+		&models.UserBlueprintProgress{},
 	)
 	if err != nil {
 		return nil, err
