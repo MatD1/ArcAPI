@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -34,14 +35,34 @@ func NewTradersService(cacheService *CacheService) *TradersService {
 
 // Start starts the background refresh goroutine
 func (s *TradersService) Start() {
-	// Initial fetch
-	go s.refreshTraders()
+	// Initial fetch with panic recovery
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC recovered in initial refreshTraders: %v", r)
+			}
+		}()
+		s.refreshTraders()
+	}()
 
-	// Set up periodic refresh
+	// Set up periodic refresh with panic recovery
 	ticker := time.NewTicker(tradersRefreshInterval)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC recovered in traders refresh ticker: %v", r)
+			}
+		}()
 		for range ticker.C {
-			s.refreshTraders()
+			// Wrap refresh in its own recovery
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("PANIC recovered in periodic refreshTraders: %v", r)
+					}
+				}()
+				s.refreshTraders()
+			}()
 		}
 	}()
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -597,15 +598,46 @@ err            error
 resultChan := make(chan result, 1)
 
 go func() {
+defer func() {
+if r := recover(); r != nil {
+log.Printf("PANIC recovered in GetAllUserProgress goroutine: %v", r)
+resultChan <- result{err: http.ErrAbortHandler}
+}
+}()
+
 var r result
-r.quests, _ = h.questProgressRepo.FindByUserID(userID)
-r.hideoutModules, _ = h.hideoutModuleProgressRepo.FindByUserID(userID)
-r.skillNodes, _ = h.skillNodeProgressRepo.FindByUserID(userID)
-r.blueprints, _ = h.blueprintProgressRepo.FindByUserID(userID)
+var err error
+
+r.quests, err = h.questProgressRepo.FindByUserID(userID)
+if err != nil {
+log.Printf("Warning: Failed to fetch quest progress for user %d: %v", userID, err)
+}
+
+r.hideoutModules, err = h.hideoutModuleProgressRepo.FindByUserID(userID)
+if err != nil {
+log.Printf("Warning: Failed to fetch hideout module progress for user %d: %v", userID, err)
+}
+
+r.skillNodes, err = h.skillNodeProgressRepo.FindByUserID(userID)
+if err != nil {
+log.Printf("Warning: Failed to fetch skill node progress for user %d: %v", userID, err)
+}
+
+r.blueprints, err = h.blueprintProgressRepo.FindByUserID(userID)
+if err != nil {
+log.Printf("Warning: Failed to fetch blueprint progress for user %d: %v", userID, err)
+}
+
 resultChan <- r
 }()
 
 r := <-resultChan
+
+// Check if goroutine panicked
+if r.err != nil {
+c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user progress"})
+return
+}
 
 c.JSON(http.StatusOK, gin.H{
 "user": gin.H{

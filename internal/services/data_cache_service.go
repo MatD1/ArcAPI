@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -39,16 +40,52 @@ func NewDataCacheService(
 
 // Start starts the background refresh goroutines
 func (s *DataCacheService) Start() {
-	// Initial refresh
-	go s.refreshItems()
-	go s.refreshQuests()
+	// Initial refresh with panic recovery
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC recovered in initial refreshItems: %v", r)
+			}
+		}()
+		s.refreshItems()
+	}()
 
-	// Set up periodic refresh
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC recovered in initial refreshQuests: %v", r)
+			}
+		}()
+		s.refreshQuests()
+	}()
+
+	// Set up periodic refresh with panic recovery
 	ticker := time.NewTicker(dataRefreshInterval)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC recovered in cache refresh ticker: %v", r)
+			}
+		}()
 		for range ticker.C {
-			s.refreshItems()
-			s.refreshQuests()
+			// Wrap each refresh in its own recovery
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("PANIC recovered in periodic refreshItems: %v", r)
+					}
+				}()
+				s.refreshItems()
+			}()
+
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("PANIC recovered in periodic refreshQuests: %v", r)
+					}
+				}()
+				s.refreshQuests()
+			}()
 		}
 	}()
 }
@@ -126,7 +163,14 @@ func (s *DataCacheService) GetItems(offset, limit int) ([]models.Item, int64, er
 
 	// Trigger background refresh if cache is stale
 	if s.lastItemsRefresh.IsZero() || time.Since(s.lastItemsRefresh) > dataRefreshInterval {
-		go s.refreshItems()
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("PANIC recovered in background refreshItems: %v", r)
+				}
+			}()
+			s.refreshItems()
+		}()
 	}
 
 	return items, count, nil
@@ -150,7 +194,14 @@ func (s *DataCacheService) GetQuests() ([]models.Quest, int64, error) {
 
 	// Trigger background refresh if cache is stale
 	if s.lastQuestsRefresh.IsZero() || time.Since(s.lastQuestsRefresh) > dataRefreshInterval {
-		go s.refreshQuests()
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("PANIC recovered in background refreshQuests: %v", r)
+				}
+			}()
+			s.refreshQuests()
+		}()
 	}
 
 	return quests, count, nil
