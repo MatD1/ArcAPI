@@ -290,7 +290,7 @@ func (h *ProgressHandler) UpdateBlueprintProgress(c *gin.Context) {
 
 // GetUserQuestProgress returns quest progress for a specific user (admin only)
 func (h *ProgressHandler) GetUserQuestProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -314,7 +314,7 @@ c.JSON(http.StatusOK, gin.H{"data": progress, "user_id": userID})
 
 // UpdateUserQuestProgress updates quest progress for a specific user (admin only)
 func (h *ProgressHandler) UpdateUserQuestProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -360,7 +360,7 @@ c.JSON(http.StatusOK, progress)
 
 // GetUserHideoutModuleProgress returns hideout module progress for a specific user (admin only)
 func (h *ProgressHandler) GetUserHideoutModuleProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -384,7 +384,7 @@ c.JSON(http.StatusOK, gin.H{"data": progress, "user_id": userID})
 
 // UpdateUserHideoutModuleProgress updates hideout module progress for a specific user (admin only)
 func (h *ProgressHandler) UpdateUserHideoutModuleProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -431,7 +431,7 @@ c.JSON(http.StatusOK, progress)
 
 // GetUserSkillNodeProgress returns skill node progress for a specific user (admin only)
 func (h *ProgressHandler) GetUserSkillNodeProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -455,7 +455,7 @@ c.JSON(http.StatusOK, gin.H{"data": progress, "user_id": userID})
 
 // UpdateUserSkillNodeProgress updates skill node progress for a specific user (admin only)
 func (h *ProgressHandler) UpdateUserSkillNodeProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -502,7 +502,7 @@ c.JSON(http.StatusOK, progress)
 
 // GetUserBlueprintProgress returns blueprint progress for a specific user (admin only)
 func (h *ProgressHandler) GetUserBlueprintProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -526,7 +526,7 @@ c.JSON(http.StatusOK, gin.H{"data": progress, "user_id": userID})
 
 // UpdateUserBlueprintProgress updates blueprint progress for a specific user (admin only)
 func (h *ProgressHandler) UpdateUserBlueprintProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -572,7 +572,7 @@ c.JSON(http.StatusOK, progress)
 
 // GetAllUserProgress returns all progress types for a specific user (admin only)
 func (h *ProgressHandler) GetAllUserProgress(c *gin.Context) {
-userIDStr := c.Param("user_id")
+userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
 if err != nil {
 c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
