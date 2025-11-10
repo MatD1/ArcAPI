@@ -9,8 +9,8 @@ import (
 	"github.com/mat/arcapi/internal/services"
 )
 
-// RateLimitMiddleware implements rate limiting: 5 requests per 15 seconds per user
-func RateLimitMiddleware(cacheService *services.CacheService) gin.HandlerFunc {
+// RateLimitMiddleware implements rate limiting with configurable limits
+func RateLimitMiddleware(cacheService *services.CacheService, limit int, windowSeconds int) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Skip rate limiting for health check endpoint
 		if c.Request.URL.Path == "/health" {
@@ -28,9 +28,8 @@ func RateLimitMiddleware(cacheService *services.CacheService) gin.HandlerFunc {
 			}
 		}
 
-		// Rate limit: 5 requests per 15 seconds
-		limit := 20
-		window := 35 * time.Second
+		// Use configured rate limits
+		window := time.Duration(windowSeconds) * time.Second
 		key := "rate_limit:" + identifier
 
 		if cacheService != nil {

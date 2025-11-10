@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mat/arcapi/internal/config"
@@ -27,6 +30,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	defer func() {
+		sqlDB, err := db.DB.DB()
+		if err == nil {
+			sqlDB.Close()
+		}
+	}()
 
 	// Initialize Redis cache (optional, continue if it fails)
 	cacheService, err := services.NewCacheService(cfg)
@@ -153,8 +162,11 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 
+	// Request size limit (10MB max)
+	r.Use(middleware.RequestSizeLimitMiddleware(10 * 1024 * 1024))
+
 	// Security middleware (CORS, security headers)
-	r.Use(middleware.SecurityMiddleware())
+	r.Use(middleware.SecurityMiddleware(cfg.GetAllowedOrigins()))
 
 	// Logger middleware (must be before auth middleware to log all requests)
 	r.Use(middleware.LoggerMiddleware(auditLogRepo))
@@ -162,7 +174,7 @@ func main() {
 	// Public routes
 	api := r.Group("/api/v1")
 	// Rate limiting middleware (applied to all API routes)
-	api.Use(middleware.RateLimitMiddleware(cacheService))
+	api.Use(middleware.RateLimitMiddleware(cacheService, cfg.RateLimitRequests, cfg.RateLimitWindowSeconds))
 	{
 		auth := api.Group("/auth")
 		{
@@ -296,10 +308,11 @@ func main() {
 			}
 		}
 
-		// Health check endpoint
-		r.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
-		})
+		// Health check endpoints
+		healthHandler := handlers.NewHealthHandler(db, cacheService)
+		r.GET("/health", healthHandler.HealthCheck)
+		r.GET("/health/ready", healthHandler.ReadinessCheck)
+		r.GET("/health/live", healthHandler.LivenessCheck)
 
 		// Mobile callback page (public route - redirects to deep link)
 		r.GET("/auth/mobile-callback", authHandler.MobileCallbackPage)
@@ -434,21 +447,40 @@ func main() {
 		} else {
 			log.Printf("Warning: Frontend not found at %s. Build frontend with 'make build-frontend'", frontendDir)
 		}
-
-		// Start server
-		go func() {
-			if err := r.Run(":" + cfg.APIPort); err != nil {
-				log.Fatalf("Failed to start server: %v", err)
-			}
-		}()
-
-		log.Printf("Server starting on port %s", cfg.APIPort)
-
-		// Wait for interrupt signal to gracefully shutdown
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		<-quit
-
-		log.Println("Shutting down server...")
 	}
+
+	// Create HTTP server with timeouts
+	srv := &http.Server{
+		Addr:           ":" + cfg.APIPort,
+		Handler:        r,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
+	}
+
+	// Start server in goroutine
+	go func() {
+		log.Printf("Server starting on port %s", cfg.APIPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+
+	// Graceful shutdown with 30 second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exited")
 }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
@@ -44,6 +45,14 @@ type Config struct {
 	// Server
 	APIPort  string `envconfig:"PORT" default:"8080"` // Railway uses PORT env var
 	LogLevel string `envconfig:"LOG_LEVEL" default:"info"`
+
+	// Security
+	AllowedOrigins string `envconfig:"ALLOWED_ORIGINS" default:""`
+
+	// Rate Limiting
+	RateLimitRequests      int `envconfig:"RATE_LIMIT_REQUESTS" default:"15"`
+	RateLimitWindowSeconds int `envconfig:"RATE_LIMIT_WINDOW_SECONDS" default:"60"`
+	RateLimitBurst         int `envconfig:"RATE_LIMIT_BURST" default:"5"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -74,4 +83,19 @@ func (c *Config) IsGitHubOAuthEnabled() bool {
 
 func (c *Config) IsDiscordOAuthEnabled() bool {
 	return c.OAuthEnabled && c.DiscordClientID != "" && c.DiscordClientSecret != ""
+}
+
+func (c *Config) GetAllowedOrigins() []string {
+	if c.AllowedOrigins == "" {
+		return []string{}
+	}
+	origins := strings.Split(c.AllowedOrigins, ",")
+	result := make([]string, 0, len(origins))
+	for _, origin := range origins {
+		trimmed := strings.TrimSpace(origin)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

@@ -444,18 +444,30 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	// Decode and validate state from OAuth callback (we already decoded it earlier, but need to validate)
 	if stateParam == "" {
+		// Cleanup temp token on error
+		h.tempTokensMu.Lock()
+		delete(h.tempTokens, tempToken)
+		h.tempTokensMu.Unlock()
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing state parameter"})
 		return
 	}
 
 	state, err := decodeState(stateParam)
 	if err != nil {
+		// Cleanup temp token on error
+		h.tempTokensMu.Lock()
+		delete(h.tempTokens, tempToken)
+		h.tempTokensMu.Unlock()
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid state: %v", err)})
 		return
 	}
 
 	// Validate state expiration and CSRF token
 	if err := validateState(state); err != nil {
+		// Cleanup temp token on error
+		h.tempTokensMu.Lock()
+		delete(h.tempTokens, tempToken)
+		h.tempTokensMu.Unlock()
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("State validation failed: %v", err)})
 		return
 	}

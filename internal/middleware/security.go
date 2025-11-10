@@ -8,7 +8,7 @@ import (
 )
 
 // SecurityMiddleware adds security headers and CORS support
-func SecurityMiddleware() gin.HandlerFunc {
+func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Security headers
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -16,21 +16,44 @@ func SecurityMiddleware() gin.HandlerFunc {
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';")
 
 		// CORS headers
 		origin := c.GetHeader("Origin")
 		if origin != "" {
-			// Allow requests from the same origin or configured origins
-			// In production, you should configure allowed origins
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Requested-With")
-			c.Header("Access-Control-Max-Age", "3600")
+			allowed := false
+
+			// Check if origin is in allowed list
+			if len(allowedOrigins) > 0 {
+				for _, allowedOrigin := range allowedOrigins {
+					if origin == allowedOrigin {
+						allowed = true
+						break
+					}
+				}
+			} else {
+				// If no origins configured, allow localhost and same origin for development
+				if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+					allowed = true
+				}
+			}
+
+			if allowed {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Access-Control-Allow-Credentials", "true")
+				c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+				c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Requested-With")
+				c.Header("Access-Control-Max-Age", "3600")
+			}
 
 			// Handle preflight requests
 			if c.Request.Method == http.MethodOptions {
-				c.AbortWithStatus(http.StatusNoContent)
+				if allowed {
+					c.AbortWithStatus(http.StatusNoContent)
+				} else {
+					c.AbortWithStatus(http.StatusForbidden)
+				}
 				return
 			}
 		}
