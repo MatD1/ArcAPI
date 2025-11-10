@@ -153,6 +153,7 @@ func main() {
 		hideoutModuleRepo,
 		skillNodeRepo,
 		itemRepo,
+		userRepo,
 	)
 
 	// Setup router
@@ -305,6 +306,17 @@ func main() {
 				admin.PUT("/users/:id/access", managementHandler.UpdateUserAccess)
 				admin.DELETE("/users/:id", managementHandler.DeleteUser)
 				admin.POST("/hideout-modules/cleanup-duplicates", managementHandler.CleanupDuplicateHideoutModules)
+
+				// Admin Progress Management - View/Edit any user's progress
+				admin.GET("/users/:user_id/progress", progressHandler.GetAllUserProgress)
+				admin.GET("/users/:user_id/progress/quests", progressHandler.GetUserQuestProgress)
+				admin.PUT("/users/:user_id/progress/quests/:quest_id", progressHandler.UpdateUserQuestProgress)
+				admin.GET("/users/:user_id/progress/hideout-modules", progressHandler.GetUserHideoutModuleProgress)
+				admin.PUT("/users/:user_id/progress/hideout-modules/:module_id", progressHandler.UpdateUserHideoutModuleProgress)
+				admin.GET("/users/:user_id/progress/skill-nodes", progressHandler.GetUserSkillNodeProgress)
+				admin.PUT("/users/:user_id/progress/skill-nodes/:skill_node_id", progressHandler.UpdateUserSkillNodeProgress)
+				admin.GET("/users/:user_id/progress/blueprints", progressHandler.GetUserBlueprintProgress)
+				admin.PUT("/users/:user_id/progress/blueprints/:item_id", progressHandler.UpdateUserBlueprintProgress)
 			}
 
 			// User profile routes (users can update their own profile, admins can update any)

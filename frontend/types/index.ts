@@ -170,3 +170,60 @@ export interface RequiredItemsResponse {
   total: number;
 }
 
+// Progress Tracking Types
+export interface UserQuestProgress {
+  id: number;
+  user_id: number;
+  quest_id: number;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+  quest?: Quest;
+}
+
+export interface UserHideoutModuleProgress {
+  id: number;
+  user_id: number;
+  hideout_module_id: number;
+  unlocked: boolean;
+  level: number;
+  created_at: string;
+  updated_at: string;
+  hideout_module?: HideoutModule;
+}
+
+export interface UserSkillNodeProgress {
+  id: number;
+  user_id: number;
+  skill_node_id: number;
+  unlocked: boolean;
+  level: number;
+  created_at: string;
+  updated_at: string;
+  skill_node?: SkillNode;
+}
+
+export interface UserBlueprintProgress {
+  id: number;
+  user_id: number;
+  item_id: number;
+  consumed: boolean;
+  created_at: string;
+  updated_at: string;
+  item?: Item;
+}
+
+export interface AllUserProgress {
+  user: {
+    id: number;
+    username: string;
+    email: string;
+  };
+  progress: {
+    quests: UserQuestProgress[];
+    hideout_modules: UserHideoutModuleProgress[];
+    skill_nodes: UserSkillNodeProgress[];
+    blueprints: UserBlueprintProgress[];
+  };
+}
+

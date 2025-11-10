@@ -196,6 +196,12 @@ export default function UsersPage() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                               <button
+                                onClick={() => router.push(`/progress/?userId=${u.id}`)}
+                                className="px-3 py-1 text-xs rounded-md mr-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-200"
+                              >
+                                View Progress
+                              </button>
+                              <button
                                 onClick={() => handleToggleAccess(u.id, u.can_access_data)}
                                 className={`px-3 py-1 text-xs rounded-md mr-2 ${
                                   u.can_access_data
@@ -244,14 +250,22 @@ export default function UsersPage() {
                 <div>
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white">User Information</h3>
-                    <button
-                      onClick={() => handleDeleteUser(selectedUser.user.id, selectedUser.user.username)}
-                      disabled={selectedUser.user.id === user?.id}
-                      className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={selectedUser.user.id === user?.id ? 'Cannot delete your own account' : 'Delete user'}
-                    >
-                      Delete User
-                    </button>
+                    <div className="space-x-2">
+                      <button
+                        onClick={() => router.push(`/progress/?userId=${selectedUser.user.id}`)}
+                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      >
+                        View Progress
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(selectedUser.user.id, selectedUser.user.username)}
+                        disabled={selectedUser.user.id === user?.id}
+                        className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={selectedUser.user.id === user?.id ? 'Cannot delete your own account' : 'Delete user'}
+                      >
+                        Delete User
+                      </button>
+                    </div>
                   </div>
                   <dl className="space-y-2">
                     <div className="flex justify-between">

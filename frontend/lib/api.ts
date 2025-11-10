@@ -14,6 +14,11 @@ import type {
   PaginatedResponse,
   LoginResponse,
   RequiredItemsResponse,
+  UserQuestProgress,
+  UserHideoutModuleProgress,
+  UserSkillNodeProgress,
+  UserBlueprintProgress,
+  AllUserProgress,
 } from '@/types';
 
 // Use relative URL when embedded, or explicit URL if provided
@@ -376,6 +381,119 @@ class APIClient {
 
   async deleteUser(userId: number): Promise<{ message: string }> {
     const response = await this.client.delete<{ message: string }>(`/admin/users/${userId}`);
+    return response.data;
+  }
+
+  // Blueprints
+  async getBlueprints(): Promise<{ data: Item[] }> {
+    const response = await this.client.get<{ data: Item[] }>('/items/blueprints');
+    return response.data;
+  }
+
+  // Progress Tracking - User Endpoints
+  async getMyQuestProgress(): Promise<{ data: UserQuestProgress[] }> {
+    const response = await this.client.get<{ data: UserQuestProgress[] }>('/progress/quests');
+    return response.data;
+  }
+
+  async updateMyQuestProgress(questExternalId: string, completed: boolean): Promise<UserQuestProgress> {
+    const response = await this.client.put<UserQuestProgress>(`/progress/quests/${questExternalId}`, {
+      completed,
+    });
+    return response.data;
+  }
+
+  async getMyHideoutProgress(): Promise<{ data: UserHideoutModuleProgress[] }> {
+    const response = await this.client.get<{ data: UserHideoutModuleProgress[] }>('/progress/hideout-modules');
+    return response.data;
+  }
+
+  async updateMyHideoutProgress(moduleExternalId: string, unlocked: boolean, level: number): Promise<UserHideoutModuleProgress> {
+    const response = await this.client.put<UserHideoutModuleProgress>(`/progress/hideout-modules/${moduleExternalId}`, {
+      unlocked,
+      level,
+    });
+    return response.data;
+  }
+
+  async getMySkillNodeProgress(): Promise<{ data: UserSkillNodeProgress[] }> {
+    const response = await this.client.get<{ data: UserSkillNodeProgress[] }>('/progress/skill-nodes');
+    return response.data;
+  }
+
+  async updateMySkillNodeProgress(skillNodeExternalId: string, unlocked: boolean, level: number): Promise<UserSkillNodeProgress> {
+    const response = await this.client.put<UserSkillNodeProgress>(`/progress/skill-nodes/${skillNodeExternalId}`, {
+      unlocked,
+      level,
+    });
+    return response.data;
+  }
+
+  async getMyBlueprintProgress(): Promise<{ data: UserBlueprintProgress[] }> {
+    const response = await this.client.get<{ data: UserBlueprintProgress[] }>('/progress/blueprints');
+    return response.data;
+  }
+
+  async updateMyBlueprintProgress(itemExternalId: string, consumed: boolean): Promise<UserBlueprintProgress> {
+    const response = await this.client.put<UserBlueprintProgress>(`/progress/blueprints/${itemExternalId}`, {
+      consumed,
+    });
+    return response.data;
+  }
+
+  // Progress Tracking - Admin Endpoints
+  async getAllUserProgress(userId: number): Promise<AllUserProgress> {
+    const response = await this.client.get<AllUserProgress>(`/admin/users/${userId}/progress`);
+    return response.data;
+  }
+
+  async getUserQuestProgress(userId: number): Promise<{ data: UserQuestProgress[]; user_id: number }> {
+    const response = await this.client.get<{ data: UserQuestProgress[]; user_id: number }>(`/admin/users/${userId}/progress/quests`);
+    return response.data;
+  }
+
+  async updateUserQuestProgress(userId: number, questExternalId: string, completed: boolean): Promise<UserQuestProgress> {
+    const response = await this.client.put<UserQuestProgress>(`/admin/users/${userId}/progress/quests/${questExternalId}`, {
+      completed,
+    });
+    return response.data;
+  }
+
+  async getUserHideoutProgress(userId: number): Promise<{ data: UserHideoutModuleProgress[]; user_id: number }> {
+    const response = await this.client.get<{ data: UserHideoutModuleProgress[]; user_id: number }>(`/admin/users/${userId}/progress/hideout-modules`);
+    return response.data;
+  }
+
+  async updateUserHideoutProgress(userId: number, moduleExternalId: string, unlocked: boolean, level: number): Promise<UserHideoutModuleProgress> {
+    const response = await this.client.put<UserHideoutModuleProgress>(`/admin/users/${userId}/progress/hideout-modules/${moduleExternalId}`, {
+      unlocked,
+      level,
+    });
+    return response.data;
+  }
+
+  async getUserSkillNodeProgress(userId: number): Promise<{ data: UserSkillNodeProgress[]; user_id: number }> {
+    const response = await this.client.get<{ data: UserSkillNodeProgress[]; user_id: number }>(`/admin/users/${userId}/progress/skill-nodes`);
+    return response.data;
+  }
+
+  async updateUserSkillNodeProgress(userId: number, skillNodeExternalId: string, unlocked: boolean, level: number): Promise<UserSkillNodeProgress> {
+    const response = await this.client.put<UserSkillNodeProgress>(`/admin/users/${userId}/progress/skill-nodes/${skillNodeExternalId}`, {
+      unlocked,
+      level,
+    });
+    return response.data;
+  }
+
+  async getUserBlueprintProgress(userId: number): Promise<{ data: UserBlueprintProgress[]; user_id: number }> {
+    const response = await this.client.get<{ data: UserBlueprintProgress[]; user_id: number }>(`/admin/users/${userId}/progress/blueprints`);
+    return response.data;
+  }
+
+  async updateUserBlueprintProgress(userId: number, itemExternalId: string, consumed: boolean): Promise<UserBlueprintProgress> {
+    const response = await this.client.put<UserBlueprintProgress>(`/admin/users/${userId}/progress/blueprints/${itemExternalId}`, {
+      consumed,
+    });
     return response.data;
   }
 }
