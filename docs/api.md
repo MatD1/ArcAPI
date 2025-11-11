@@ -224,21 +224,49 @@ All data endpoints support pagination with `page` and `limit` query parameters.
 
 ### Skill Nodes
 
-Same endpoints as missions, but for `/skill-nodes`:
-- `GET /skill-nodes` - List skill nodes
+#### List Skill Nodes (Paginated)
+
+**Endpoint:** `GET /skill-nodes`
+
+**Query Parameters:**
+- `page` (optional, default: 1): Page number
+- `limit` (optional, default: 20, max: 100): Items per page
+
+#### List All Skill Nodes (Unpaginated)
+
+**Endpoint:** `GET /skill-nodes?all=true`
+
+Returns all skill nodes in a single response.
+
+#### Other Skill Node Endpoints
+
 - `GET /skill-nodes/:id` - Get skill node
-- `POST /skill-nodes` - Create skill node
-- `PUT /skill-nodes/:id` - Update skill node
-- `DELETE /skill-nodes/:id` - Delete skill node
+- `POST /skill-nodes` - Create skill node (admin only)
+- `PUT /skill-nodes/:id` - Update skill node (admin only)
+- `DELETE /skill-nodes/:id` - Delete skill node (admin only)
 
 ### Hideout Modules
 
-Same endpoints as missions, but for `/hideout-modules`:
-- `GET /hideout-modules` - List hideout modules
+#### List Hideout Modules (Paginated)
+
+**Endpoint:** `GET /hideout-modules`
+
+**Query Parameters:**
+- `page` (optional, default: 1): Page number
+- `limit` (optional, default: 20, max: 100): Items per page
+
+#### List All Hideout Modules (Unpaginated)
+
+**Endpoint:** `GET /hideout-modules?all=true`
+
+Returns all hideout modules in a single response.
+
+#### Other Hideout Module Endpoints
+
 - `GET /hideout-modules/:id` - Get hideout module
-- `POST /hideout-modules` - Create hideout module
-- `PUT /hideout-modules/:id` - Update hideout module
-- `DELETE /hideout-modules/:id` - Delete hideout module
+- `POST /hideout-modules` - Create hideout module (admin only)
+- `PUT /hideout-modules/:id` - Update hideout module (admin only)
+- `DELETE /hideout-modules/:id` - Delete hideout module (admin only)
 
 ## Management Endpoints (Admin Only)
 

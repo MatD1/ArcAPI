@@ -18,6 +18,11 @@ func NewHideoutModuleHandler(repo *repository.HideoutModuleRepository) *HideoutM
 }
 
 func (h *HideoutModuleHandler) List(c *gin.Context) {
+	if c.Query("all") == "true" {
+		h.ListAll(c)
+		return
+	}
+
 	page := 1
 	limit := 20
 
@@ -46,6 +51,19 @@ func (h *HideoutModuleHandler) List(c *gin.Context) {
 			"limit": limit,
 			"total": count,
 		},
+	})
+}
+
+func (h *HideoutModuleHandler) ListAll(c *gin.Context) {
+	hideoutModules, count, err := h.repo.FindAll(0, 999999)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch hideout modules"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  hideoutModules,
+		"total": count,
 	})
 }
 

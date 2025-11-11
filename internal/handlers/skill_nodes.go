@@ -18,6 +18,11 @@ func NewSkillNodeHandler(repo *repository.SkillNodeRepository) *SkillNodeHandler
 }
 
 func (h *SkillNodeHandler) List(c *gin.Context) {
+	if c.Query("all") == "true" {
+		h.ListAll(c)
+		return
+	}
+
 	page := 1
 	limit := 20
 
@@ -46,6 +51,19 @@ func (h *SkillNodeHandler) List(c *gin.Context) {
 			"limit": limit,
 			"total": count,
 		},
+	})
+}
+
+func (h *SkillNodeHandler) ListAll(c *gin.Context) {
+	skillNodes, count, err := h.repo.FindAll(0, 999999)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch skill nodes"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  skillNodes,
+		"total": count,
 	})
 }
 
