@@ -50,9 +50,9 @@ type Config struct {
 	AllowedOrigins string `envconfig:"ALLOWED_ORIGINS" default:""`
 
 	// Rate Limiting
-	RateLimitRequests      int `envconfig:"RATE_LIMIT_REQUESTS" default:"15"`
+	RateLimitRequests      int `envconfig:"RATE_LIMIT_REQUESTS" default:"18"`
 	RateLimitWindowSeconds int `envconfig:"RATE_LIMIT_WINDOW_SECONDS" default:"60"`
-	RateLimitBurst         int `envconfig:"RATE_LIMIT_BURST" default:"5"`
+	RateLimitBurst         int `envconfig:"RATE_LIMIT_BURST" default:"8"`
 }
 
 func LoadConfig() (*Config, error) {
