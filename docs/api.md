@@ -174,12 +174,51 @@ All data endpoints support pagination with `page` and `limit` query parameters.
 
 ### Items
 
-Same endpoints as missions, but for `/items`:
-- `GET /items` - List items
-- `GET /items/:id` - Get item
-- `POST /items` - Create item
-- `PUT /items/:id` - Update item
-- `DELETE /items/:id` - Delete item
+#### List Items (Paginated)
+
+**Endpoint:** `GET /items`
+
+**Query Parameters:**
+- `page` (optional, default: 1): Page number
+- `limit` (optional, default: 20, max: 100): Items per page
+
+**Response:**
+```json
+{
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 500
+  }
+}
+```
+
+#### List All Items (Unpaginated)
+
+**Endpoint:** `GET /items?all=true`
+
+**Query Parameters:**
+- `all=true` (required): Returns all items without pagination
+
+**Response:**
+```json
+{
+  "data": [...],
+  "total": 500
+}
+```
+
+**⚠️ Note:** This endpoint returns all items in a single response. Use for initial data loading or when you need the complete dataset. For browsing, use the paginated endpoint.
+
+#### Other Item Endpoints
+
+- `GET /items/:id` - Get single item
+- `GET /items/required` - Get all required items for quests/hideout
+- `GET /items/blueprints` - Get all blueprint items
+- `POST /items` - Create item (admin only)
+- `PUT /items/:id` - Update item (admin only)
+- `DELETE /items/:id` - Delete item (admin only)
 
 **Additional field:** Items include `image_url` field.
 

@@ -51,6 +51,12 @@ func NewItemHandlerWithCache(
 }
 
 func (h *ItemHandler) List(c *gin.Context) {
+	// Check if unpaginated request
+	if c.Query("all") == "true" {
+		h.ListAll(c)
+		return
+	}
+
 	page := 1
 	limit := 20
 
@@ -90,6 +96,30 @@ func (h *ItemHandler) List(c *gin.Context) {
 			"limit": limit,
 			"total": count,
 		},
+	})
+}
+
+func (h *ItemHandler) ListAll(c *gin.Context) {
+	var items []models.Item
+	var count int64
+	var err error
+
+	// Use cache service if available - get all items
+	if h.dataCacheService != nil {
+		items, count, err = h.dataCacheService.GetItems(0, 999999)
+	} else {
+		// Fallback to direct database query
+		items, count, err = h.repo.FindAll(0, 999999)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch items"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  items,
+		"total": count,
 	})
 }
 
