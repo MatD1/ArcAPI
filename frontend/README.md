@@ -119,6 +119,7 @@ The frontend can optionally sync data to a Supabase database. When enabled, all 
    - Open the Supabase SQL editor
    - Run the SQL from `supabase-schema.sql` file in the frontend directory
    - This will create all necessary tables, indexes, triggers, and Row Level Security policies
+   - **If you already have tables**: Run `supabase-migration-name-description-jsonb.sql` to update name/description columns to JSONB
 
 4. Set environment variables in `.env.local`:
    ```

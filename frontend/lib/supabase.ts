@@ -163,10 +163,12 @@ class SupabaseService {
       if (operation === 'delete') {
         await client.from('quests').delete().eq('external_id', (quest as Quest).external_id);
       } else if (operation === 'insert') {
+        // Preserve name and description as-is (can be string, object, or array)
+        // Supabase JSONB will handle serialization automatically
         await client.from('quests').insert({
           external_id: quest.external_id,
-          name: quest.name,
-          description: quest.description,
+          name: quest.name, // Can be string, object, or array
+          description: quest.description, // Can be string, object, or array
           trader: (quest as Quest).trader,
           xp: (quest as Quest).xp,
           objectives: (quest as Quest).objectives,
@@ -174,11 +176,12 @@ class SupabaseService {
           data: quest.data || {},
         });
       } else if (operation === 'update') {
+        // Preserve name and description as-is (can be string, object, or array)
         await client
           .from('quests')
           .update({
-            name: quest.name,
-            description: quest.description,
+            name: quest.name, // Can be string, object, or array
+            description: quest.description, // Can be string, object, or array
             trader: (quest as Quest).trader,
             xp: (quest as Quest).xp,
             objectives: (quest as Quest).objectives,
@@ -286,20 +289,22 @@ class SupabaseService {
       if (operation === 'delete') {
         await client.from('hideout_modules').delete().eq('external_id', (module as HideoutModule).external_id);
       } else if (operation === 'insert') {
+        // Preserve name and description as-is (can be string, object, or array)
         await client.from('hideout_modules').insert({
           external_id: module.external_id,
-          name: module.name,
-          description: module.description,
+          name: module.name, // Can be string, object, or array
+          description: module.description, // Can be string, object, or array
           max_level: module.max_level,
           levels: module.levels,
           data: module.data || {},
         });
       } else if (operation === 'update') {
+        // Preserve name and description as-is (can be string, object, or array)
         await client
           .from('hideout_modules')
           .update({
-            name: module.name,
-            description: module.description,
+            name: module.name, // Can be string, object, or array
+            description: module.description, // Can be string, object, or array
             max_level: module.max_level,
             levels: module.levels,
             data: module.data || {},

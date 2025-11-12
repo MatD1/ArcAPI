@@ -4,8 +4,8 @@
 -- Quests table
 CREATE TABLE IF NOT EXISTS quests (
     external_id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
+    name JSONB NOT NULL, -- Can be string or JSON object/array
+    description JSONB, -- Can be string or JSON object/array
     trader TEXT,
     xp INTEGER,
     objectives JSONB,
@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS skill_nodes (
 -- Hideout Modules table
 CREATE TABLE IF NOT EXISTS hideout_modules (
     external_id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
+    name JSONB NOT NULL, -- Can be string or JSON object/array
+    description JSONB, -- Can be string or JSON object/array
     max_level INTEGER,
     levels JSONB,
     data JSONB DEFAULT '{}',
