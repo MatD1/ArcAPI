@@ -437,6 +437,12 @@ func main() {
 			r.GET("/users/*path", func(c *gin.Context) {
 				c.File(frontendDir + "/users/index.html")
 			})
+			r.GET("/supabase", func(c *gin.Context) {
+				c.File(frontendDir + "/supabase/index.html")
+			})
+			r.GET("/supabase/*path", func(c *gin.Context) {
+				c.File(frontendDir + "/supabase/index.html")
+			})
 
 			// Catch-all for other frontend routes
 			r.NoRoute(func(c *gin.Context) {

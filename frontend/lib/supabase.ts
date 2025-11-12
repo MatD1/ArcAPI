@@ -282,6 +282,106 @@ class SupabaseService {
       this.logError(`alert ${operation}`, error);
     }
   }
+
+  // Read operations - fetch data from Supabase
+  async getQuests(limit = 100): Promise<Quest[]> {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client.from('quests').select('*').limit(limit).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as Quest[];
+    } catch (error) {
+      this.logError('getQuests', error);
+      return [];
+    }
+  }
+
+  async getItems(limit = 100): Promise<Item[]> {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client.from('items').select('*').limit(limit).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as Item[];
+    } catch (error) {
+      this.logError('getItems', error);
+      return [];
+    }
+  }
+
+  async getSkillNodes(limit = 100): Promise<SkillNode[]> {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client.from('skill_nodes').select('*').limit(limit).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as SkillNode[];
+    } catch (error) {
+      this.logError('getSkillNodes', error);
+      return [];
+    }
+  }
+
+  async getHideoutModules(limit = 100): Promise<HideoutModule[]> {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client.from('hideout_modules').select('*').limit(limit).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as HideoutModule[];
+    } catch (error) {
+      this.logError('getHideoutModules', error);
+      return [];
+    }
+  }
+
+  async getEnemyTypes(limit = 100): Promise<EnemyType[]> {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client.from('enemy_types').select('*').limit(limit).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as EnemyType[];
+    } catch (error) {
+      this.logError('getEnemyTypes', error);
+      return [];
+    }
+  }
+
+  async getAlerts(limit = 100): Promise<Alert[]> {
+    if (!this.client) return [];
+    try {
+      const { data, error } = await this.client.from('alerts').select('*').limit(limit).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as Alert[];
+    } catch (error) {
+      this.logError('getAlerts', error);
+      return [];
+    }
+  }
+
+  // Get counts for each table
+  async getCounts(): Promise<Record<string, number>> {
+    if (!this.client) return {};
+    try {
+      const [quests, items, skillNodes, hideoutModules, enemyTypes, alerts] = await Promise.all([
+        this.client.from('quests').select('*', { count: 'exact', head: true }),
+        this.client.from('items').select('*', { count: 'exact', head: true }),
+        this.client.from('skill_nodes').select('*', { count: 'exact', head: true }),
+        this.client.from('hideout_modules').select('*', { count: 'exact', head: true }),
+        this.client.from('enemy_types').select('*', { count: 'exact', head: true }),
+        this.client.from('alerts').select('*', { count: 'exact', head: true }),
+      ]);
+
+      return {
+        quests: quests.count || 0,
+        items: items.count || 0,
+        skillNodes: skillNodes.count || 0,
+        hideoutModules: hideoutModules.count || 0,
+        enemyTypes: enemyTypes.count || 0,
+        alerts: alerts.count || 0,
+      };
+    } catch (error) {
+      this.logError('getCounts', error);
+      return {};
+    }
+  }
 }
 
 export const supabaseService = new SupabaseService();

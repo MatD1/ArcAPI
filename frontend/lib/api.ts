@@ -671,6 +671,117 @@ class APIClient {
     });
     return response.data;
   }
+
+  // Supabase Management
+  async getSupabaseQuests(limit = 100): Promise<Quest[]> {
+    return supabaseService.getQuests(limit);
+  }
+
+  async getSupabaseItems(limit = 100): Promise<Item[]> {
+    return supabaseService.getItems(limit);
+  }
+
+  async getSupabaseSkillNodes(limit = 100): Promise<SkillNode[]> {
+    return supabaseService.getSkillNodes(limit);
+  }
+
+  async getSupabaseHideoutModules(limit = 100): Promise<HideoutModule[]> {
+    return supabaseService.getHideoutModules(limit);
+  }
+
+  async getSupabaseEnemyTypes(limit = 100): Promise<EnemyType[]> {
+    return supabaseService.getEnemyTypes(limit);
+  }
+
+  async getSupabaseAlerts(limit = 100): Promise<Alert[]> {
+    return supabaseService.getAlerts(limit);
+  }
+
+  async getSupabaseCounts(): Promise<Record<string, number>> {
+    return supabaseService.getCounts();
+  }
+
+  // Force sync all data from API to Supabase
+  async forceSyncToSupabase(): Promise<{ synced: number; errors: number; details: Record<string, { synced: number; errors: number }> }> {
+    if (!isSupabaseEnabled()) {
+      throw new Error('Supabase is not enabled');
+    }
+
+    const result = {
+      synced: 0,
+      errors: 0,
+      details: {} as Record<string, { synced: number; errors: number }>,
+    };
+
+    // Helper to sync a batch
+    const syncBatch = async <T extends { external_id?: string; id?: number }>(
+      items: T[],
+      syncFn: (item: T, op: 'insert' | 'update') => Promise<void>,
+      entityName: string
+    ) => {
+      let synced = 0;
+      let errors = 0;
+
+      for (const item of items) {
+        try {
+          // Try update first, if it fails, try insert
+          try {
+            await syncFn(item, 'update');
+          } catch {
+            await syncFn(item, 'insert');
+          }
+          synced++;
+        } catch (error) {
+          errors++;
+          if (process.env.NODE_ENV === 'development') {
+            console.error(`Error syncing ${entityName}:`, error);
+          }
+        }
+      }
+
+      result.details[entityName] = { synced, errors };
+      result.synced += synced;
+      result.errors += errors;
+    };
+
+    try {
+      // Sync all entities - fetch all pages
+      const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
+        const all: T[] = [];
+        let page = 1;
+        let hasMore = true;
+        while (hasMore) {
+          const response = await getFn(page, 100);
+          all.push(...response.data);
+          hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
+          page++;
+        }
+        return all;
+      };
+
+      const [quests, items, skillNodes, hideoutModules, enemyTypes, alerts] = await Promise.all([
+        fetchAll<Quest>((p, l) => this.getQuests(p, l)),
+        fetchAll<Item>((p, l) => this.getItems(p, l)),
+        fetchAll<SkillNode>((p, l) => this.getSkillNodes(p, l)),
+        fetchAll<HideoutModule>((p, l) => this.getHideoutModules(p, l)),
+        fetchAll<EnemyType>((p, l) => this.getEnemyTypes(p, l)),
+        fetchAll<Alert>((p, l) => this.getAlerts(p, l)),
+      ]);
+
+      await Promise.all([
+        syncBatch(quests, (q) => supabaseService.syncQuest(q, 'insert'), 'quests'),
+        syncBatch(items, (i) => supabaseService.syncItem(i, 'insert'), 'items'),
+        syncBatch(skillNodes, (s) => supabaseService.syncSkillNode(s, 'insert'), 'skillNodes'),
+        syncBatch(hideoutModules, (h) => supabaseService.syncHideoutModule(h, 'insert'), 'hideoutModules'),
+        syncBatch(enemyTypes, (e) => supabaseService.syncEnemyType(e, 'insert'), 'enemyTypes'),
+        syncBatch(alerts, (a) => supabaseService.syncAlert(a, 'insert'), 'alerts'),
+      ]);
+    } catch (error) {
+      throw error;
+    }
+
+    return result;
+  }
 }
 
 export const apiClient = new APIClient();
