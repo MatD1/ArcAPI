@@ -79,11 +79,21 @@ export const getSupabaseClient = async (): Promise<SupabaseClient | null> => {
   const { url, anonKey, enabled } = await getSupabaseConfig();
 
   if (!enabled || !url || !anonKey) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Supabase not enabled:', { enabled, url: url ? 'set' : 'not set', anonKey: anonKey ? 'set' : 'not set' });
+    }
     return null;
   }
 
   if (!supabaseClient) {
-    supabaseClient = createClient(url, anonKey);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Creating Supabase client with URL:', url);
+    }
+    supabaseClient = createClient(url, anonKey, {
+      auth: {
+        persistSession: false, // Don't persist auth sessions
+      },
+    });
   }
 
   return supabaseClient;
@@ -134,8 +144,13 @@ class SupabaseService {
 
   // Helper to log errors silently (optional - can be removed in production)
   private logError(operation: string, error: any) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error(`Supabase ${operation} error:`, error);
+    // Always log errors in development, and in production for debugging
+    console.error(`Supabase ${operation} error:`, error);
+    if (error?.message) {
+      console.error(`Error message:`, error.message);
+    }
+    if (error?.details) {
+      console.error(`Error details:`, error.details);
     }
   }
 

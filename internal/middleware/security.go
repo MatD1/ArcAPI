@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +12,27 @@ import (
 // SecurityMiddleware adds security headers and CORS support
 func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Get Supabase URL from environment for CSP
+		supabaseURL := os.Getenv("NEXT_PUBLIC_SUPABASE_URL")
+		
+		// Build CSP policy
+		csp := "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.arctracker.io; connect-src 'self'"
+		if supabaseURL != "" {
+			// Parse URL to extract scheme and host
+			parsedURL, err := url.Parse(supabaseURL)
+			if err == nil {
+				// Allow the full Supabase URL domain
+				domain := parsedURL.Scheme + "://" + parsedURL.Host
+				csp += " " + domain
+				// Also allow common Supabase patterns
+				csp += " https://*.supabase.co https://*.supabase.in"
+			} else {
+				// If parsing fails, just add the URL as-is
+				csp += " " + supabaseURL + " https://*.supabase.co https://*.supabase.in"
+			}
+		}
+		csp += ";"
+
 		// Security headers
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
@@ -17,7 +40,7 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.arctracker.io;")
+		c.Header("Content-Security-Policy", csp)
 
 		// CORS headers
 		origin := c.GetHeader("Origin")
