@@ -1,4 +1,34 @@
 /** @type {import('next').NextConfig} */
+// Load env vars from parent directory .env file if they exist
+const fs = require('fs');
+const path = require('path');
+
+// Try to load from parent .env file
+const parentEnvPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(parentEnvPath)) {
+  const envFile = fs.readFileSync(parentEnvPath, 'utf8');
+  envFile.split('\n').forEach((line) => {
+    // Skip comments and empty lines
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    
+    // Match key=value, handling quoted values
+    const match = trimmed.match(/^([^=:#\s]+)\s*=\s*(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      let value = match[2].trim();
+      // Remove surrounding quotes (single or double)
+      if ((value.startsWith('"') && value.endsWith('"')) || 
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (key.startsWith('NEXT_PUBLIC_') && !process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+  });
+}
+
 const nextConfig = {
   reactStrictMode: true,
   output: 'export',
