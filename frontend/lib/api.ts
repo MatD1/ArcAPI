@@ -20,6 +20,7 @@ import type {
   UserBlueprintProgress,
   AllUserProgress,
 } from '@/types';
+import { supabaseService, isSupabaseEnabled } from './supabase';
 
 // Use relative URL when embedded, or explicit URL if provided
 const getAPIURL = () => {
@@ -128,16 +129,45 @@ class APIClient {
 
   async createQuest(data: Partial<Quest>): Promise<Quest> {
     const response = await this.client.post<Quest>('/quests', data);
-    return response.data;
+    const quest = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && quest.external_id) {
+      await supabaseService.syncQuest(quest, 'insert').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return quest;
   }
 
   async updateQuest(id: number, data: Partial<Quest>): Promise<Quest> {
     const response = await this.client.put<Quest>(`/quests/${id}`, data);
-    return response.data;
+    const quest = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && quest.external_id) {
+      await supabaseService.syncQuest(quest, 'update').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return quest;
   }
 
   async deleteQuest(id: number): Promise<void> {
+    // Get quest before deleting to sync to Supabase
+    let quest: Quest | null = null;
+    if (isSupabaseEnabled()) {
+      try {
+        quest = await this.getQuest(id);
+      } catch {
+        // If we can't get the quest, skip Supabase sync
+      }
+    }
     await this.client.delete(`/quests/${id}`);
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && quest && quest.external_id) {
+      await supabaseService.syncQuest(quest, 'delete').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
   }
 
   // Missions (deprecated - use quests instead)
@@ -176,16 +206,45 @@ class APIClient {
 
   async createItem(data: Partial<Item>): Promise<Item> {
     const response = await this.client.post<Item>('/items', data);
-    return response.data;
+    const item = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && item.external_id) {
+      await supabaseService.syncItem(item, 'insert').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return item;
   }
 
   async updateItem(id: number, data: Partial<Item>): Promise<Item> {
     const response = await this.client.put<Item>(`/items/${id}`, data);
-    return response.data;
+    const item = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && item.external_id) {
+      await supabaseService.syncItem(item, 'update').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return item;
   }
 
   async deleteItem(id: number): Promise<void> {
+    // Get item before deleting to sync to Supabase
+    let item: Item | null = null;
+    if (isSupabaseEnabled()) {
+      try {
+        item = await this.getItem(id);
+      } catch {
+        // If we can't get the item, skip Supabase sync
+      }
+    }
     await this.client.delete(`/items/${id}`);
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && item && item.external_id) {
+      await supabaseService.syncItem(item, 'delete').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
   }
 
   async getRequiredItems(): Promise<RequiredItemsResponse> {
@@ -208,16 +267,45 @@ class APIClient {
 
   async createSkillNode(data: Partial<SkillNode>): Promise<SkillNode> {
     const response = await this.client.post<SkillNode>('/skill-nodes', data);
-    return response.data;
+    const skillNode = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && skillNode.external_id) {
+      await supabaseService.syncSkillNode(skillNode, 'insert').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return skillNode;
   }
 
   async updateSkillNode(id: number, data: Partial<SkillNode>): Promise<SkillNode> {
     const response = await this.client.put<SkillNode>(`/skill-nodes/${id}`, data);
-    return response.data;
+    const skillNode = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && skillNode.external_id) {
+      await supabaseService.syncSkillNode(skillNode, 'update').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return skillNode;
   }
 
   async deleteSkillNode(id: number): Promise<void> {
+    // Get skill node before deleting to sync to Supabase
+    let skillNode: SkillNode | null = null;
+    if (isSupabaseEnabled()) {
+      try {
+        skillNode = await this.getSkillNode(id);
+      } catch {
+        // If we can't get the skill node, skip Supabase sync
+      }
+    }
     await this.client.delete(`/skill-nodes/${id}`);
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && skillNode && skillNode.external_id) {
+      await supabaseService.syncSkillNode(skillNode, 'delete').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
   }
 
   // Hideout Modules
@@ -235,16 +323,45 @@ class APIClient {
 
   async createHideoutModule(data: Partial<HideoutModule>): Promise<HideoutModule> {
     const response = await this.client.post<HideoutModule>('/hideout-modules', data);
-    return response.data;
+    const module = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && module.external_id) {
+      await supabaseService.syncHideoutModule(module, 'insert').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return module;
   }
 
   async updateHideoutModule(id: number, data: Partial<HideoutModule>): Promise<HideoutModule> {
     const response = await this.client.put<HideoutModule>(`/hideout-modules/${id}`, data);
-    return response.data;
+    const module = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && module.external_id) {
+      await supabaseService.syncHideoutModule(module, 'update').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return module;
   }
 
   async deleteHideoutModule(id: number): Promise<void> {
+    // Get hideout module before deleting to sync to Supabase
+    let module: HideoutModule | null = null;
+    if (isSupabaseEnabled()) {
+      try {
+        module = await this.getHideoutModule(id);
+      } catch {
+        // If we can't get the module, skip Supabase sync
+      }
+    }
     await this.client.delete(`/hideout-modules/${id}`);
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && module && module.external_id) {
+      await supabaseService.syncHideoutModule(module, 'delete').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
   }
 
   // Enemy Types
@@ -262,16 +379,45 @@ class APIClient {
 
   async createEnemyType(data: Partial<EnemyType>): Promise<EnemyType> {
     const response = await this.client.post<EnemyType>('/enemy-types', data);
-    return response.data;
+    const enemyType = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && enemyType.external_id) {
+      await supabaseService.syncEnemyType(enemyType, 'insert').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return enemyType;
   }
 
   async updateEnemyType(id: number, data: Partial<EnemyType>): Promise<EnemyType> {
     const response = await this.client.put<EnemyType>(`/enemy-types/${id}`, data);
-    return response.data;
+    const enemyType = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && enemyType.external_id) {
+      await supabaseService.syncEnemyType(enemyType, 'update').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return enemyType;
   }
 
   async deleteEnemyType(id: number): Promise<void> {
+    // Get enemy type before deleting to sync to Supabase
+    let enemyType: EnemyType | null = null;
+    if (isSupabaseEnabled()) {
+      try {
+        enemyType = await this.getEnemyType(id);
+      } catch {
+        // If we can't get the enemy type, skip Supabase sync
+      }
+    }
     await this.client.delete(`/enemy-types/${id}`);
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && enemyType && enemyType.external_id) {
+      await supabaseService.syncEnemyType(enemyType, 'delete').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
   }
 
   // Alerts
@@ -294,16 +440,45 @@ class APIClient {
 
   async createAlert(data: Partial<Alert>): Promise<Alert> {
     const response = await this.client.post<Alert>('/alerts', data);
-    return response.data;
+    const alert = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled()) {
+      await supabaseService.syncAlert(alert, 'insert').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return alert;
   }
 
   async updateAlert(id: number, data: Partial<Alert>): Promise<Alert> {
     const response = await this.client.put<Alert>(`/alerts/${id}`, data);
-    return response.data;
+    const alert = response.data;
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled()) {
+      await supabaseService.syncAlert(alert, 'update').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
+    return alert;
   }
 
   async deleteAlert(id: number): Promise<void> {
+    // Get alert before deleting to sync to Supabase
+    let alert: Alert | null = null;
+    if (isSupabaseEnabled()) {
+      try {
+        alert = await this.getAlert(id);
+      } catch {
+        // If we can't get the alert, skip Supabase sync
+      }
+    }
     await this.client.delete(`/alerts/${id}`);
+    // Sync to Supabase if enabled
+    if (isSupabaseEnabled() && alert) {
+      await supabaseService.syncAlert(alert, 'delete').catch(() => {
+        // Silently fail - Supabase sync is optional
+      });
+    }
   }
 
   // Management API (Admin only)

@@ -10,7 +10,7 @@ import (
 
 func TestGenerateAPIKey(t *testing.T) {
 	cfg := &config.Config{JWTSecret: "test-secret"}
-	service := services.NewAuthService(nil, nil, nil, nil, cfg)
+	service := services.NewAuthService(nil, nil, nil, nil, nil, nil, cfg)
 
 	key, hash, err := service.GenerateAPIKey()
 	assert.NoError(t, err)
@@ -22,7 +22,7 @@ func TestGenerateAPIKey(t *testing.T) {
 
 func TestValidateJWT_InvalidToken(t *testing.T) {
 	cfg := &config.Config{JWTSecret: "test-secret"}
-	service := services.NewAuthService(nil, nil, nil, nil, cfg)
+	service := services.NewAuthService(nil, nil, nil, nil, nil, nil, cfg)
 
 	user, err := service.ValidateJWT("invalid-token")
 	assert.Error(t, err)

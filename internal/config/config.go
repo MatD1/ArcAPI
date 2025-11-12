@@ -25,6 +25,7 @@ type Config struct {
 	// JWT
 	JWTSecret      string `envconfig:"JWT_SECRET" required:"true"`
 	JWTExpiryHours int    `envconfig:"JWT_EXPIRY_HOURS" default:"72"`
+	RefreshTokenExpiryDays int `envconfig:"REFRESH_TOKEN_EXPIRY_DAYS" default:"14"`
 
 	// OAuth - GitHub
 	GitHubClientID     string `envconfig:"GITHUB_CLIENT_ID" default:""`
@@ -50,7 +51,7 @@ type Config struct {
 	AllowedOrigins string `envconfig:"ALLOWED_ORIGINS" default:""`
 
 	// Rate Limiting
-	RateLimitRequests      int `envconfig:"RATE_LIMIT_REQUESTS" default:"18"`
+	RateLimitRequests      int `envconfig:"RATE_LIMIT_REQUESTS" default:"21"`
 	RateLimitWindowSeconds int `envconfig:"RATE_LIMIT_WINDOW_SECONDS" default:"60"`
 	RateLimitBurst         int `envconfig:"RATE_LIMIT_BURST" default:"8"`
 }

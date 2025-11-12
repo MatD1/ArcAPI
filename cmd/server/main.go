@@ -63,7 +63,9 @@ func main() {
 	blueprintProgressRepo := repository.NewUserBlueprintProgressRepository(db)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo, apiKeyRepo, jwtTokenRepo, cacheService, cfg)
+	authCodeRepo := repository.NewAuthorizationCodeRepository(db)
+	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
+	authService := services.NewAuthService(userRepo, apiKeyRepo, jwtTokenRepo, authCodeRepo, refreshTokenRepo, cacheService, cfg)
 	userService := services.NewUserService(userRepo)
 
 	// Initialize data cache service (only if cache is available)
@@ -188,6 +190,8 @@ func main() {
 			auth.GET("/discord/callback", authHandler.DiscordCallback)
 			auth.GET("/exchange-token", authHandler.ExchangeTempToken) // Public endpoint to exchange temp token
 			auth.POST("/login", authHandler.LoginWithAPIKey)
+			auth.POST("/token", authHandler.TokenExchange)
+			auth.POST("/refresh", authHandler.RefreshToken)
 		}
 
 		// Read-only routes (require JWT only)

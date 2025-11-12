@@ -40,10 +40,14 @@ type OAuthTokenData struct {
 
 // OAuthState represents the state passed through OAuth flow
 type OAuthState struct {
-	Redirect  string    `json:"redirect"`   // Deep link URL for mobile, or web callback
-	Client    string    `json:"client"`     // "mobile" or "web"
-	CSRFToken string    `json:"csrf_token"` // CSRF protection token
-	Timestamp time.Time `json:"timestamp"`  // State creation time
+	Redirect            string    `json:"redirect"`    // Deep link URL for mobile, or web callback
+	Client              string    `json:"client"`      // "mobile" or "web"
+	CSRFToken           string    `json:"csrf_token"`  // CSRF protection token
+	Timestamp           time.Time `json:"timestamp"`   // State creation time
+	Mode                string    `json:"mode,omitempty"` // "pkce" for authorization code flow, else empty for temp token flow
+	CodeChallenge       string    `json:"code_challenge,omitempty"`
+	CodeChallengeMethod string    `json:"code_challenge_method,omitempty"`
+	ExternalState       string    `json:"external_state,omitempty"` // Original state from client (passed back on redirect)
 }
 
 const (
@@ -867,6 +871,39 @@ func (h *AuthHandler) DiscordCallback(c *gin.Context) {
 	}
 	finalRedirectURL := callbackURL + sep + "token=" + tempToken
 	c.Redirect(http.StatusFound, finalRedirectURL)
+}
+
+// TokenExchange exchanges authorization code + code_verifier for JWT + refresh token (PKCE flow)
+func (h *AuthHandler) TokenExchange(c *gin.Context) {
+	var req struct {
+		Code        string `json:"code" binding:"required"`
+		CodeVerifier string `json:"code_verifier" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	jwt, refresh, user, err := h.authService.ExchangeAuthorizationCode(req.Code, req.CodeVerifier)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": jwt, "refresh_token": refresh, "user": user})
+}
+
+// RefreshToken endpoint rotates refresh token and returns new JWT + refresh token
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	var req struct { RefreshToken string `json:"refresh_token" binding:"required"` }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	jwt, newRefresh, user, err := h.authService.RefreshJWT(req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": jwt, "refresh_token": newRefresh, "user": user})
 }
 
 // LoginWithAPIKey authenticates with API key and returns JWT

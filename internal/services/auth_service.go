@@ -16,29 +16,96 @@ import (
 )
 
 type AuthService struct {
-	userRepo     *repository.UserRepository
-	apiKeyRepo   *repository.APIKeyRepository
-	jwtTokenRepo *repository.JWTTokenRepository
-	cacheService *CacheService
-	cfg          *config.Config
-	jwtSecret    []byte
+	userRepo        *repository.UserRepository
+	apiKeyRepo      *repository.APIKeyRepository
+	jwtTokenRepo    *repository.JWTTokenRepository
+	authCodeRepo    *repository.AuthorizationCodeRepository
+	refreshTokenRepo *repository.RefreshTokenRepository
+	cacheService    *CacheService
+	cfg             *config.Config
+	jwtSecret       []byte
 }
 
 func NewAuthService(
 	userRepo *repository.UserRepository,
 	apiKeyRepo *repository.APIKeyRepository,
 	jwtTokenRepo *repository.JWTTokenRepository,
+	authCodeRepo *repository.AuthorizationCodeRepository,
+	refreshTokenRepo *repository.RefreshTokenRepository,
 	cacheService *CacheService,
 	cfg *config.Config,
 ) *AuthService {
 	return &AuthService{
-		userRepo:     userRepo,
-		apiKeyRepo:   apiKeyRepo,
-		jwtTokenRepo: jwtTokenRepo,
-		cacheService: cacheService,
-		cfg:          cfg,
-		jwtSecret:    []byte(cfg.JWTSecret),
+		userRepo:         userRepo,
+		apiKeyRepo:       apiKeyRepo,
+		jwtTokenRepo:     jwtTokenRepo,
+		authCodeRepo:     authCodeRepo,
+		refreshTokenRepo: refreshTokenRepo,
+		cacheService:     cacheService,
+		cfg:              cfg,
+		jwtSecret:        []byte(cfg.JWTSecret),
 	}
+}
+
+// CreateAuthorizationCode creates a short-lived authorization code (plain string returned)
+func (s *AuthService) CreateAuthorizationCode(userID uint, codeChallenge, method string) (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil { return "", err }
+	plain := base64.URLEncoding.EncodeToString(b)
+	// TTL 60s
+	if err := s.authCodeRepo.Create(userID, plain, codeChallenge, method, 60*time.Second); err != nil { return "", err }
+	return plain, nil
+}
+
+// ExchangeAuthorizationCode verifies code + PKCE and returns JWT + refresh token
+func (s *AuthService) ExchangeAuthorizationCode(code, codeVerifier string) (string, string, *models.User, error) {
+	ac, err := s.authCodeRepo.FindByPlain(code)
+	if err != nil { return "", "", nil, fmt.Errorf("invalid code") }
+	if ac.IsExpired() { return "", "", nil, fmt.Errorf("code expired") }
+	if ac.IsConsumed() { return "", "", nil, fmt.Errorf("code already used") }
+	// Verify PKCE
+	if ac.CodeChallengeMethod == "S256" {
+		h := sha256.Sum256([]byte(codeVerifier))
+		calc := base64.RawURLEncoding.EncodeToString(h[:])
+		if calc != ac.CodeChallenge { return "", "", nil, fmt.Errorf("invalid code_verifier") }
+	} else {
+		if codeVerifier != ac.CodeChallenge { return "", "", nil, fmt.Errorf("invalid code_verifier") }
+	}
+	// Load user
+	user, err := s.userRepo.FindByID(ac.UserID)
+	if err != nil { return "", "", nil, fmt.Errorf("user not found") }
+	jwt, err := s.GenerateJWT(user)
+	if err != nil { return "", "", nil, fmt.Errorf("failed to generate jwt") }
+	// Create refresh token
+	rtBytes := make([]byte, 32)
+	if _, err := rand.Read(rtBytes); err != nil { return "", "", nil, fmt.Errorf("failed to generate refresh token") }
+	refreshPlain := base64.URLEncoding.EncodeToString(rtBytes)
+	expiry := time.Now().Add(time.Duration(s.cfg.RefreshTokenExpiryDays) * 24 * time.Hour)
+	if err := s.refreshTokenRepo.Create(user.ID, refreshPlain, expiry); err != nil { return "", "", nil, fmt.Errorf("failed to store refresh token") }
+	// Consume code
+	_ = s.authCodeRepo.Consume(ac)
+	return jwt, refreshPlain, user, nil
+}
+
+// RefreshJWT exchanges a refresh token for a new JWT (rotates refresh token)
+func (s *AuthService) RefreshJWT(refreshToken string) (string, string, *models.User, error) {
+	rt, err := s.refreshTokenRepo.FindByPlain(refreshToken)
+	if err != nil { return "", "", nil, fmt.Errorf("invalid refresh token") }
+	if rt.IsRevoked() || rt.IsExpired() { return "", "", nil, fmt.Errorf("refresh token invalid") }
+	user, err := s.userRepo.FindByID(rt.UserID)
+	if err != nil { return "", "", nil, fmt.Errorf("user not found") }
+	jwt, err := s.GenerateJWT(user)
+	if err != nil { return "", "", nil, fmt.Errorf("failed to generate jwt") }
+	// rotate refresh token
+	newBytes := make([]byte, 32)
+	if _, err := rand.Read(newBytes); err != nil { return "", "", nil, fmt.Errorf("failed to rotate refresh token") }
+	plain := base64.URLEncoding.EncodeToString(newBytes)
+	expiry := time.Now().Add(time.Duration(s.cfg.RefreshTokenExpiryDays) * 24 * time.Hour)
+	if err := s.refreshTokenRepo.Create(user.ID, plain, expiry); err != nil { return "", "", nil, fmt.Errorf("failed to store new refresh token") }
+	// revoke old
+	_ = s.refreshTokenRepo.Revoke(rt)
+	// touch new old last used
+	return jwt, plain, user, nil
 }
 
 // GenerateAPIKey generates a new API key and returns both the plain key and hashed version

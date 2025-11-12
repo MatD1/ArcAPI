@@ -63,6 +63,9 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		&models.UserHideoutModuleProgress{},
 		&models.UserSkillNodeProgress{},
 		&models.UserBlueprintProgress{},
+		&models.AuthorizationCode{},
+		&models.RefreshToken{},
+
 	)
 	if err != nil {
 		return nil, err
