@@ -37,7 +37,7 @@ export const getSupabaseClient = (): SupabaseClient | null => {
 // Check if Supabase is enabled
 export const isSupabaseEnabled = (): boolean => {
   const { enabled, url, anonKey } = getSupabaseConfig();
-  return enabled === 'true' && !!url && !!anonKey;
+  return enabled && !!url && !!anonKey;
 };
 
 // Supabase service for syncing data
