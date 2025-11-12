@@ -143,9 +143,20 @@ export default function SupabasePage() {
 
         {!enabled && (
           <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <p className="text-yellow-800 dark:text-yellow-200">
+            <p className="text-yellow-800 dark:text-yellow-200 mb-2">
               Supabase is not enabled. Set <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">NEXT_PUBLIC_SUPABASE_ENABLED=true</code> in your environment variables.
             </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-sm text-yellow-700 dark:text-yellow-300">Debug: Check environment variables</summary>
+              <div className="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900 rounded text-xs font-mono">
+                <div>NEXT_PUBLIC_SUPABASE_ENABLED: {process.env.NEXT_PUBLIC_SUPABASE_ENABLED || '(not set)'}</div>
+                <div>NEXT_PUBLIC_SUPABASE_URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? '✓ Set' : '✗ Not set'}</div>
+                <div>NEXT_PUBLIC_SUPABASE_ANON_KEY: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✓ Set' : '✗ Not set'}</div>
+                <div className="mt-2 text-yellow-600 dark:text-yellow-400">
+                  Note: For static exports, env vars must be set at build time and included in next.config.js
+                </div>
+              </div>
+            </details>
           </div>
         )}
 
