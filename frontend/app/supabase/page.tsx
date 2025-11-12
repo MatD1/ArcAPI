@@ -25,6 +25,15 @@ export default function SupabasePage() {
   const [selectedEntity, setSelectedEntity] = useState<EntityType | null>(null);
   const [entityData, setEntityData] = useState<any[]>([]);
   const [loadingEntity, setLoadingEntity] = useState(false);
+  const [syncingCategory, setSyncingCategory] = useState<EntityType | null>(null);
+  const [categorySyncResults, setCategorySyncResults] = useState<Record<EntityType, { synced: number; errors: number } | null>>({
+    quests: null,
+    items: null,
+    skillNodes: null,
+    hideoutModules: null,
+    enemyTypes: null,
+    alerts: null,
+  });
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -79,6 +88,59 @@ export default function SupabasePage() {
       setError(getErrorMessage(err));
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleSyncCategory = async (entity: EntityType, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the view data action
+
+    const enabled = await isSupabaseEnabled();
+    if (!enabled) {
+      setError('Supabase is not enabled');
+      return;
+    }
+
+    if (!confirm(`Sync all ${entityLabels[entity]} to Supabase?`)) {
+      return;
+    }
+
+    try {
+      setSyncingCategory(entity);
+      setError('');
+      let result: { synced: number; errors: number };
+
+      switch (entity) {
+        case 'quests':
+          result = await apiClient.syncQuestsToSupabase();
+          break;
+        case 'items':
+          result = await apiClient.syncItemsToSupabase();
+          break;
+        case 'skillNodes':
+          result = await apiClient.syncSkillNodesToSupabase();
+          break;
+        case 'hideoutModules':
+          result = await apiClient.syncHideoutModulesToSupabase();
+          break;
+        case 'enemyTypes':
+          result = await apiClient.syncEnemyTypesToSupabase();
+          break;
+        case 'alerts':
+          result = await apiClient.syncAlertsToSupabase();
+          break;
+        default:
+          throw new Error('Unknown entity type');
+      }
+
+      setCategorySyncResults((prev) => ({
+        ...prev,
+        [entity]: result,
+      }));
+      await loadCounts(); // Refresh counts after sync
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSyncingCategory(null);
     }
   };
 
@@ -225,18 +287,44 @@ export default function SupabasePage() {
               </button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {(Object.keys(entityLabels) as EntityType[]).map((entity) => (
-                <div
-                  key={entity}
-                  className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => loadEntityData(entity)}
-                >
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">{entityLabels[entity]}</div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {loading ? '...' : counts[entity] ?? 0}
+              {(Object.keys(entityLabels) as EntityType[]).map((entity) => {
+                const isSyncing = syncingCategory === entity;
+                const syncResult = categorySyncResults[entity];
+                return (
+                  <div
+                    key={entity}
+                    className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div
+                        className="flex-1 cursor-pointer"
+                        onClick={() => loadEntityData(entity)}
+                      >
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">{entityLabels[entity]}</div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                          {loading ? '...' : counts[entity] ?? 0}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => handleSyncCategory(entity, e)}
+                        disabled={isSyncing || syncing}
+                        className="ml-2 px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={`Sync ${entityLabels[entity]}`}
+                      >
+                        {isSyncing ? '...' : '🔄'}
+                      </button>
+                    </div>
+                    {syncResult && (
+                      <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                        <span className="text-green-600 dark:text-green-400">{syncResult.synced} synced</span>
+                        {syncResult.errors > 0 && (
+                          <span className="ml-2 text-red-600 dark:text-red-400">{syncResult.errors} errors</span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

@@ -782,6 +782,235 @@ class APIClient {
 
     return result;
   }
+
+  // Sync individual categories
+  async syncQuestsToSupabase(): Promise<{ synced: number; errors: number }> {
+    if (!isSupabaseEnabledSync()) {
+      throw new Error('Supabase is not enabled');
+    }
+
+    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
+      const all: T[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await getFn(page, 100);
+        all.push(...response.data);
+        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
+        page++;
+      }
+      return all;
+    };
+
+    const quests = await fetchAll<Quest>((p, l) => this.getQuests(p, l));
+    let synced = 0;
+    let errors = 0;
+
+    for (const quest of quests) {
+      try {
+        try {
+          await supabaseService.syncQuest(quest, 'update');
+        } catch {
+          await supabaseService.syncQuest(quest, 'insert');
+        }
+        synced++;
+      } catch (error) {
+        errors++;
+      }
+    }
+
+    return { synced, errors };
+  }
+
+  async syncItemsToSupabase(): Promise<{ synced: number; errors: number }> {
+    if (!isSupabaseEnabledSync()) {
+      throw new Error('Supabase is not enabled');
+    }
+
+    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
+      const all: T[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await getFn(page, 100);
+        all.push(...response.data);
+        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
+        page++;
+      }
+      return all;
+    };
+
+    const items = await fetchAll<Item>((p, l) => this.getItems(p, l));
+    let synced = 0;
+    let errors = 0;
+
+    for (const item of items) {
+      try {
+        try {
+          await supabaseService.syncItem(item, 'update');
+        } catch {
+          await supabaseService.syncItem(item, 'insert');
+        }
+        synced++;
+      } catch (error) {
+        errors++;
+      }
+    }
+
+    return { synced, errors };
+  }
+
+  async syncSkillNodesToSupabase(): Promise<{ synced: number; errors: number }> {
+    if (!isSupabaseEnabledSync()) {
+      throw new Error('Supabase is not enabled');
+    }
+
+    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
+      const all: T[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await getFn(page, 100);
+        all.push(...response.data);
+        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
+        page++;
+      }
+      return all;
+    };
+
+    const skillNodes = await fetchAll<SkillNode>((p, l) => this.getSkillNodes(p, l));
+    let synced = 0;
+    let errors = 0;
+
+    for (const skillNode of skillNodes) {
+      try {
+        try {
+          await supabaseService.syncSkillNode(skillNode, 'update');
+        } catch {
+          await supabaseService.syncSkillNode(skillNode, 'insert');
+        }
+        synced++;
+      } catch (error) {
+        errors++;
+      }
+    }
+
+    return { synced, errors };
+  }
+
+  async syncHideoutModulesToSupabase(): Promise<{ synced: number; errors: number }> {
+    if (!isSupabaseEnabledSync()) {
+      throw new Error('Supabase is not enabled');
+    }
+
+    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
+      const all: T[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await getFn(page, 100);
+        all.push(...response.data);
+        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
+        page++;
+      }
+      return all;
+    };
+
+    const hideoutModules = await fetchAll<HideoutModule>((p, l) => this.getHideoutModules(p, l));
+    let synced = 0;
+    let errors = 0;
+
+    for (const module of hideoutModules) {
+      try {
+        try {
+          await supabaseService.syncHideoutModule(module, 'update');
+        } catch {
+          await supabaseService.syncHideoutModule(module, 'insert');
+        }
+        synced++;
+      } catch (error) {
+        errors++;
+      }
+    }
+
+    return { synced, errors };
+  }
+
+  async syncEnemyTypesToSupabase(): Promise<{ synced: number; errors: number }> {
+    if (!isSupabaseEnabledSync()) {
+      throw new Error('Supabase is not enabled');
+    }
+
+    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
+      const all: T[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await getFn(page, 100);
+        all.push(...response.data);
+        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
+        page++;
+      }
+      return all;
+    };
+
+    const enemyTypes = await fetchAll<EnemyType>((p, l) => this.getEnemyTypes(p, l));
+    let synced = 0;
+    let errors = 0;
+
+    for (const enemyType of enemyTypes) {
+      try {
+        try {
+          await supabaseService.syncEnemyType(enemyType, 'update');
+        } catch {
+          await supabaseService.syncEnemyType(enemyType, 'insert');
+        }
+        synced++;
+      } catch (error) {
+        errors++;
+      }
+    }
+
+    return { synced, errors };
+  }
+
+  async syncAlertsToSupabase(): Promise<{ synced: number; errors: number }> {
+    if (!isSupabaseEnabledSync()) {
+      throw new Error('Supabase is not enabled');
+    }
+
+    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
+      const all: T[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const response = await getFn(page, 100);
+        all.push(...response.data);
+        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
+        page++;
+      }
+      return all;
+    };
+
+    const alerts = await fetchAll<Alert>((p, l) => this.getAlerts(p, l));
+    let synced = 0;
+    let errors = 0;
+
+    for (const alert of alerts) {
+      try {
+        try {
+          await supabaseService.syncAlert(alert, 'update');
+        } catch {
+          await supabaseService.syncAlert(alert, 'insert');
+        }
+        synced++;
+      } catch (error) {
+        errors++;
+      }
+    }
+
+    return { synced, errors };
+  }
 }
 
 export const apiClient = new APIClient();
