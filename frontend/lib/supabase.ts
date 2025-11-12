@@ -8,20 +8,75 @@ import type {
   Alert,
 } from '@/types';
 
-// Get Supabase configuration from environment variables
-const getSupabaseConfig = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const enabled = process.env.NEXT_PUBLIC_SUPABASE_ENABLED === 'true';
+// Runtime config cache
+let runtimeConfig: { url: string; anonKey: string; enabled: boolean } | null = null;
+let configLoadPromise: Promise<void> | null = null;
 
-  return { url, anonKey, enabled };
+// Load config from API endpoint at runtime
+const loadRuntimeConfig = async (): Promise<{ url: string; anonKey: string; enabled: boolean }> => {
+  // If already loading, wait for that promise
+  if (configLoadPromise) {
+    await configLoadPromise;
+    return runtimeConfig || { url: '', anonKey: '', enabled: false };
+  }
+
+  // Start loading config
+  configLoadPromise = (async () => {
+    try {
+      const apiUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080');
+      
+      const response = await fetch(`${apiUrl}/api/v1/config`);
+      if (response.ok) {
+        const data = await response.json();
+        runtimeConfig = {
+          enabled: data.supabase?.enabled === true,
+          url: data.supabase?.url || '',
+          anonKey: data.supabase?.anonKey || '',
+        };
+      } else {
+        // Fallback to build-time env vars if API fails
+        runtimeConfig = {
+          enabled: process.env.NEXT_PUBLIC_SUPABASE_ENABLED === 'true',
+          url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+          anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+        };
+      }
+    } catch (error) {
+      // Fallback to build-time env vars on error
+      runtimeConfig = {
+        enabled: process.env.NEXT_PUBLIC_SUPABASE_ENABLED === 'true',
+        url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+        anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      };
+    }
+  })();
+
+  await configLoadPromise;
+  return runtimeConfig || { url: '', anonKey: '', enabled: false };
+};
+
+// Get Supabase configuration from environment variables or runtime config
+const getSupabaseConfig = async (): Promise<{ url: string; anonKey: string; enabled: boolean }> => {
+  // In browser, try to load from API first
+  if (typeof window !== 'undefined') {
+    return await loadRuntimeConfig();
+  }
+  
+  // Server-side or fallback: use build-time env vars
+  return {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    enabled: process.env.NEXT_PUBLIC_SUPABASE_ENABLED === 'true',
+  };
 };
 
 // Initialize Supabase client (singleton)
 let supabaseClient: SupabaseClient | null = null;
 
-export const getSupabaseClient = (): SupabaseClient | null => {
-  const { url, anonKey, enabled } = getSupabaseConfig();
+export const getSupabaseClient = async (): Promise<SupabaseClient | null> => {
+  const { url, anonKey, enabled } = await getSupabaseConfig();
 
   if (!enabled || !url || !anonKey) {
     return null;
@@ -34,18 +89,47 @@ export const getSupabaseClient = (): SupabaseClient | null => {
   return supabaseClient;
 };
 
-// Check if Supabase is enabled
-export const isSupabaseEnabled = (): boolean => {
-  const { enabled, url, anonKey } = getSupabaseConfig();
+// Check if Supabase is enabled (async version)
+export const isSupabaseEnabled = async (): Promise<boolean> => {
+  const { enabled, url, anonKey } = await getSupabaseConfig();
+  return enabled && !!url && !!anonKey;
+};
+
+// Synchronous version for compatibility (uses cached config or build-time env)
+export const isSupabaseEnabledSync = (): boolean => {
+  if (runtimeConfig) {
+    return runtimeConfig.enabled && !!runtimeConfig.url && !!runtimeConfig.anonKey;
+  }
+  // Fallback to build-time env vars
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const enabled = process.env.NEXT_PUBLIC_SUPABASE_ENABLED === 'true';
   return enabled && !!url && !!anonKey;
 };
 
 // Supabase service for syncing data
 class SupabaseService {
-  private client: SupabaseClient | null;
+  private client: SupabaseClient | null = null;
+  private clientPromise: Promise<SupabaseClient | null> | null = null;
 
   constructor() {
-    this.client = getSupabaseClient();
+    // Initialize client asynchronously
+    this.clientPromise = getSupabaseClient().then((client) => {
+      this.client = client;
+      return client;
+    });
+  }
+
+  private async ensureClient(): Promise<SupabaseClient | null> {
+    if (this.client) {
+      return this.client;
+    }
+    if (this.clientPromise) {
+      return await this.clientPromise;
+    }
+    this.clientPromise = getSupabaseClient();
+    this.client = await this.clientPromise;
+    return this.client;
   }
 
   // Helper to log errors silently (optional - can be removed in production)
@@ -57,13 +141,14 @@ class SupabaseService {
 
   // Quest operations
   async syncQuest(quest: Quest | Partial<Quest>, operation: 'insert' | 'update' | 'delete') {
-    if (!this.client) return;
+    const client = await this.ensureClient();
+    if (!client) return;
 
     try {
       if (operation === 'delete') {
-        await this.client.from('quests').delete().eq('external_id', (quest as Quest).external_id);
+        await client.from('quests').delete().eq('external_id', (quest as Quest).external_id);
       } else if (operation === 'insert') {
-        await this.client.from('quests').insert({
+        await client.from('quests').insert({
           external_id: quest.external_id,
           name: quest.name,
           description: quest.description,
@@ -74,7 +159,7 @@ class SupabaseService {
           data: quest.data || {},
         });
       } else if (operation === 'update') {
-        await this.client
+        await client
           .from('quests')
           .update({
             name: quest.name,
@@ -95,13 +180,14 @@ class SupabaseService {
 
   // Item operations
   async syncItem(item: Item | Partial<Item>, operation: 'insert' | 'update' | 'delete') {
-    if (!this.client) return;
+    const client = await this.ensureClient();
+    if (!client) return;
 
     try {
       if (operation === 'delete') {
-        await this.client.from('items').delete().eq('external_id', (item as Item).external_id);
+        await client.from('items').delete().eq('external_id', (item as Item).external_id);
       } else if (operation === 'insert') {
-        await this.client.from('items').insert({
+        await client.from('items').insert({
           external_id: item.external_id,
           name: item.name,
           description: item.description,
@@ -111,7 +197,7 @@ class SupabaseService {
           data: item.data || {},
         });
       } else if (operation === 'update') {
-        await this.client
+        await client
           .from('items')
           .update({
             name: item.name,
@@ -131,13 +217,14 @@ class SupabaseService {
 
   // Skill Node operations
   async syncSkillNode(skillNode: SkillNode | Partial<SkillNode>, operation: 'insert' | 'update' | 'delete') {
-    if (!this.client) return;
+    const client = await this.ensureClient();
+    if (!client) return;
 
     try {
       if (operation === 'delete') {
-        await this.client.from('skill_nodes').delete().eq('external_id', (skillNode as SkillNode).external_id);
+        await client.from('skill_nodes').delete().eq('external_id', (skillNode as SkillNode).external_id);
       } else if (operation === 'insert') {
-        await this.client.from('skill_nodes').insert({
+        await client.from('skill_nodes').insert({
           external_id: skillNode.external_id,
           name: skillNode.name,
           description: skillNode.description,
@@ -152,7 +239,7 @@ class SupabaseService {
           data: skillNode.data || {},
         });
       } else if (operation === 'update') {
-        await this.client
+        await client
           .from('skill_nodes')
           .update({
             name: skillNode.name,
@@ -177,13 +264,14 @@ class SupabaseService {
 
   // Hideout Module operations
   async syncHideoutModule(module: HideoutModule | Partial<HideoutModule>, operation: 'insert' | 'update' | 'delete') {
-    if (!this.client) return;
+    const client = await this.ensureClient();
+    if (!client) return;
 
     try {
       if (operation === 'delete') {
-        await this.client.from('hideout_modules').delete().eq('external_id', (module as HideoutModule).external_id);
+        await client.from('hideout_modules').delete().eq('external_id', (module as HideoutModule).external_id);
       } else if (operation === 'insert') {
-        await this.client.from('hideout_modules').insert({
+        await client.from('hideout_modules').insert({
           external_id: module.external_id,
           name: module.name,
           description: module.description,
@@ -192,7 +280,7 @@ class SupabaseService {
           data: module.data || {},
         });
       } else if (operation === 'update') {
-        await this.client
+        await client
           .from('hideout_modules')
           .update({
             name: module.name,
@@ -211,13 +299,14 @@ class SupabaseService {
 
   // Enemy Type operations
   async syncEnemyType(enemyType: EnemyType | Partial<EnemyType>, operation: 'insert' | 'update' | 'delete') {
-    if (!this.client) return;
+    const client = await this.ensureClient();
+    if (!client) return;
 
     try {
       if (operation === 'delete') {
-        await this.client.from('enemy_types').delete().eq('external_id', (enemyType as EnemyType).external_id);
+        await client.from('enemy_types').delete().eq('external_id', (enemyType as EnemyType).external_id);
       } else if (operation === 'insert') {
-        await this.client.from('enemy_types').insert({
+        await client.from('enemy_types').insert({
           external_id: enemyType.external_id,
           name: enemyType.name,
           description: enemyType.description,
@@ -228,7 +317,7 @@ class SupabaseService {
           data: enemyType.data || {},
         });
       } else if (operation === 'update') {
-        await this.client
+        await client
           .from('enemy_types')
           .update({
             name: enemyType.name,
@@ -249,15 +338,16 @@ class SupabaseService {
 
   // Alert operations
   async syncAlert(alert: Alert | Partial<Alert>, operation: 'insert' | 'update' | 'delete') {
-    if (!this.client) return;
+    const client = await this.ensureClient();
+    if (!client) return;
 
     try {
       const alertId = (alert as Alert).id;
       if (operation === 'delete') {
         // Delete by api_id since that's what we use to match API records
-        await this.client.from('alerts').delete().eq('api_id', alertId);
+        await client.from('alerts').delete().eq('api_id', alertId);
       } else if (operation === 'insert') {
-        await this.client.from('alerts').insert({
+        await client.from('alerts').insert({
           api_id: alertId, // Store API's id for future lookups
           name: alert.name,
           description: alert.description,
@@ -266,7 +356,7 @@ class SupabaseService {
           data: alert.data || {},
         });
       } else if (operation === 'update') {
-        await this.client
+        await client
           .from('alerts')
           .update({
             name: alert.name,
@@ -285,9 +375,10 @@ class SupabaseService {
 
   // Read operations - fetch data from Supabase
   async getQuests(limit = 100): Promise<Quest[]> {
-    if (!this.client) return [];
+    const client = await this.ensureClient();
+    if (!client) return [];
     try {
-      const { data, error } = await this.client.from('quests').select('*').limit(limit).order('created_at', { ascending: false });
+      const { data, error } = await client.from('quests').select('*').limit(limit).order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as Quest[];
     } catch (error) {
@@ -297,9 +388,10 @@ class SupabaseService {
   }
 
   async getItems(limit = 100): Promise<Item[]> {
-    if (!this.client) return [];
+    const client = await this.ensureClient();
+    if (!client) return [];
     try {
-      const { data, error } = await this.client.from('items').select('*').limit(limit).order('created_at', { ascending: false });
+      const { data, error } = await client.from('items').select('*').limit(limit).order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as Item[];
     } catch (error) {
@@ -309,9 +401,10 @@ class SupabaseService {
   }
 
   async getSkillNodes(limit = 100): Promise<SkillNode[]> {
-    if (!this.client) return [];
+    const client = await this.ensureClient();
+    if (!client) return [];
     try {
-      const { data, error } = await this.client.from('skill_nodes').select('*').limit(limit).order('created_at', { ascending: false });
+      const { data, error } = await client.from('skill_nodes').select('*').limit(limit).order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as SkillNode[];
     } catch (error) {
@@ -321,9 +414,10 @@ class SupabaseService {
   }
 
   async getHideoutModules(limit = 100): Promise<HideoutModule[]> {
-    if (!this.client) return [];
+    const client = await this.ensureClient();
+    if (!client) return [];
     try {
-      const { data, error } = await this.client.from('hideout_modules').select('*').limit(limit).order('created_at', { ascending: false });
+      const { data, error } = await client.from('hideout_modules').select('*').limit(limit).order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as HideoutModule[];
     } catch (error) {
@@ -333,9 +427,10 @@ class SupabaseService {
   }
 
   async getEnemyTypes(limit = 100): Promise<EnemyType[]> {
-    if (!this.client) return [];
+    const client = await this.ensureClient();
+    if (!client) return [];
     try {
-      const { data, error } = await this.client.from('enemy_types').select('*').limit(limit).order('created_at', { ascending: false });
+      const { data, error } = await client.from('enemy_types').select('*').limit(limit).order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as EnemyType[];
     } catch (error) {
@@ -345,9 +440,10 @@ class SupabaseService {
   }
 
   async getAlerts(limit = 100): Promise<Alert[]> {
-    if (!this.client) return [];
+    const client = await this.ensureClient();
+    if (!client) return [];
     try {
-      const { data, error } = await this.client.from('alerts').select('*').limit(limit).order('created_at', { ascending: false });
+      const { data, error } = await client.from('alerts').select('*').limit(limit).order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as Alert[];
     } catch (error) {
@@ -358,15 +454,16 @@ class SupabaseService {
 
   // Get counts for each table
   async getCounts(): Promise<Record<string, number>> {
-    if (!this.client) return {};
+    const client = await this.ensureClient();
+    if (!client) return {};
     try {
       const [quests, items, skillNodes, hideoutModules, enemyTypes, alerts] = await Promise.all([
-        this.client.from('quests').select('*', { count: 'exact', head: true }),
-        this.client.from('items').select('*', { count: 'exact', head: true }),
-        this.client.from('skill_nodes').select('*', { count: 'exact', head: true }),
-        this.client.from('hideout_modules').select('*', { count: 'exact', head: true }),
-        this.client.from('enemy_types').select('*', { count: 'exact', head: true }),
-        this.client.from('alerts').select('*', { count: 'exact', head: true }),
+        client.from('quests').select('*', { count: 'exact', head: true }),
+        client.from('items').select('*', { count: 'exact', head: true }),
+        client.from('skill_nodes').select('*', { count: 'exact', head: true }),
+        client.from('hideout_modules').select('*', { count: 'exact', head: true }),
+        client.from('enemy_types').select('*', { count: 'exact', head: true }),
+        client.from('alerts').select('*', { count: 'exact', head: true }),
       ]);
 
       return {

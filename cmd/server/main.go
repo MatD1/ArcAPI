@@ -337,6 +337,10 @@ func main() {
 		r.GET("/health/ready", healthHandler.ReadinessCheck)
 		r.GET("/health/live", healthHandler.LivenessCheck)
 
+		// Frontend config endpoint (public - returns safe config for frontend)
+		configHandler := handlers.NewConfigHandler()
+		r.GET("/api/v1/config", configHandler.GetFrontendConfig)
+
 		// Mobile callback page (public route - redirects to deep link)
 		r.GET("/auth/mobile-callback", authHandler.MobileCallbackPage)
 

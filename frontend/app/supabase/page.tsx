@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuthStore } from '@/store/authStore';
 import { apiClient, getErrorMessage } from '@/lib/api';
-import { isSupabaseEnabled } from '@/lib/supabase';
+import { isSupabaseEnabledSync, isSupabaseEnabled } from '@/lib/supabase';
 
 type EntityType = 'quests' | 'items' | 'skillNodes' | 'hideoutModules' | 'enemyTypes' | 'alerts';
 
@@ -35,12 +35,14 @@ export default function SupabasePage() {
     loadCounts();
   }, [isAuthenticated, router]);
 
-  const checkEnabled = () => {
-    setEnabled(isSupabaseEnabled());
+  const checkEnabled = async () => {
+    const enabled = await isSupabaseEnabled();
+    setEnabled(enabled);
   };
 
   const loadCounts = async () => {
-    if (!isSupabaseEnabled()) {
+    const enabled = await isSupabaseEnabled();
+    if (!enabled) {
       setLoading(false);
       return;
     }
@@ -56,7 +58,8 @@ export default function SupabasePage() {
   };
 
   const handleForceSync = async () => {
-    if (!isSupabaseEnabled()) {
+    const enabled = await isSupabaseEnabled();
+    if (!enabled) {
       setError('Supabase is not enabled. Please configure environment variables.');
       return;
     }
@@ -80,7 +83,8 @@ export default function SupabasePage() {
   };
 
   const loadEntityData = async (entity: EntityType) => {
-    if (!isSupabaseEnabled()) {
+    const enabled = await isSupabaseEnabled();
+    if (!enabled) {
       setError('Supabase is not enabled');
       return;
     }
