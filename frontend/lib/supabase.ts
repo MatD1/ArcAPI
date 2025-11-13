@@ -154,39 +154,253 @@ class SupabaseService {
     }
   }
 
+  private normalizeJsonValue(value: any) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    if (typeof value === 'string' && value.length === 0) {
+      return null;
+    }
+    return value;
+  }
+
+  private normalizeNumberValue(value: any) {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  }
+
+  private normalizeBooleanValue(value: any) {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      if (value === 1) return true;
+      if (value === 0) return false;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+      if (normalized === '1') return true;
+      if (normalized === '0') return false;
+    }
+    return null;
+  }
+
+  private unwrapNestedField(value: any, key: string) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === 'object' && key in value) {
+      return value[key];
+    }
+    return value;
+  }
+
+  private buildQuestPayload(quest: Quest | Partial<Quest>): Record<string, any> {
+    const externalId = quest.external_id as string;
+    const typedQuest = quest as Quest;
+    const questData = ((typedQuest?.data ?? {}) as Record<string, any>) || {};
+
+    const nameCandidate =
+      questData?.name !== undefined ? questData.name : typedQuest?.name;
+    const normalizedName = this.normalizeJsonValue(nameCandidate);
+    const fallbackName = externalId || typedQuest?.name || 'Unknown Quest';
+
+    const descriptionCandidate =
+      questData?.description !== undefined ? questData.description : typedQuest?.description;
+    const normalizedDescription = this.normalizeJsonValue(descriptionCandidate);
+
+    const traderValue = typedQuest?.trader ?? questData?.trader ?? null;
+    const xpCandidate =
+      questData?.xp ??
+      questData?.XP ??
+      questData?.experience ??
+      typedQuest?.xp;
+    const normalizedXP =
+      xpCandidate === undefined || xpCandidate === null ? null : String(xpCandidate);
+
+    const objectivesCandidate =
+      questData?.objectives !== undefined
+        ? questData.objectives
+        : this.unwrapNestedField(typedQuest?.objectives, 'objectives');
+    const normalizedObjectives = this.normalizeJsonValue(objectivesCandidate);
+
+    const rewardItemsCandidate =
+      questData?.rewardItemIds !== undefined
+        ? questData.rewardItemIds
+        : questData?.reward_item_ids !== undefined
+          ? questData.reward_item_ids
+          : this.unwrapNestedField(typedQuest?.reward_item_ids, 'reward_item_ids');
+    const normalizedRewardItems = this.normalizeJsonValue(rewardItemsCandidate);
+
+    const dataValue =
+      typedQuest?.data && typeof typedQuest.data === 'object' ? typedQuest.data : {};
+
+    return {
+      external_id: externalId,
+      name: normalizedName ?? fallbackName,
+      description: normalizedDescription,
+      trader: traderValue,
+      xp: normalizedXP,
+      objectives: normalizedObjectives,
+      reward_item_ids: normalizedRewardItems,
+      data: dataValue,
+    };
+  }
+
+  private buildSkillNodePayload(skillNode: SkillNode | Partial<SkillNode>): Record<string, any> {
+    const externalId = skillNode.external_id as string;
+    const typedSkillNode = skillNode as SkillNode;
+    const nodeData = ((typedSkillNode?.data ?? {}) as Record<string, any>) || {};
+
+    const nameCandidate = nodeData?.name ?? typedSkillNode?.name;
+    const normalizedName = this.normalizeJsonValue(nameCandidate);
+    const fallbackName = externalId || typedSkillNode?.name || 'Unknown Skill Node';
+
+    const descriptionCandidate = nodeData?.description ?? typedSkillNode?.description;
+    const normalizedDescription = this.normalizeJsonValue(descriptionCandidate);
+
+    const impactedSkill =
+      typedSkillNode?.impacted_skill ??
+      nodeData?.impacted_skill ??
+      nodeData?.impactedSkill ??
+      null;
+
+    const categoryValue = typedSkillNode?.category ?? nodeData?.category ?? null;
+
+    const maxPointsCandidate =
+      typedSkillNode?.max_points ??
+      nodeData?.max_points ??
+      nodeData?.maxPoints;
+    const normalizedMaxPoints = this.normalizeNumberValue(maxPointsCandidate);
+
+    const iconNameValue =
+      typedSkillNode?.icon_name ??
+      nodeData?.icon_name ??
+      nodeData?.iconName ??
+      null;
+
+    const isMajorCandidate =
+      typedSkillNode?.is_major ??
+      nodeData?.is_major ??
+      nodeData?.isMajor;
+    const normalizedIsMajor = this.normalizeBooleanValue(isMajorCandidate);
+
+    const positionCandidate =
+      nodeData?.position !== undefined ? nodeData.position : typedSkillNode?.position;
+    const normalizedPosition = this.normalizeJsonValue(positionCandidate);
+
+    const knownValueCandidate =
+      nodeData?.knownValue !== undefined
+        ? nodeData.knownValue
+        : nodeData?.known_value !== undefined
+          ? nodeData.known_value
+          : this.unwrapNestedField(typedSkillNode?.known_value, 'known_value');
+    const normalizedKnownValue = this.normalizeJsonValue(knownValueCandidate);
+
+    const prereqCandidate =
+      nodeData?.prerequisiteNodeIds !== undefined
+        ? nodeData.prerequisiteNodeIds
+        : nodeData?.prerequisite_node_ids !== undefined
+          ? nodeData.prerequisite_node_ids
+          : this.unwrapNestedField(typedSkillNode?.prerequisite_node_ids, 'prerequisite_node_ids');
+    const normalizedPrereqs = this.normalizeJsonValue(prereqCandidate);
+
+    const dataValue =
+      typedSkillNode?.data && typeof typedSkillNode.data === 'object' ? typedSkillNode.data : {};
+
+    return {
+      external_id: externalId,
+      name: normalizedName ?? fallbackName,
+      description: normalizedDescription,
+      impacted_skill: impactedSkill,
+      category: categoryValue,
+      max_points: normalizedMaxPoints,
+      icon_name: iconNameValue,
+      is_major: normalizedIsMajor ?? false,
+      position: normalizedPosition,
+      known_value: normalizedKnownValue,
+      prerequisite_node_ids: normalizedPrereqs,
+      data: dataValue,
+    };
+  }
+
+  private buildHideoutModulePayload(module: HideoutModule | Partial<HideoutModule>): Record<string, any> {
+    const externalId = module.external_id as string;
+    const typedModule = module as HideoutModule;
+    const moduleData = ((typedModule?.data ?? {}) as Record<string, any>) || {};
+
+    const nameCandidate = moduleData?.name ?? typedModule?.name;
+    const normalizedName = this.normalizeJsonValue(nameCandidate);
+    const fallbackName = externalId || typedModule?.name || 'Unknown Hideout Module';
+
+    const descriptionCandidate = moduleData?.description ?? typedModule?.description;
+    const normalizedDescription = this.normalizeJsonValue(descriptionCandidate);
+
+    const maxLevelCandidate =
+      typedModule?.max_level ??
+      moduleData?.max_level ??
+      moduleData?.maxLevel;
+    const normalizedMaxLevel = this.normalizeNumberValue(maxLevelCandidate);
+
+    const levelsCandidate =
+      moduleData?.levels !== undefined
+        ? moduleData.levels
+        : typedModule?.levels !== undefined
+          ? typedModule.levels
+          : null;
+    const normalizedLevels = this.normalizeJsonValue(levelsCandidate);
+
+    const dataValue =
+      typedModule?.data && typeof typedModule.data === 'object' ? typedModule.data : {};
+
+    return {
+      external_id: externalId,
+      name: normalizedName ?? fallbackName,
+      description: normalizedDescription,
+      max_level: normalizedMaxLevel,
+      levels: normalizedLevels,
+      data: dataValue,
+    };
+  }
+
   // Quest operations
   async syncQuest(quest: Quest | Partial<Quest>, operation: 'insert' | 'update' | 'delete') {
     const client = await this.ensureClient();
     if (!client) return;
+    if (!quest?.external_id) {
+      console.warn('Supabase quest sync skipped: missing external_id');
+      return;
+    }
 
     try {
       if (operation === 'delete') {
-        await client.from('quests').delete().eq('external_id', (quest as Quest).external_id);
+        await client.from('quests').delete().eq('external_id', quest.external_id);
       } else if (operation === 'insert') {
-        // Preserve name and description as-is (can be string, object, or array)
-        // Supabase JSONB will handle serialization automatically
-        await client.from('quests').insert({
-          external_id: quest.external_id,
-          name: quest.name, // Can be string, object, or array
-          description: quest.description, // Can be string, object, or array
-          trader: (quest as Quest).trader,
-          xp: (quest as Quest).xp,
-          objectives: (quest as Quest).objectives,
-          reward_item_ids: (quest as Quest).reward_item_ids,
-          data: quest.data || {},
-        });
+        const payload = this.buildQuestPayload(quest);
+        await client.from('quests').insert(payload);
       } else if (operation === 'update') {
-        // Preserve name and description as-is (can be string, object, or array)
+        const payload = this.buildQuestPayload(quest);
         await client
           .from('quests')
           .update({
-            name: quest.name, // Can be string, object, or array
-            description: quest.description, // Can be string, object, or array
-            trader: (quest as Quest).trader,
-            xp: (quest as Quest).xp,
-            objectives: (quest as Quest).objectives,
-            reward_item_ids: (quest as Quest).reward_item_ids,
-            data: quest.data || {},
+            ...payload,
             updated_at: new Date().toISOString(),
           })
           .eq('external_id', quest.external_id);
@@ -237,40 +451,22 @@ class SupabaseService {
   async syncSkillNode(skillNode: SkillNode | Partial<SkillNode>, operation: 'insert' | 'update' | 'delete') {
     const client = await this.ensureClient();
     if (!client) return;
+    if (!skillNode?.external_id) {
+      console.warn('Supabase skill node sync skipped: missing external_id');
+      return;
+    }
+    const payload = this.buildSkillNodePayload(skillNode);
 
     try {
       if (operation === 'delete') {
-        await client.from('skill_nodes').delete().eq('external_id', (skillNode as SkillNode).external_id);
+        await client.from('skill_nodes').delete().eq('external_id', skillNode.external_id);
       } else if (operation === 'insert') {
-        await client.from('skill_nodes').insert({
-          external_id: skillNode.external_id,
-          name: skillNode.name,
-          description: skillNode.description,
-          impacted_skill: skillNode.impacted_skill,
-          category: skillNode.category,
-          max_points: skillNode.max_points,
-          icon_name: skillNode.icon_name,
-          is_major: skillNode.is_major,
-          position: skillNode.position,
-          known_value: skillNode.known_value,
-          prerequisite_node_ids: skillNode.prerequisite_node_ids,
-          data: skillNode.data || {},
-        });
+        await client.from('skill_nodes').insert(payload);
       } else if (operation === 'update') {
         await client
           .from('skill_nodes')
           .update({
-            name: skillNode.name,
-            description: skillNode.description,
-            impacted_skill: skillNode.impacted_skill,
-            category: skillNode.category,
-            max_points: skillNode.max_points,
-            icon_name: skillNode.icon_name,
-            is_major: skillNode.is_major,
-            position: skillNode.position,
-            known_value: skillNode.known_value,
-            prerequisite_node_ids: skillNode.prerequisite_node_ids,
-            data: skillNode.data || {},
+            ...payload,
             updated_at: new Date().toISOString(),
           })
           .eq('external_id', skillNode.external_id);
@@ -284,30 +480,22 @@ class SupabaseService {
   async syncHideoutModule(module: HideoutModule | Partial<HideoutModule>, operation: 'insert' | 'update' | 'delete') {
     const client = await this.ensureClient();
     if (!client) return;
+    if (!module?.external_id) {
+      console.warn('Supabase hideout module sync skipped: missing external_id');
+      return;
+    }
+    const payload = this.buildHideoutModulePayload(module);
 
     try {
       if (operation === 'delete') {
-        await client.from('hideout_modules').delete().eq('external_id', (module as HideoutModule).external_id);
+        await client.from('hideout_modules').delete().eq('external_id', module.external_id);
       } else if (operation === 'insert') {
-        // Preserve name and description as-is (can be string, object, or array)
-        await client.from('hideout_modules').insert({
-          external_id: module.external_id,
-          name: module.name, // Can be string, object, or array
-          description: module.description, // Can be string, object, or array
-          max_level: module.max_level,
-          levels: module.levels,
-          data: module.data || {},
-        });
+        await client.from('hideout_modules').insert(payload);
       } else if (operation === 'update') {
-        // Preserve name and description as-is (can be string, object, or array)
         await client
           .from('hideout_modules')
           .update({
-            name: module.name, // Can be string, object, or array
-            description: module.description, // Can be string, object, or array
-            max_level: module.max_level,
-            levels: module.levels,
-            data: module.data || {},
+            ...payload,
             updated_at: new Date().toISOString(),
           })
           .eq('external_id', module.external_id);
