@@ -769,12 +769,12 @@ class APIClient {
       ]);
 
       await Promise.all([
-        syncBatch(quests, (q) => supabaseService.syncQuest(q, 'insert'), 'quests'),
-        syncBatch(items, (i) => supabaseService.syncItem(i, 'insert'), 'items'),
-        syncBatch(skillNodes, (s) => supabaseService.syncSkillNode(s, 'insert'), 'skillNodes'),
-        syncBatch(hideoutModules, (h) => supabaseService.syncHideoutModule(h, 'insert'), 'hideoutModules'),
-        syncBatch(enemyTypes, (e) => supabaseService.syncEnemyType(e, 'insert'), 'enemyTypes'),
-        syncBatch(alerts, (a) => supabaseService.syncAlert(a, 'insert'), 'alerts'),
+        syncBatch(quests, (q, op) => supabaseService.syncQuest(q, op), 'quests'),
+        syncBatch(items, (i, op) => supabaseService.syncItem(i, op), 'items'),
+        syncBatch(skillNodes, (s, op) => supabaseService.syncSkillNode(s, op), 'skillNodes'),
+        syncBatch(hideoutModules, (h, op) => supabaseService.syncHideoutModule(h, op), 'hideoutModules'),
+        syncBatch(enemyTypes, (e, op) => supabaseService.syncEnemyType(e, op), 'enemyTypes'),
+        syncBatch(alerts, (a, op) => supabaseService.syncAlert(a, op), 'alerts'),
       ]);
     } catch (error) {
       throw error;

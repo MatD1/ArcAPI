@@ -389,21 +389,15 @@ class SupabaseService {
       return;
     }
 
+    const payload = operation === 'delete' ? null : this.buildQuestPayload(quest);
+
     try {
       if (operation === 'delete') {
         await client.from('quests').delete().eq('external_id', quest.external_id);
-      } else if (operation === 'insert') {
-        const payload = this.buildQuestPayload(quest);
-        await client.from('quests').insert(payload);
-      } else if (operation === 'update') {
-        const payload = this.buildQuestPayload(quest);
+      } else if (payload) {
         await client
           .from('quests')
-          .update({
-            ...payload,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('external_id', quest.external_id);
+          .upsert(payload, { onConflict: 'external_id' });
       }
     } catch (error) {
       this.logError(`quest ${operation}`, error);
@@ -414,33 +408,31 @@ class SupabaseService {
   async syncItem(item: Item | Partial<Item>, operation: 'insert' | 'update' | 'delete') {
     const client = await this.ensureClient();
     if (!client) return;
+    if (!item?.external_id) {
+      console.warn('Supabase item sync skipped: missing external_id');
+      return;
+    }
 
-    try {
-      if (operation === 'delete') {
-        await client.from('items').delete().eq('external_id', (item as Item).external_id);
-      } else if (operation === 'insert') {
-        await client.from('items').insert({
-          external_id: item.external_id,
-          name: item.name,
-          description: item.description,
-          type: item.type,
-          image_url: item.image_url,
-          image_filename: item.image_filename,
-          data: item.data || {},
-        });
-      } else if (operation === 'update') {
-        await client
-          .from('items')
-          .update({
+    const payload =
+      operation === 'delete'
+        ? null
+        : {
+            external_id: item.external_id,
             name: item.name,
             description: item.description,
             type: item.type,
             image_url: item.image_url,
             image_filename: item.image_filename,
             data: item.data || {},
-            updated_at: new Date().toISOString(),
-          })
-          .eq('external_id', item.external_id);
+          };
+
+    try {
+      if (operation === 'delete') {
+        await client.from('items').delete().eq('external_id', item.external_id);
+      } else if (payload) {
+        await client
+          .from('items')
+          .upsert(payload, { onConflict: 'external_id' });
       }
     } catch (error) {
       this.logError(`item ${operation}`, error);
@@ -460,16 +452,10 @@ class SupabaseService {
     try {
       if (operation === 'delete') {
         await client.from('skill_nodes').delete().eq('external_id', skillNode.external_id);
-      } else if (operation === 'insert') {
-        await client.from('skill_nodes').insert(payload);
-      } else if (operation === 'update') {
+      } else {
         await client
           .from('skill_nodes')
-          .update({
-            ...payload,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('external_id', skillNode.external_id);
+          .upsert(payload, { onConflict: 'external_id' });
       }
     } catch (error) {
       this.logError(`skill_node ${operation}`, error);
@@ -489,16 +475,10 @@ class SupabaseService {
     try {
       if (operation === 'delete') {
         await client.from('hideout_modules').delete().eq('external_id', module.external_id);
-      } else if (operation === 'insert') {
-        await client.from('hideout_modules').insert(payload);
-      } else if (operation === 'update') {
+      } else {
         await client
           .from('hideout_modules')
-          .update({
-            ...payload,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('external_id', module.external_id);
+          .upsert(payload, { onConflict: 'external_id' });
       }
     } catch (error) {
       this.logError(`hideout_module ${operation}`, error);
@@ -509,25 +489,16 @@ class SupabaseService {
   async syncEnemyType(enemyType: EnemyType | Partial<EnemyType>, operation: 'insert' | 'update' | 'delete') {
     const client = await this.ensureClient();
     if (!client) return;
+    if (!enemyType?.external_id) {
+      console.warn('Supabase enemy type sync skipped: missing external_id');
+      return;
+    }
 
-    try {
-      if (operation === 'delete') {
-        await client.from('enemy_types').delete().eq('external_id', (enemyType as EnemyType).external_id);
-      } else if (operation === 'insert') {
-        await client.from('enemy_types').insert({
-          external_id: enemyType.external_id,
-          name: enemyType.name,
-          description: enemyType.description,
-          type: enemyType.type,
-          image_url: enemyType.image_url,
-          image_filename: enemyType.image_filename,
-          weakpoints: enemyType.weakpoints,
-          data: enemyType.data || {},
-        });
-      } else if (operation === 'update') {
-        await client
-          .from('enemy_types')
-          .update({
+    const payload =
+      operation === 'delete'
+        ? null
+        : {
+            external_id: enemyType.external_id,
             name: enemyType.name,
             description: enemyType.description,
             type: enemyType.type,
@@ -535,9 +506,15 @@ class SupabaseService {
             image_filename: enemyType.image_filename,
             weakpoints: enemyType.weakpoints,
             data: enemyType.data || {},
-            updated_at: new Date().toISOString(),
-          })
-          .eq('external_id', enemyType.external_id);
+          };
+
+    try {
+      if (operation === 'delete') {
+        await client.from('enemy_types').delete().eq('external_id', enemyType.external_id);
+      } else if (payload) {
+        await client
+          .from('enemy_types')
+          .upsert(payload, { onConflict: 'external_id' });
       }
     } catch (error) {
       this.logError(`enemy_type ${operation}`, error);
@@ -554,27 +531,20 @@ class SupabaseService {
       if (operation === 'delete') {
         // Delete by api_id since that's what we use to match API records
         await client.from('alerts').delete().eq('api_id', alertId);
-      } else if (operation === 'insert') {
-        await client.from('alerts').insert({
-          api_id: alertId, // Store API's id for future lookups
-          name: alert.name,
-          description: alert.description,
-          severity: alert.severity,
-          is_active: alert.is_active,
-          data: alert.data || {},
-        });
-      } else if (operation === 'update') {
+      } else {
         await client
           .from('alerts')
-          .update({
-            name: alert.name,
-            description: alert.description,
-            severity: alert.severity,
-            is_active: alert.is_active,
-            data: alert.data || {},
-            updated_at: new Date().toISOString(),
-          })
-          .eq('api_id', alertId); // Match by api_id
+          .upsert(
+            {
+              api_id: alertId, // Store API's id for future lookups
+              name: alert.name,
+              description: alert.description,
+              severity: alert.severity,
+              is_active: alert.is_active,
+              data: alert.data || {},
+            },
+            { onConflict: 'api_id' }
+          );
       }
     } catch (error) {
       this.logError(`alert ${operation}`, error);
