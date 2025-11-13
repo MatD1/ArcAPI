@@ -2,10 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuthStore } from '@/store/authStore';
 import { apiClient, getErrorMessage } from '@/lib/api';
-import { isSupabaseEnabledSync, isSupabaseEnabled } from '@/lib/supabase';
+import {
+  isSupabaseEnabledSync,
+  isSupabaseEnabled,
+  startSupabaseGithubLogin,
+  signOutOfSupabase,
+  getSupabaseClient,
+} from '@/lib/supabase';
 
 type EntityType = 'quests' | 'items' | 'skillNodes' | 'hideoutModules' | 'enemyTypes' | 'alerts';
 
@@ -34,6 +41,8 @@ export default function SupabasePage() {
     enemyTypes: null,
     alerts: null,
   });
+  const [supabaseAuthLoading, setSupabaseAuthLoading] = useState(false);
+  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -44,9 +53,72 @@ export default function SupabasePage() {
     loadCounts();
   }, [isAuthenticated, router]);
 
+  useEffect(() => {
+    let mounted = true;
+    let unsubscribe: (() => void) | undefined;
+
+    const trackSupabaseUser = async () => {
+      if (!enabled) {
+        setSupabaseUser(null);
+        return;
+      }
+
+      const client = await getSupabaseClient();
+      if (!client) {
+        setSupabaseUser(null);
+        return;
+      }
+
+      const { data } = await client.auth.getUser();
+      if (mounted) {
+        setSupabaseUser(data.user ?? null);
+      }
+
+      const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+        if (mounted) {
+          setSupabaseUser(session?.user ?? null);
+        }
+      });
+
+      unsubscribe = () => {
+        listener.subscription.unsubscribe();
+      };
+    };
+
+    trackSupabaseUser();
+
+    return () => {
+      mounted = false;
+      unsubscribe?.();
+    };
+  }, [enabled]);
+
   const checkEnabled = async () => {
     const enabled = await isSupabaseEnabled();
     setEnabled(enabled);
+  };
+
+  const handleSupabaseLogin = async () => {
+    setError('');
+    setSupabaseAuthLoading(true);
+    try {
+      await startSupabaseGithubLogin('/supabase');
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setSupabaseAuthLoading(false);
+    }
+  };
+
+  const handleSupabaseLogout = async () => {
+    setError('');
+    setSupabaseAuthLoading(true);
+    try {
+      await signOutOfSupabase();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSupabaseAuthLoading(false);
+    }
   };
 
   const loadCounts = async () => {
@@ -206,6 +278,50 @@ export default function SupabasePage() {
             View and manage data synced to Supabase database
           </p>
         </div>
+
+        {enabled && (
+          <div className="mb-6 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Supabase Access Control</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Sign in with Supabase (GitHub) to access your Supabase project or Studio using the same browser session.
+            </p>
+            <div className="mt-4">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</span>
+              <span className="ml-2 text-gray-900 dark:text-white">
+                {supabaseUser ? `Signed in as ${supabaseUser.email || supabaseUser.user_metadata?.user_name || supabaseUser.id}` : 'Not signed in'}
+              </span>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {supabaseUser ? (
+                <button
+                  onClick={handleSupabaseLogout}
+                  disabled={supabaseAuthLoading}
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {supabaseAuthLoading ? 'Signing out...' : 'Sign out of Supabase'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleSupabaseLogin}
+                  disabled={supabaseAuthLoading}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {supabaseAuthLoading ? 'Redirecting...' : 'Sign in with Supabase (GitHub)'}
+                </button>
+              )}
+              {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+                <a
+                  href={process.env.NEXT_PUBLIC_SUPABASE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Open Supabase URL
+                </a>
+              )}
+            </div>
+          </div>
+        )}
 
         {!enabled && (
           <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">

@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, Session, User } from '@supabase/supabase-js';
 import type {
   Quest,
   Item,
@@ -12,12 +12,35 @@ import type {
 let runtimeConfig: { url: string; anonKey: string; enabled: boolean } | null = null;
 let configLoadPromise: Promise<void> | null = null;
 
+type SupabaseConfigShape = { url: string; anonKey: string; enabled: boolean };
+
+const defaultConfig: SupabaseConfigShape = { url: '', anonKey: '', enabled: false };
+
+const loadStaticSupabaseConfig = async (): Promise<SupabaseConfigShape> => {
+  try {
+    const response = await fetch('/supabase-config.json', { cache: 'no-store' });
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        enabled: data.enabled === true,
+        url: data.url || '',
+        anonKey: data.anonKey || '',
+      };
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Failed to load supabase-config.json fallback:', error);
+    }
+  }
+  return defaultConfig;
+};
+
 // Load config from API endpoint at runtime
-const loadRuntimeConfig = async (): Promise<{ url: string; anonKey: string; enabled: boolean }> => {
+const loadRuntimeConfig = async (): Promise<SupabaseConfigShape> => {
   // If already loading, wait for that promise
   if (configLoadPromise) {
     await configLoadPromise;
-    return runtimeConfig || { url: '', anonKey: '', enabled: false };
+    return runtimeConfig || defaultConfig;
   }
 
   // Start loading config
@@ -36,15 +59,13 @@ const loadRuntimeConfig = async (): Promise<{ url: string; anonKey: string; enab
           anonKey: data.supabase?.anonKey || '',
         };
       } else {
-        // Fallback to build-time env vars if API fails
-        runtimeConfig = {
-          enabled: process.env.NEXT_PUBLIC_SUPABASE_ENABLED === 'true',
-          url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-          anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-        };
+        runtimeConfig = await loadStaticSupabaseConfig();
       }
     } catch (error) {
-      // Fallback to build-time env vars on error
+      runtimeConfig = await loadStaticSupabaseConfig();
+    }
+
+    if (!runtimeConfig?.enabled && process.env.NEXT_PUBLIC_SUPABASE_ENABLED) {
       runtimeConfig = {
         enabled: process.env.NEXT_PUBLIC_SUPABASE_ENABLED === 'true',
         url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -54,11 +75,11 @@ const loadRuntimeConfig = async (): Promise<{ url: string; anonKey: string; enab
   })();
 
   await configLoadPromise;
-  return runtimeConfig || { url: '', anonKey: '', enabled: false };
+  return runtimeConfig || defaultConfig;
 };
 
 // Get Supabase configuration from environment variables or runtime config
-const getSupabaseConfig = async (): Promise<{ url: string; anonKey: string; enabled: boolean }> => {
+const getSupabaseConfig = async (): Promise<SupabaseConfigShape> => {
   // In browser, try to load from API first
   if (typeof window !== 'undefined') {
     return await loadRuntimeConfig();
@@ -91,7 +112,8 @@ export const getSupabaseClient = async (): Promise<SupabaseClient | null> => {
     }
     supabaseClient = createClient(url, anonKey, {
       auth: {
-        persistSession: false, // Don't persist auth sessions
+        persistSession: true,
+        detectSessionInUrl: true,
       },
     });
   }
@@ -115,6 +137,67 @@ export const isSupabaseEnabledSync = (): boolean => {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const enabled = process.env.NEXT_PUBLIC_SUPABASE_ENABLED === 'true';
   return enabled && !!url && !!anonKey;
+};
+
+export const startSupabaseGithubLogin = async (nextPath = '/supabase'): Promise<void> => {
+  if (typeof window === 'undefined') {
+    throw new Error('Supabase OAuth can only be initiated in the browser');
+  }
+
+  const client = await getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase is not configured');
+  }
+
+  const origin = window.location.origin;
+  const redirectUrl = `${origin}/supabase/oauth/callback?next=${encodeURIComponent(nextPath)}`;
+
+  const { error } = await client.auth.signInWithOAuth({
+    provider: 'github',
+    options: {
+      redirectTo: redirectUrl,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+};
+
+export const completeSupabaseOAuthLogin = async (): Promise<User | null> => {
+  if (typeof window === 'undefined') {
+    throw new Error('Supabase OAuth callback must run in the browser');
+  }
+
+  const client = await getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase is not configured');
+  }
+
+  const { error } = await client.auth.exchangeCodeForSession(window.location.href);
+  if (error) {
+    throw error;
+  }
+
+  const { data } = await client.auth.getUser();
+  return data.user ?? null;
+};
+
+export const signOutOfSupabase = async (): Promise<void> => {
+  const client = await getSupabaseClient();
+  if (!client) {
+    return;
+  }
+  await client.auth.signOut();
+};
+
+export const getSupabaseSession = async (): Promise<Session | null> => {
+  const client = await getSupabaseClient();
+  if (!client) {
+    return null;
+  }
+  const { data } = await client.auth.getSession();
+  return data.session ?? null;
 };
 
 // Supabase service for syncing data
