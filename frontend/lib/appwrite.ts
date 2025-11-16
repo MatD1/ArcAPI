@@ -701,6 +701,111 @@ class AppwriteService {
     }
   }
 
+  // Helper to convert Appwrite document to Quest
+  private documentToQuest(doc: any): Quest {
+    return {
+      id: parseInt(doc.api_id || doc.id || '0', 10),
+      external_id: doc.external_id || '',
+      name: doc.name || '',
+      description: doc.description || '',
+      trader: doc.trader || '',
+      xp: parseInt(doc.xp || '0', 10),
+      objectives: doc.objectives || null,
+      reward_item_ids: doc.reward_item_ids || null,
+      data: doc.data || null,
+      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
+      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
+      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+    };
+  }
+
+  // Helper to convert Appwrite document to Item
+  private documentToItem(doc: any): Item {
+    return {
+      id: parseInt(doc.api_id || doc.id || '0', 10),
+      external_id: doc.external_id || '',
+      name: doc.name || '',
+      description: doc.description || '',
+      type: doc.type || '',
+      image_url: doc.image_url || '',
+      image_filename: doc.image_filename || '',
+      data: doc.data || null,
+      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
+      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
+      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+    };
+  }
+
+  // Helper to convert Appwrite document to SkillNode
+  private documentToSkillNode(doc: any): SkillNode {
+    return {
+      id: parseInt(doc.api_id || doc.id || '0', 10),
+      external_id: doc.external_id || '',
+      name: doc.name || '',
+      description: doc.description || '',
+      impacted_skill: doc.impacted_skill || '',
+      category: doc.category || '',
+      max_points: parseInt(doc.max_points || '0', 10),
+      icon_name: doc.icon_name || '',
+      is_major: doc.is_major === true || doc.is_major === 'true',
+      position: doc.position || null,
+      known_value: doc.known_value || null,
+      prerequisite_node_ids: doc.prerequisite_node_ids || null,
+      data: doc.data || null,
+      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
+      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
+      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+    };
+  }
+
+  // Helper to convert Appwrite document to HideoutModule
+  private documentToHideoutModule(doc: any): HideoutModule {
+    return {
+      id: parseInt(doc.api_id || doc.id || '0', 10),
+      external_id: doc.external_id || '',
+      name: doc.name || '',
+      description: doc.description || '',
+      max_level: parseInt(doc.max_level || '0', 10),
+      levels: doc.levels || null,
+      data: doc.data || null,
+      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
+      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
+      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+    };
+  }
+
+  // Helper to convert Appwrite document to EnemyType
+  private documentToEnemyType(doc: any): EnemyType {
+    return {
+      id: parseInt(doc.api_id || doc.id || '0', 10),
+      external_id: doc.external_id || '',
+      name: doc.name || '',
+      description: doc.description || '',
+      type: doc.type || '',
+      image_url: doc.image_url || '',
+      image_filename: doc.image_filename || '',
+      weakpoints: doc.weakpoints || null,
+      data: doc.data || null,
+      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
+      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
+      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+    };
+  }
+
+  // Helper to convert Appwrite document to Alert
+  private documentToAlert(doc: any): Alert {
+    return {
+      id: parseInt(doc.api_id || doc.id || '0', 10),
+      name: doc.name || '',
+      description: doc.description || '',
+      severity: doc.severity || 'info',
+      is_active: doc.is_active === true || doc.is_active === 'true',
+      data: doc.data || null,
+      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
+      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+    };
+  }
+
   // Read operations - fetch data from Appwrite
   async getQuests(limit = 100): Promise<Quest[]> {
     const databases = await this.ensureDatabases();
@@ -711,7 +816,7 @@ class AppwriteService {
         Query.limit(limit),
         Query.orderDesc('created_at')
       ]);
-      return (documents || []) as Quest[];
+      return (documents || []).map(doc => this.documentToQuest(doc));
     } catch (error) {
       this.logError('getQuests', error);
       return [];
@@ -727,7 +832,7 @@ class AppwriteService {
         Query.limit(limit),
         Query.orderDesc('created_at')
       ]);
-      return (documents || []) as Item[];
+      return (documents || []).map(doc => this.documentToItem(doc));
     } catch (error) {
       this.logError('getItems', error);
       return [];
@@ -743,7 +848,7 @@ class AppwriteService {
         Query.limit(limit),
         Query.orderDesc('created_at')
       ]);
-      return (documents || []) as SkillNode[];
+      return (documents || []).map(doc => this.documentToSkillNode(doc));
     } catch (error) {
       this.logError('getSkillNodes', error);
       return [];
@@ -759,7 +864,7 @@ class AppwriteService {
         Query.limit(limit),
         Query.orderDesc('created_at')
       ]);
-      return (documents || []) as HideoutModule[];
+      return (documents || []).map(doc => this.documentToHideoutModule(doc));
     } catch (error) {
       this.logError('getHideoutModules', error);
       return [];
@@ -775,7 +880,7 @@ class AppwriteService {
         Query.limit(limit),
         Query.orderDesc('created_at')
       ]);
-      return (documents || []) as EnemyType[];
+      return (documents || []).map(doc => this.documentToEnemyType(doc));
     } catch (error) {
       this.logError('getEnemyTypes', error);
       return [];
@@ -791,7 +896,7 @@ class AppwriteService {
         Query.limit(limit),
         Query.orderDesc('created_at')
       ]);
-      return (documents || []) as Alert[];
+      return (documents || []).map(doc => this.documentToAlert(doc));
     } catch (error) {
       this.logError('getAlerts', error);
       return [];
