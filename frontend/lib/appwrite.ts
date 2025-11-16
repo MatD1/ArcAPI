@@ -192,10 +192,11 @@ class AppwriteService {
     if (this.databasesPromise) {
       return await this.databasesPromise;
     }
-    this.databasesPromise = getAppwriteClient();
-    const appwrite = await this.databasesPromise;
-    this.databases = appwrite?.databases || null;
-    return this.databases;
+    this.databasesPromise = getAppwriteClient().then((appwrite) => {
+      this.databases = appwrite?.databases || null;
+      return this.databases;
+    });
+    return await this.databasesPromise;
   }
 
   // Helper to log errors silently
