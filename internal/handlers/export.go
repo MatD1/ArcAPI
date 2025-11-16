@@ -1,0 +1,339 @@
+package handlers
+
+import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/mat/arcapi/internal/models"
+	"github.com/mat/arcapi/internal/repository"
+)
+
+type ExportHandler struct {
+	questRepo           *repository.QuestRepository
+	itemRepo            *repository.ItemRepository
+	skillNodeRepo       *repository.SkillNodeRepository
+	hideoutModuleRepo   *repository.HideoutModuleRepository
+	enemyTypeRepo       *repository.EnemyTypeRepository
+	alertRepo           *repository.AlertRepository
+}
+
+func NewExportHandler(
+	questRepo *repository.QuestRepository,
+	itemRepo *repository.ItemRepository,
+	skillNodeRepo *repository.SkillNodeRepository,
+	hideoutModuleRepo *repository.HideoutModuleRepository,
+	enemyTypeRepo *repository.EnemyTypeRepository,
+	alertRepo *repository.AlertRepository,
+) *ExportHandler {
+	return &ExportHandler{
+		questRepo:         questRepo,
+		itemRepo:          itemRepo,
+		skillNodeRepo:     skillNodeRepo,
+		hideoutModuleRepo: hideoutModuleRepo,
+		enemyTypeRepo:     enemyTypeRepo,
+		alertRepo:         alertRepo,
+	}
+}
+
+// ExportQuests exports all quests as CSV
+func (h *ExportHandler) ExportQuests(c *gin.Context) {
+	quests, _, err := h.questRepo.FindAll(0, 10000) // Get all quests
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch quests"})
+		return
+	}
+
+	csvData := h.questsToCSV(quests)
+	h.sendCSV(c, csvData, "quests")
+}
+
+// ExportItems exports all items as CSV
+func (h *ExportHandler) ExportItems(c *gin.Context) {
+	items, _, err := h.itemRepo.FindAll(0, 10000) // Get all items
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch items"})
+		return
+	}
+
+	csvData := h.itemsToCSV(items)
+	h.sendCSV(c, csvData, "items")
+}
+
+// ExportSkillNodes exports all skill nodes as CSV
+func (h *ExportHandler) ExportSkillNodes(c *gin.Context) {
+	skillNodes, _, err := h.skillNodeRepo.FindAll(0, 10000) // Get all skill nodes
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch skill nodes"})
+		return
+	}
+
+	csvData := h.skillNodesToCSV(skillNodes)
+	h.sendCSV(c, csvData, "skill-nodes")
+}
+
+// ExportHideoutModules exports all hideout modules as CSV
+func (h *ExportHandler) ExportHideoutModules(c *gin.Context) {
+	hideoutModules, _, err := h.hideoutModuleRepo.FindAll(0, 10000) // Get all hideout modules
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch hideout modules"})
+		return
+	}
+
+	csvData := h.hideoutModulesToCSV(hideoutModules)
+	h.sendCSV(c, csvData, "hideout-modules")
+}
+
+// ExportEnemyTypes exports all enemy types as CSV
+func (h *ExportHandler) ExportEnemyTypes(c *gin.Context) {
+	enemyTypes, _, err := h.enemyTypeRepo.FindAll(0, 10000) // Get all enemy types
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch enemy types"})
+		return
+	}
+
+	csvData := h.enemyTypesToCSV(enemyTypes)
+	h.sendCSV(c, csvData, "enemy-types")
+}
+
+// ExportAlerts exports all alerts as CSV
+func (h *ExportHandler) ExportAlerts(c *gin.Context) {
+	alerts, _, err := h.alertRepo.FindAll(0, 10000) // Get all alerts
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch alerts"})
+		return
+	}
+
+	csvData := h.alertsToCSV(alerts)
+	h.sendCSV(c, csvData, "alerts")
+}
+
+// Helper function to send CSV response
+func (h *ExportHandler) sendCSV(c *gin.Context, csvData [][]string, filename string) {
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s.csv", filename, time.Now().Format("20060102-150405")))
+	
+	writer := csv.NewWriter(c.Writer)
+	defer writer.Flush()
+	
+	for _, record := range csvData {
+		if err := writer.Write(record); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write CSV"})
+			return
+		}
+	}
+}
+
+// Convert quests to CSV format
+func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
+	headers := []string{
+		"id", "external_id", "name", "description", "trader", "xp",
+		"objectives", "reward_item_ids", "data", "synced_at", "created_at", "updated_at",
+	}
+	
+	rows := [][]string{headers}
+	
+	for _, quest := range quests {
+		objectives := h.jsonToString(quest.Objectives)
+		rewardItemIds := h.jsonToString(quest.RewardItemIds)
+		data := h.jsonToString(quest.Data)
+		
+		row := []string{
+			strconv.Itoa(int(quest.ID)),
+			quest.ExternalID,
+			quest.Name,
+			quest.Description,
+			quest.Trader,
+			strconv.Itoa(quest.XP),
+			objectives,
+			rewardItemIds,
+			data,
+			quest.SyncedAt.Format(time.RFC3339),
+			quest.CreatedAt.Format(time.RFC3339),
+			quest.UpdatedAt.Format(time.RFC3339),
+		}
+		rows = append(rows, row)
+	}
+	
+	return rows
+}
+
+// Convert items to CSV format
+func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
+	headers := []string{
+		"id", "external_id", "name", "description", "type",
+		"image_url", "image_filename", "data", "synced_at", "created_at", "updated_at",
+	}
+	
+	rows := [][]string{headers}
+	
+	for _, item := range items {
+		data := h.jsonToString(item.Data)
+		
+		row := []string{
+			strconv.Itoa(int(item.ID)),
+			item.ExternalID,
+			item.Name,
+			item.Description,
+			item.Type,
+			item.ImageURL,
+			item.ImageFilename,
+			data,
+			item.SyncedAt.Format(time.RFC3339),
+			item.CreatedAt.Format(time.RFC3339),
+			item.UpdatedAt.Format(time.RFC3339),
+		}
+		rows = append(rows, row)
+	}
+	
+	return rows
+}
+
+// Convert skill nodes to CSV format
+func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]string {
+	headers := []string{
+		"id", "external_id", "name", "description", "impacted_skill", "category",
+		"max_points", "icon_name", "is_major", "position", "known_value",
+		"prerequisite_node_ids", "data", "synced_at", "created_at", "updated_at",
+	}
+	
+	rows := [][]string{headers}
+	
+	for _, node := range skillNodes {
+		position := h.jsonToString(node.Position)
+		knownValue := h.jsonToString(node.KnownValue)
+		prerequisiteNodeIds := h.jsonToString(node.PrerequisiteNodeIds)
+		data := h.jsonToString(node.Data)
+		
+		row := []string{
+			strconv.Itoa(int(node.ID)),
+			node.ExternalID,
+			node.Name,
+			node.Description,
+			node.ImpactedSkill,
+			node.Category,
+			strconv.Itoa(node.MaxPoints),
+			node.IconName,
+			strconv.FormatBool(node.IsMajor),
+			position,
+			knownValue,
+			prerequisiteNodeIds,
+			data,
+			node.SyncedAt.Format(time.RFC3339),
+			node.CreatedAt.Format(time.RFC3339),
+			node.UpdatedAt.Format(time.RFC3339),
+		}
+		rows = append(rows, row)
+	}
+	
+	return rows
+}
+
+// Convert hideout modules to CSV format
+func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]string {
+	headers := []string{
+		"id", "external_id", "name", "description", "max_level",
+		"levels", "data", "synced_at", "created_at", "updated_at",
+	}
+	
+	rows := [][]string{headers}
+	
+	for _, module := range modules {
+		levels := h.jsonToString(module.Levels)
+		data := h.jsonToString(module.Data)
+		
+		row := []string{
+			strconv.Itoa(int(module.ID)),
+			module.ExternalID,
+			module.Name,
+			module.Description,
+			strconv.Itoa(module.MaxLevel),
+			levels,
+			data,
+			module.SyncedAt.Format(time.RFC3339),
+			module.CreatedAt.Format(time.RFC3339),
+			module.UpdatedAt.Format(time.RFC3339),
+		}
+		rows = append(rows, row)
+	}
+	
+	return rows
+}
+
+// Convert enemy types to CSV format
+func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]string {
+	headers := []string{
+		"id", "external_id", "name", "description", "type",
+		"image_url", "image_filename", "weakpoints", "data", "synced_at", "created_at", "updated_at",
+	}
+	
+	rows := [][]string{headers}
+	
+	for _, enemyType := range enemyTypes {
+		weakpoints := h.jsonToString(enemyType.Weakpoints)
+		data := h.jsonToString(enemyType.Data)
+		
+		row := []string{
+			strconv.Itoa(int(enemyType.ID)),
+			enemyType.ExternalID,
+			enemyType.Name,
+			enemyType.Description,
+			enemyType.Type,
+			enemyType.ImageURL,
+			enemyType.ImageFilename,
+			weakpoints,
+			data,
+			enemyType.SyncedAt.Format(time.RFC3339),
+			enemyType.CreatedAt.Format(time.RFC3339),
+			enemyType.UpdatedAt.Format(time.RFC3339),
+		}
+		rows = append(rows, row)
+	}
+	
+	return rows
+}
+
+// Convert alerts to CSV format
+func (h *ExportHandler) alertsToCSV(alerts []models.Alert) [][]string {
+	headers := []string{
+		"id", "name", "description", "severity", "is_active",
+		"data", "created_at", "updated_at",
+	}
+	
+	rows := [][]string{headers}
+	
+	for _, alert := range alerts {
+		data := h.jsonToString(alert.Data)
+		
+		row := []string{
+			strconv.Itoa(int(alert.ID)),
+			alert.Name,
+			alert.Description,
+			alert.Severity,
+			strconv.FormatBool(alert.IsActive),
+			data,
+			alert.CreatedAt.Format(time.RFC3339),
+			alert.UpdatedAt.Format(time.RFC3339),
+		}
+		rows = append(rows, row)
+	}
+	
+	return rows
+}
+
+// Helper to convert JSONB to string
+func (h *ExportHandler) jsonToString(jsonb models.JSONB) string {
+	if jsonb == nil {
+		return ""
+	}
+	data, err := json.Marshal(jsonb)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+

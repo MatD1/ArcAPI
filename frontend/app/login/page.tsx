@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { apiClient, getErrorMessage } from '@/lib/api';
-import { isSupabaseEnabled, isSupabaseEnabledSync, startSupabaseGithubLogin } from '@/lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,29 +12,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
-  const [supabaseLoading, setSupabaseLoading] = useState(false);
-  const [supabaseAvailable, setSupabaseAvailable] = useState(isSupabaseEnabledSync());
-
-  useEffect(() => {
-    let mounted = true;
-    const checkSupabase = async () => {
-      try {
-        const enabled = await isSupabaseEnabled();
-        if (mounted) {
-          setSupabaseAvailable(enabled);
-        }
-      } catch {
-        if (mounted) {
-          setSupabaseAvailable(false);
-        }
-      }
-    };
-
-    checkSupabase();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,16 +52,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleSupabaseGithubLogin = async () => {
-    setError('');
-    setSupabaseLoading(true);
-    try {
-      await startSupabaseGithubLogin('/supabase');
-    } catch (err) {
-      setError(getErrorMessage(err));
-      setSupabaseLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -142,26 +108,6 @@ export default function LoginPage() {
               </>
             )}
           </button>
-          {/* Supabase GitHub OAuth */}
-          {supabaseAvailable && (
-            <button
-              type="button"
-              onClick={handleSupabaseGithubLogin}
-              disabled={supabaseLoading}
-              className="w-full flex items-center justify-center px-4 py-3 border border-indigo-200 dark:border-indigo-600 rounded-md text-sm font-medium text-indigo-700 dark:text-indigo-200 bg-white dark:bg-gray-900 hover:bg-indigo-50 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {supabaseLoading ? (
-                'Connecting to Supabase...'
-              ) : (
-                <>
-                  <svg className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-300" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0L1.605 6v12L12 24l10.395-6V6z" />
-                  </svg>
-                  Sign in with Supabase (GitHub)
-                </>
-              )}
-            </button>
-          )}
         </div>
 
         <div className="relative">

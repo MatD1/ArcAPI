@@ -16,11 +16,30 @@ func NewConfigHandler() *ConfigHandler {
 // GetFrontendConfig returns frontend configuration (public config only)
 func (h *ConfigHandler) GetFrontendConfig(c *gin.Context) {
 	// Only return public configuration that's safe to expose to the frontend
+	// Read from APPWRITE_* env vars (Railway) or NEXT_PUBLIC_APPWRITE_* (build-time)
+	appwriteEnabled := os.Getenv("APPWRITE_ENABLED") == "true" || os.Getenv("NEXT_PUBLIC_APPWRITE_ENABLED") == "true"
+	appwriteEndpoint := os.Getenv("APPWRITE_ENDPOINT")
+	if appwriteEndpoint == "" {
+		appwriteEndpoint = os.Getenv("NEXT_PUBLIC_APPWRITE_ENDPOINT")
+	}
+	appwriteProjectID := os.Getenv("APPWRITE_PROJECT_ID")
+	if appwriteProjectID == "" {
+		appwriteProjectID = os.Getenv("NEXT_PUBLIC_APPWRITE_PROJECT_ID")
+	}
+	appwriteDatabaseID := os.Getenv("APPWRITE_DATABASE_ID")
+	if appwriteDatabaseID == "" {
+		appwriteDatabaseID = os.Getenv("NEXT_PUBLIC_APPWRITE_DATABASE_ID")
+	}
+	if appwriteDatabaseID == "" {
+		appwriteDatabaseID = "arcapi" // Default
+	}
+	
 	config := gin.H{
-		"supabase": gin.H{
-			"enabled": os.Getenv("NEXT_PUBLIC_SUPABASE_ENABLED") == "true",
-			"url":     os.Getenv("NEXT_PUBLIC_SUPABASE_URL"),
-			"anonKey": os.Getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+		"appwrite": gin.H{
+			"enabled":   appwriteEnabled && appwriteEndpoint != "" && appwriteProjectID != "",
+			"endpoint":  appwriteEndpoint,
+			"projectId": appwriteProjectID,
+			"databaseId": appwriteDatabaseID,
 		},
 	}
 

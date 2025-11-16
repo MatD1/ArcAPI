@@ -20,7 +20,7 @@ import type {
   UserBlueprintProgress,
   AllUserProgress,
 } from '@/types';
-import { supabaseService, isSupabaseEnabled, isSupabaseEnabledSync } from './supabase';
+import { appwriteService, isAppwriteEnabled, isAppwriteEnabledSync } from './appwrite';
 
 // Use relative URL when embedded, or explicit URL if provided
 const getAPIURL = () => {
@@ -672,39 +672,39 @@ class APIClient {
     return response.data;
   }
 
-  // Supabase Management
-  async getSupabaseQuests(limit = 100): Promise<Quest[]> {
-    return supabaseService.getQuests(limit);
+  // Appwrite Management
+  async getAppwriteQuests(limit = 100): Promise<Quest[]> {
+    return appwriteService.getQuests(limit);
   }
 
-  async getSupabaseItems(limit = 100): Promise<Item[]> {
-    return supabaseService.getItems(limit);
+  async getAppwriteItems(limit = 100): Promise<Item[]> {
+    return appwriteService.getItems(limit);
   }
 
-  async getSupabaseSkillNodes(limit = 100): Promise<SkillNode[]> {
-    return supabaseService.getSkillNodes(limit);
+  async getAppwriteSkillNodes(limit = 100): Promise<SkillNode[]> {
+    return appwriteService.getSkillNodes(limit);
   }
 
-  async getSupabaseHideoutModules(limit = 100): Promise<HideoutModule[]> {
-    return supabaseService.getHideoutModules(limit);
+  async getAppwriteHideoutModules(limit = 100): Promise<HideoutModule[]> {
+    return appwriteService.getHideoutModules(limit);
   }
 
-  async getSupabaseEnemyTypes(limit = 100): Promise<EnemyType[]> {
-    return supabaseService.getEnemyTypes(limit);
+  async getAppwriteEnemyTypes(limit = 100): Promise<EnemyType[]> {
+    return appwriteService.getEnemyTypes(limit);
   }
 
-  async getSupabaseAlerts(limit = 100): Promise<Alert[]> {
-    return supabaseService.getAlerts(limit);
+  async getAppwriteAlerts(limit = 100): Promise<Alert[]> {
+    return appwriteService.getAlerts(limit);
   }
 
-  async getSupabaseCounts(): Promise<Record<string, number>> {
-    return supabaseService.getCounts();
+  async getAppwriteCounts(): Promise<Record<string, number>> {
+    return appwriteService.getCounts();
   }
 
-  // Force sync all data from API to Supabase
-  async forceSyncToSupabase(): Promise<{ synced: number; errors: number; details: Record<string, { synced: number; errors: number }> }> {
-    if (!isSupabaseEnabledSync()) {
-      throw new Error('Supabase is not enabled');
+  // Force sync all data from API to Appwrite
+  async forceSyncToAppwrite(): Promise<{ synced: number; errors: number; details: Record<string, { synced: number; errors: number }> }> {
+    if (!isAppwriteEnabledSync()) {
+      throw new Error('Appwrite is not enabled');
     }
 
     const result = {
@@ -769,12 +769,12 @@ class APIClient {
       ]);
 
       await Promise.all([
-        syncBatch(quests, (q, op) => supabaseService.syncQuest(q, op), 'quests'),
-        syncBatch(items, (i, op) => supabaseService.syncItem(i, op), 'items'),
-        syncBatch(skillNodes, (s, op) => supabaseService.syncSkillNode(s, op), 'skillNodes'),
-        syncBatch(hideoutModules, (h, op) => supabaseService.syncHideoutModule(h, op), 'hideoutModules'),
-        syncBatch(enemyTypes, (e, op) => supabaseService.syncEnemyType(e, op), 'enemyTypes'),
-        syncBatch(alerts, (a, op) => supabaseService.syncAlert(a, op), 'alerts'),
+        syncBatch(quests, (q, op) => appwriteService.syncQuest(q, op), 'quests'),
+        syncBatch(items, (i, op) => appwriteService.syncItem(i, op), 'items'),
+        syncBatch(skillNodes, (s, op) => appwriteService.syncSkillNode(s, op), 'skillNodes'),
+        syncBatch(hideoutModules, (h, op) => appwriteService.syncHideoutModule(h, op), 'hideoutModules'),
+        syncBatch(enemyTypes, (e, op) => appwriteService.syncEnemyType(e, op), 'enemyTypes'),
+        syncBatch(alerts, (a, op) => appwriteService.syncAlert(a, op), 'alerts'),
       ]);
     } catch (error) {
       throw error;
@@ -784,9 +784,9 @@ class APIClient {
   }
 
   // Sync individual categories
-  async syncQuestsToSupabase(): Promise<{ synced: number; errors: number }> {
-    if (!isSupabaseEnabledSync()) {
-      throw new Error('Supabase is not enabled');
+  async syncQuestsToAppwrite(): Promise<{ synced: number; errors: number }> {
+    if (!isAppwriteEnabledSync()) {
+      throw new Error('Appwrite is not enabled');
     }
 
     const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
@@ -809,9 +809,9 @@ class APIClient {
     for (const quest of quests) {
       try {
         try {
-          await supabaseService.syncQuest(quest, 'update');
+          await appwriteService.syncQuest(quest, 'update');
         } catch {
-          await supabaseService.syncQuest(quest, 'insert');
+          await appwriteService.syncQuest(quest, 'insert');
         }
         synced++;
       } catch (error) {
@@ -822,9 +822,9 @@ class APIClient {
     return { synced, errors };
   }
 
-  async syncItemsToSupabase(): Promise<{ synced: number; errors: number }> {
-    if (!isSupabaseEnabledSync()) {
-      throw new Error('Supabase is not enabled');
+  async syncItemsToAppwrite(): Promise<{ synced: number; errors: number }> {
+    if (!isAppwriteEnabledSync()) {
+      throw new Error('Appwrite is not enabled');
     }
 
     const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
@@ -847,9 +847,9 @@ class APIClient {
     for (const item of items) {
       try {
         try {
-          await supabaseService.syncItem(item, 'update');
+          await appwriteService.syncItem(item, 'update');
         } catch {
-          await supabaseService.syncItem(item, 'insert');
+          await appwriteService.syncItem(item, 'insert');
         }
         synced++;
       } catch (error) {
@@ -860,9 +860,9 @@ class APIClient {
     return { synced, errors };
   }
 
-  async syncSkillNodesToSupabase(): Promise<{ synced: number; errors: number }> {
-    if (!isSupabaseEnabledSync()) {
-      throw new Error('Supabase is not enabled');
+  async syncSkillNodesToAppwrite(): Promise<{ synced: number; errors: number }> {
+    if (!isAppwriteEnabledSync()) {
+      throw new Error('Appwrite is not enabled');
     }
 
     const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
@@ -885,9 +885,9 @@ class APIClient {
     for (const skillNode of skillNodes) {
       try {
         try {
-          await supabaseService.syncSkillNode(skillNode, 'update');
+          await appwriteService.syncSkillNode(skillNode, 'update');
         } catch {
-          await supabaseService.syncSkillNode(skillNode, 'insert');
+          await appwriteService.syncSkillNode(skillNode, 'insert');
         }
         synced++;
       } catch (error) {
@@ -898,9 +898,9 @@ class APIClient {
     return { synced, errors };
   }
 
-  async syncHideoutModulesToSupabase(): Promise<{ synced: number; errors: number }> {
-    if (!isSupabaseEnabledSync()) {
-      throw new Error('Supabase is not enabled');
+  async syncHideoutModulesToAppwrite(): Promise<{ synced: number; errors: number }> {
+    if (!isAppwriteEnabledSync()) {
+      throw new Error('Appwrite is not enabled');
     }
 
     const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
@@ -923,9 +923,9 @@ class APIClient {
     for (const module of hideoutModules) {
       try {
         try {
-          await supabaseService.syncHideoutModule(module, 'update');
+          await appwriteService.syncHideoutModule(module, 'update');
         } catch {
-          await supabaseService.syncHideoutModule(module, 'insert');
+          await appwriteService.syncHideoutModule(module, 'insert');
         }
         synced++;
       } catch (error) {
@@ -936,9 +936,9 @@ class APIClient {
     return { synced, errors };
   }
 
-  async syncEnemyTypesToSupabase(): Promise<{ synced: number; errors: number }> {
-    if (!isSupabaseEnabledSync()) {
-      throw new Error('Supabase is not enabled');
+  async syncEnemyTypesToAppwrite(): Promise<{ synced: number; errors: number }> {
+    if (!isAppwriteEnabledSync()) {
+      throw new Error('Appwrite is not enabled');
     }
 
     const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
@@ -961,9 +961,9 @@ class APIClient {
     for (const enemyType of enemyTypes) {
       try {
         try {
-          await supabaseService.syncEnemyType(enemyType, 'update');
+          await appwriteService.syncEnemyType(enemyType, 'update');
         } catch {
-          await supabaseService.syncEnemyType(enemyType, 'insert');
+          await appwriteService.syncEnemyType(enemyType, 'insert');
         }
         synced++;
       } catch (error) {
@@ -974,9 +974,9 @@ class APIClient {
     return { synced, errors };
   }
 
-  async syncAlertsToSupabase(): Promise<{ synced: number; errors: number }> {
-    if (!isSupabaseEnabledSync()) {
-      throw new Error('Supabase is not enabled');
+  async syncAlertsToAppwrite(): Promise<{ synced: number; errors: number }> {
+    if (!isAppwriteEnabledSync()) {
+      throw new Error('Appwrite is not enabled');
     }
 
     const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
@@ -999,9 +999,9 @@ class APIClient {
     for (const alert of alerts) {
       try {
         try {
-          await supabaseService.syncAlert(alert, 'update');
+          await appwriteService.syncAlert(alert, 'update');
         } catch {
-          await supabaseService.syncAlert(alert, 'insert');
+          await appwriteService.syncAlert(alert, 'insert');
         }
         synced++;
       } catch (error) {
@@ -1010,6 +1010,31 @@ class APIClient {
     }
 
     return { synced, errors };
+  }
+
+  // Data Export (CSV) - Admin only
+  async exportData(type: 'quests' | 'items' | 'skillNodes' | 'hideoutModules' | 'enemyTypes' | 'alerts'): Promise<string> {
+    const endpointMap: Record<string, string> = {
+      quests: '/admin/export/quests',
+      items: '/admin/export/items',
+      skillNodes: '/admin/export/skill-nodes',
+      hideoutModules: '/admin/export/hideout-modules',
+      enemyTypes: '/admin/export/enemy-types',
+      alerts: '/admin/export/alerts',
+    };
+
+    const endpoint = endpointMap[type];
+    if (!endpoint) {
+      throw new Error(`Invalid export type: ${type}`);
+    }
+
+    const response = await this.client.get(endpoint, {
+      responseType: 'blob',
+    });
+
+    // Create a blob URL for the CSV data
+    const blob = new Blob([response.data], { type: 'text/csv' });
+    return URL.createObjectURL(blob);
   }
 }
 

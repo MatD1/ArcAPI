@@ -158,6 +158,14 @@ func main() {
 		itemRepo,
 		userRepo,
 	)
+	exportHandler := handlers.NewExportHandler(
+		questRepo,
+		itemRepo,
+		skillNodeRepo,
+		hideoutModuleRepo,
+		enemyTypeRepo,
+		alertRepo,
+	)
 
 	// Setup router
 	if cfg.LogLevel == "debug" {
@@ -312,6 +320,14 @@ func main() {
 				admin.DELETE("/users/:id", managementHandler.DeleteUser)
 				admin.POST("/hideout-modules/cleanup-duplicates", managementHandler.CleanupDuplicateHideoutModules)
 
+				// Data Export (CSV) - Admin only
+				admin.GET("/export/quests", exportHandler.ExportQuests)
+				admin.GET("/export/items", exportHandler.ExportItems)
+				admin.GET("/export/skill-nodes", exportHandler.ExportSkillNodes)
+				admin.GET("/export/hideout-modules", exportHandler.ExportHideoutModules)
+				admin.GET("/export/enemy-types", exportHandler.ExportEnemyTypes)
+				admin.GET("/export/alerts", exportHandler.ExportAlerts)
+
 				// Admin Progress Management - View/Edit any user's progress
 				admin.GET("/users/:id/progress", progressHandler.GetAllUserProgress)
 				admin.GET("/users/:id/progress/quests", progressHandler.GetUserQuestProgress)
@@ -461,11 +477,17 @@ func main() {
 			r.GET("/users/*path", func(c *gin.Context) {
 				c.File(frontendDir + "/users/index.html")
 			})
-			r.GET("/supabase", func(c *gin.Context) {
-				c.File(frontendDir + "/supabase/index.html")
+			r.GET("/appwrite", func(c *gin.Context) {
+				c.File(frontendDir + "/appwrite/index.html")
 			})
-			r.GET("/supabase/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/supabase/index.html")
+			r.GET("/appwrite/*path", func(c *gin.Context) {
+				c.File(frontendDir + "/appwrite/index.html")
+			})
+			r.GET("/export", func(c *gin.Context) {
+				c.File(frontendDir + "/export/index.html")
+			})
+			r.GET("/export/*path", func(c *gin.Context) {
+				c.File(frontendDir + "/export/index.html")
 			})
 
 			// Catch-all for other frontend routes
