@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mat/arcapi/internal/config"
+	"github.com/mat/arcapi/internal/graph"
 	"github.com/mat/arcapi/internal/handlers"
 	"github.com/mat/arcapi/internal/middleware"
 	"github.com/mat/arcapi/internal/repository"
@@ -340,6 +341,25 @@ func main() {
 		// Frontend config endpoint (public - returns safe config for frontend)
 		configHandler := handlers.NewConfigHandler()
 		r.GET("/api/v1/config", configHandler.GetFrontendConfig)
+
+		// GraphQL API endpoint (requires authentication)
+		graphqlGroup := api.Group("")
+		graph.SetupGraphQLRoutes(
+			graphqlGroup,
+			userRepo,
+			questRepo,
+			itemRepo,
+			skillNodeRepo,
+			hideoutModuleRepo,
+			enemyTypeRepo,
+			alertRepo,
+			questProgressRepo,
+			hideoutModuleProgressRepo,
+			skillNodeProgressRepo,
+			blueprintProgressRepo,
+			authService,
+			dataCacheService,
+		)
 
 		// Mobile callback page (public route - redirects to deep link)
 		r.GET("/auth/mobile-callback", authHandler.MobileCallbackPage)

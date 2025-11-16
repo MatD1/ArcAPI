@@ -60,6 +60,13 @@ lint:
 migrate:
 	@echo "Note: GORM auto-migrates on startup. See migrations/ for SQL reference."
 
+# Generate GraphQL code
+generate-graphql:
+	@echo "Generating GraphQL code..."
+	cd internal/graph && go run github.com/99designs/gqlgen generate
+	@echo "GraphQL code generated successfully!"
+	@echo "Note: You may need to update internal/graph/handler.go after generation"
+
 # Run full setup
 setup: deps
 	@echo "Dependencies downloaded. Don't forget to:"
@@ -67,3 +74,4 @@ setup: deps
 	@echo "2. Update .env with your configuration"
 	@echo "3. Start PostgreSQL and Redis (docker-compose up -d postgres redis)"
 	@echo "4. Build frontend: make build-frontend"
+	@echo "5. Generate GraphQL code: make generate-graphql"

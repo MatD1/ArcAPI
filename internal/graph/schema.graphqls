@@ -1,0 +1,432 @@
+# GraphQL Schema for ArcAPI
+# Following GraphQL best practices with proper security measures
+
+scalar Time
+scalar JSON
+
+# Pagination input
+input PaginationInput {
+  limit: Int = 20
+  offset: Int = 0
+}
+
+# Pagination info
+type PageInfo {
+  total: Int!
+  limit: Int!
+  offset: Int!
+  hasMore: Boolean!
+}
+
+# User type
+type User {
+  id: ID!
+  email: String!
+  username: String!
+  role: UserRole!
+  canAccessData: Boolean!
+  createdViaApp: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+# Quest type
+type Quest {
+  id: ID!
+  externalId: String!
+  name: String!
+  description: String
+  trader: String
+  objectives: JSON
+  rewardItemIds: JSON
+  xp: Int
+  data: JSON
+  syncedAt: Time!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# Item type
+type Item {
+  id: ID!
+  externalId: String!
+  name: String!
+  description: String
+  type: String
+  imageUrl: String
+  imageFilename: String
+  data: JSON
+  syncedAt: Time!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# Skill Node type
+type SkillNode {
+  id: ID!
+  externalId: String!
+  name: String!
+  description: String
+  data: JSON
+  syncedAt: Time!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# Hideout Module type
+type HideoutModule {
+  id: ID!
+  externalId: String!
+  name: String!
+  description: String
+  data: JSON
+  syncedAt: Time!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# Enemy Type type
+type EnemyType {
+  id: ID!
+  externalId: String!
+  name: String!
+  description: String
+  data: JSON
+  syncedAt: Time!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# Alert type
+type Alert {
+  id: ID!
+  title: String!
+  message: String!
+  type: String!
+  active: Boolean!
+  startDate: Time!
+  endDate: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# Quest Progress type
+type QuestProgress {
+  questId: ID!
+  userId: ID!
+  completed: Boolean!
+  completedAt: Time
+  data: JSON
+  createdAt: Time!
+  updatedAt: Time!
+  quest: Quest
+}
+
+# Hideout Module Progress type
+type HideoutModuleProgress {
+  moduleId: ID!
+  userId: ID!
+  level: Int!
+  data: JSON
+  createdAt: Time!
+  updatedAt: Time!
+  module: HideoutModule
+}
+
+# Skill Node Progress type
+type SkillNodeProgress {
+  skillNodeId: ID!
+  userId: ID!
+  unlocked: Boolean!
+  unlockedAt: Time
+  data: JSON
+  createdAt: Time!
+  updatedAt: Time!
+  skillNode: SkillNode
+}
+
+# Blueprint Progress type
+type BlueprintProgress {
+  itemId: ID!
+  userId: ID!
+  unlocked: Boolean!
+  unlockedAt: Time
+  data: JSON
+  createdAt: Time!
+  updatedAt: Time!
+  item: Item
+}
+
+# Queries - Read operations (require JWT authentication)
+type Query {
+  # Health check
+  health: String!
+  
+  # User queries
+  me: User! # Get current authenticated user
+  
+  # Quest queries
+  quest(id: ID!): Quest
+  quests(pagination: PaginationInput): QuestConnection!
+  questByExternalId(externalId: String!): Quest
+  
+  # Item queries
+  item(id: ID!): Item
+  items(pagination: PaginationInput, type: String): ItemConnection!
+  itemByExternalId(externalId: String!): Item
+  requiredItems: [Item!]!
+  blueprints: [Item!]!
+  
+  # Skill Node queries
+  skillNode(id: ID!): SkillNode
+  skillNodes(pagination: PaginationInput): SkillNodeConnection!
+  skillNodeByExternalId(externalId: String!): SkillNode
+  
+  # Hideout Module queries
+  hideoutModule(id: ID!): HideoutModule
+  hideoutModules(pagination: PaginationInput): HideoutModuleConnection!
+  hideoutModuleByExternalId(externalId: String!): HideoutModule
+  
+  # Enemy Type queries
+  enemyType(id: ID!): EnemyType
+  enemyTypes(pagination: PaginationInput): EnemyTypeConnection!
+  enemyTypeByExternalId(externalId: String!): EnemyType
+  
+  # Alert queries
+  alert(id: ID!): Alert
+  alerts(pagination: PaginationInput): AlertConnection!
+  activeAlerts: [Alert!]!
+  
+  # Progress queries (user's own progress)
+  myQuestProgress: [QuestProgress!]!
+  myHideoutModuleProgress: [HideoutModuleProgress!]!
+  mySkillNodeProgress: [SkillNodeProgress!]!
+  myBlueprintProgress: [BlueprintProgress!]!
+}
+
+# Connection types for pagination
+type QuestConnection {
+  edges: [QuestEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QuestEdge {
+  node: Quest!
+  cursor: String!
+}
+
+type ItemConnection {
+  edges: [ItemEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ItemEdge {
+  node: Item!
+  cursor: String!
+}
+
+type SkillNodeConnection {
+  edges: [SkillNodeEdge!]!
+  pageInfo: PageInfo!
+}
+
+type SkillNodeEdge {
+  node: SkillNode!
+  cursor: String!
+}
+
+type HideoutModuleConnection {
+  edges: [HideoutModuleEdge!]!
+  pageInfo: PageInfo!
+}
+
+type HideoutModuleEdge {
+  node: HideoutModule!
+  cursor: String!
+}
+
+type EnemyTypeConnection {
+  edges: [EnemyTypeEdge!]!
+  pageInfo: PageInfo!
+}
+
+type EnemyTypeEdge {
+  node: EnemyType!
+  cursor: String!
+}
+
+type AlertConnection {
+  edges: [AlertEdge!]!
+  pageInfo: PageInfo!
+}
+
+type AlertEdge {
+  node: Alert!
+  cursor: String!
+}
+
+# Mutations - Write operations (require admin role)
+type Mutation {
+  # Quest mutations
+  createQuest(input: CreateQuestInput!): Quest!
+  updateQuest(id: ID!, input: UpdateQuestInput!): Quest!
+  deleteQuest(id: ID!): Boolean!
+  
+  # Item mutations
+  createItem(input: CreateItemInput!): Item!
+  updateItem(id: ID!, input: UpdateItemInput!): Item!
+  deleteItem(id: ID!): Boolean!
+  
+  # Skill Node mutations
+  createSkillNode(input: CreateSkillNodeInput!): SkillNode!
+  updateSkillNode(id: ID!, input: UpdateSkillNodeInput!): SkillNode!
+  deleteSkillNode(id: ID!): Boolean!
+  
+  # Hideout Module mutations
+  createHideoutModule(input: CreateHideoutModuleInput!): HideoutModule!
+  updateHideoutModule(id: ID!, input: UpdateHideoutModuleInput!): HideoutModule!
+  deleteHideoutModule(id: ID!): Boolean!
+  
+  # Enemy Type mutations
+  createEnemyType(input: CreateEnemyTypeInput!): EnemyType!
+  updateEnemyType(id: ID!, input: UpdateEnemyTypeInput!): EnemyType!
+  deleteEnemyType(id: ID!): Boolean!
+  
+  # Alert mutations
+  createAlert(input: CreateAlertInput!): Alert!
+  updateAlert(id: ID!, input: UpdateAlertInput!): Alert!
+  deleteAlert(id: ID!): Boolean!
+  
+  # Progress mutations (users can update their own progress)
+  updateQuestProgress(questId: ID!, input: UpdateQuestProgressInput!): QuestProgress!
+  updateHideoutModuleProgress(moduleId: ID!, input: UpdateHideoutModuleProgressInput!): HideoutModuleProgress!
+  updateSkillNodeProgress(skillNodeId: ID!, input: UpdateSkillNodeProgressInput!): SkillNodeProgress!
+  updateBlueprintProgress(itemId: ID!, input: UpdateBlueprintProgressInput!): BlueprintProgress!
+}
+
+# Input types for mutations
+input CreateQuestInput {
+  externalId: String!
+  name: String!
+  description: String
+  trader: String
+  objectives: JSON
+  rewardItemIds: JSON
+  xp: Int
+  data: JSON
+}
+
+input UpdateQuestInput {
+  name: String
+  description: String
+  trader: String
+  objectives: JSON
+  rewardItemIds: JSON
+  xp: Int
+  data: JSON
+}
+
+input CreateItemInput {
+  externalId: String!
+  name: String!
+  description: String
+  type: String
+  imageUrl: String
+  imageFilename: String
+  data: JSON
+}
+
+input UpdateItemInput {
+  name: String
+  description: String
+  type: String
+  imageUrl: String
+  imageFilename: String
+  data: JSON
+}
+
+input CreateSkillNodeInput {
+  externalId: String!
+  name: String!
+  description: String
+  data: JSON
+}
+
+input UpdateSkillNodeInput {
+  name: String
+  description: String
+  data: JSON
+}
+
+input CreateHideoutModuleInput {
+  externalId: String!
+  name: String!
+  description: String
+  data: JSON
+}
+
+input UpdateHideoutModuleInput {
+  name: String
+  description: String
+  data: JSON
+}
+
+input CreateEnemyTypeInput {
+  externalId: String!
+  name: String!
+  description: String
+  data: JSON
+}
+
+input UpdateEnemyTypeInput {
+  name: String
+  description: String
+  data: JSON
+}
+
+input CreateAlertInput {
+  title: String!
+  message: String!
+  type: String!
+  active: Boolean!
+  startDate: Time!
+  endDate: Time
+}
+
+input UpdateAlertInput {
+  title: String
+  message: String
+  type: String
+  active: Boolean
+  startDate: Time
+  endDate: Time
+}
+
+input UpdateQuestProgressInput {
+  completed: Boolean!
+  completedAt: Time
+  data: JSON
+}
+
+input UpdateHideoutModuleProgressInput {
+  level: Int!
+  data: JSON
+}
+
+input UpdateSkillNodeProgressInput {
+  unlocked: Boolean!
+  unlockedAt: Time
+  data: JSON
+}
+
+input UpdateBlueprintProgressInput {
+  unlocked: Boolean!
+  unlockedAt: Time
+  data: JSON
+}
+
