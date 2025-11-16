@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuthStore } from '@/store/authStore';
@@ -13,9 +13,16 @@ export default function ExportPage() {
   const { isAuthenticated } = useAuthStore();
   const [exporting, setExporting] = useState<ExportType | null>(null);
   const [error, setError] = useState('');
+  const [mounted, setMounted] = useState(false);
 
-  if (!isAuthenticated) {
-    router.push('/login/');
+  useEffect(() => {
+    setMounted(true);
+    if (!isAuthenticated) {
+      router.push('/login/');
+    }
+  }, [isAuthenticated, router]);
+
+  if (!mounted || !isAuthenticated) {
     return null;
   }
 
