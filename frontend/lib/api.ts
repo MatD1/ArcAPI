@@ -130,10 +130,10 @@ class APIClient {
   async createQuest(data: Partial<Quest>): Promise<Quest> {
     const response = await this.client.post<Quest>('/quests', data);
     const quest = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && quest.external_id) {
-      await supabaseService.syncQuest(quest, 'insert').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && quest.external_id) {
+      await appwriteService.syncQuest(quest, 'insert').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return quest;
@@ -142,30 +142,30 @@ class APIClient {
   async updateQuest(id: number, data: Partial<Quest>): Promise<Quest> {
     const response = await this.client.put<Quest>(`/quests/${id}`, data);
     const quest = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && quest.external_id) {
-      await supabaseService.syncQuest(quest, 'update').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && quest.external_id) {
+      await appwriteService.syncQuest(quest, 'update').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return quest;
   }
 
   async deleteQuest(id: number): Promise<void> {
-    // Get quest before deleting to sync to Supabase
+    // Get quest before deleting to sync to Appwrite
     let quest: Quest | null = null;
-    if (isSupabaseEnabledSync()) {
+    if (isAppwriteEnabledSync()) {
       try {
         quest = await this.getQuest(id);
       } catch {
-        // If we can't get the quest, skip Supabase sync
+        // If we can't get the quest, skip Appwrite sync
       }
     }
     await this.client.delete(`/quests/${id}`);
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && quest && quest.external_id) {
-      await supabaseService.syncQuest(quest, 'delete').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && quest && quest.external_id) {
+      await appwriteService.syncQuest(quest, 'delete').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
   }
@@ -207,10 +207,10 @@ class APIClient {
   async createItem(data: Partial<Item>): Promise<Item> {
     const response = await this.client.post<Item>('/items', data);
     const item = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && item.external_id) {
-      await supabaseService.syncItem(item, 'insert').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && item.external_id) {
+      await appwriteService.syncItem(item, 'insert').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return item;
@@ -219,30 +219,30 @@ class APIClient {
   async updateItem(id: number, data: Partial<Item>): Promise<Item> {
     const response = await this.client.put<Item>(`/items/${id}`, data);
     const item = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && item.external_id) {
-      await supabaseService.syncItem(item, 'update').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && item.external_id) {
+      await appwriteService.syncItem(item, 'update').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return item;
   }
 
   async deleteItem(id: number): Promise<void> {
-    // Get item before deleting to sync to Supabase
+    // Get item before deleting to sync to Appwrite
     let item: Item | null = null;
-    if (isSupabaseEnabledSync()) {
+    if (isAppwriteEnabledSync()) {
       try {
         item = await this.getItem(id);
       } catch {
-        // If we can't get the item, skip Supabase sync
+        // If we can't get the item, skip Appwrite sync
       }
     }
     await this.client.delete(`/items/${id}`);
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && item && item.external_id) {
-      await supabaseService.syncItem(item, 'delete').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && item && item.external_id) {
+      await appwriteService.syncItem(item, 'delete').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
   }
@@ -268,10 +268,10 @@ class APIClient {
   async createSkillNode(data: Partial<SkillNode>): Promise<SkillNode> {
     const response = await this.client.post<SkillNode>('/skill-nodes', data);
     const skillNode = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && skillNode.external_id) {
-      await supabaseService.syncSkillNode(skillNode, 'insert').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && skillNode.external_id) {
+      await appwriteService.syncSkillNode(skillNode, 'insert').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return skillNode;
@@ -280,30 +280,30 @@ class APIClient {
   async updateSkillNode(id: number, data: Partial<SkillNode>): Promise<SkillNode> {
     const response = await this.client.put<SkillNode>(`/skill-nodes/${id}`, data);
     const skillNode = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && skillNode.external_id) {
-      await supabaseService.syncSkillNode(skillNode, 'update').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && skillNode.external_id) {
+      await appwriteService.syncSkillNode(skillNode, 'update').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return skillNode;
   }
 
   async deleteSkillNode(id: number): Promise<void> {
-    // Get skill node before deleting to sync to Supabase
+    // Get skill node before deleting to sync to Appwrite
     let skillNode: SkillNode | null = null;
-    if (isSupabaseEnabledSync()) {
+    if (isAppwriteEnabledSync()) {
       try {
         skillNode = await this.getSkillNode(id);
       } catch {
-        // If we can't get the skill node, skip Supabase sync
+        // If we can't get the skill node, skip Appwrite sync
       }
     }
     await this.client.delete(`/skill-nodes/${id}`);
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && skillNode && skillNode.external_id) {
-      await supabaseService.syncSkillNode(skillNode, 'delete').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && skillNode && skillNode.external_id) {
+      await appwriteService.syncSkillNode(skillNode, 'delete').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
   }
@@ -324,10 +324,10 @@ class APIClient {
   async createHideoutModule(data: Partial<HideoutModule>): Promise<HideoutModule> {
     const response = await this.client.post<HideoutModule>('/hideout-modules', data);
     const module = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && module.external_id) {
-      await supabaseService.syncHideoutModule(module, 'insert').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && module.external_id) {
+      await appwriteService.syncHideoutModule(module, 'insert').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return module;
@@ -336,30 +336,30 @@ class APIClient {
   async updateHideoutModule(id: number, data: Partial<HideoutModule>): Promise<HideoutModule> {
     const response = await this.client.put<HideoutModule>(`/hideout-modules/${id}`, data);
     const module = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && module.external_id) {
-      await supabaseService.syncHideoutModule(module, 'update').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && module.external_id) {
+      await appwriteService.syncHideoutModule(module, 'update').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return module;
   }
 
   async deleteHideoutModule(id: number): Promise<void> {
-    // Get hideout module before deleting to sync to Supabase
+    // Get hideout module before deleting to sync to Appwrite
     let module: HideoutModule | null = null;
-    if (isSupabaseEnabledSync()) {
+    if (isAppwriteEnabledSync()) {
       try {
         module = await this.getHideoutModule(id);
       } catch {
-        // If we can't get the module, skip Supabase sync
+        // If we can't get the module, skip Appwrite sync
       }
     }
     await this.client.delete(`/hideout-modules/${id}`);
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && module && module.external_id) {
-      await supabaseService.syncHideoutModule(module, 'delete').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && module && module.external_id) {
+      await appwriteService.syncHideoutModule(module, 'delete').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
   }
@@ -380,10 +380,10 @@ class APIClient {
   async createEnemyType(data: Partial<EnemyType>): Promise<EnemyType> {
     const response = await this.client.post<EnemyType>('/enemy-types', data);
     const enemyType = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && enemyType.external_id) {
-      await supabaseService.syncEnemyType(enemyType, 'insert').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && enemyType.external_id) {
+      await appwriteService.syncEnemyType(enemyType, 'insert').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return enemyType;
@@ -392,30 +392,30 @@ class APIClient {
   async updateEnemyType(id: number, data: Partial<EnemyType>): Promise<EnemyType> {
     const response = await this.client.put<EnemyType>(`/enemy-types/${id}`, data);
     const enemyType = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && enemyType.external_id) {
-      await supabaseService.syncEnemyType(enemyType, 'update').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && enemyType.external_id) {
+      await appwriteService.syncEnemyType(enemyType, 'update').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return enemyType;
   }
 
   async deleteEnemyType(id: number): Promise<void> {
-    // Get enemy type before deleting to sync to Supabase
+    // Get enemy type before deleting to sync to Appwrite
     let enemyType: EnemyType | null = null;
-    if (isSupabaseEnabledSync()) {
+    if (isAppwriteEnabledSync()) {
       try {
         enemyType = await this.getEnemyType(id);
       } catch {
-        // If we can't get the enemy type, skip Supabase sync
+        // If we can't get the enemy type, skip Appwrite sync
       }
     }
     await this.client.delete(`/enemy-types/${id}`);
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && enemyType && enemyType.external_id) {
-      await supabaseService.syncEnemyType(enemyType, 'delete').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && enemyType && enemyType.external_id) {
+      await appwriteService.syncEnemyType(enemyType, 'delete').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
   }
@@ -441,10 +441,10 @@ class APIClient {
   async createAlert(data: Partial<Alert>): Promise<Alert> {
     const response = await this.client.post<Alert>('/alerts', data);
     const alert = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync()) {
-      await supabaseService.syncAlert(alert, 'insert').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync()) {
+      await appwriteService.syncAlert(alert, 'insert').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return alert;
@@ -453,30 +453,30 @@ class APIClient {
   async updateAlert(id: number, data: Partial<Alert>): Promise<Alert> {
     const response = await this.client.put<Alert>(`/alerts/${id}`, data);
     const alert = response.data;
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync()) {
-      await supabaseService.syncAlert(alert, 'update').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync()) {
+      await appwriteService.syncAlert(alert, 'update').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
     return alert;
   }
 
   async deleteAlert(id: number): Promise<void> {
-    // Get alert before deleting to sync to Supabase
+    // Get alert before deleting to sync to Appwrite
     let alert: Alert | null = null;
-    if (isSupabaseEnabledSync()) {
+    if (isAppwriteEnabledSync()) {
       try {
         alert = await this.getAlert(id);
       } catch {
-        // If we can't get the alert, skip Supabase sync
+        // If we can't get the alert, skip Appwrite sync
       }
     }
     await this.client.delete(`/alerts/${id}`);
-    // Sync to Supabase if enabled
-    if (isSupabaseEnabledSync() && alert) {
-      await supabaseService.syncAlert(alert, 'delete').catch(() => {
-        // Silently fail - Supabase sync is optional
+    // Sync to Appwrite if enabled
+    if (isAppwriteEnabledSync() && alert) {
+      await appwriteService.syncAlert(alert, 'delete').catch(() => {
+        // Silently fail - Appwrite sync is optional
       });
     }
   }

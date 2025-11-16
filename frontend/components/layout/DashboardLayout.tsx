@@ -23,7 +23,8 @@ const adminNavigation = [
   { name: 'Alerts', href: '/alerts/', icon: '🚨' },
   { name: 'Audit Logs', href: '/logs/', icon: '📋' },
   { name: 'API Test', href: '/dashboard/api-test/', icon: '🧪' },
-  { name: 'Supabase', href: '/supabase/', icon: '🗄️' },
+  { name: 'Appwrite', href: '/appwrite/', icon: '🗄️' },
+  { name: 'Export Data', href: '/export/', icon: '📥' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
