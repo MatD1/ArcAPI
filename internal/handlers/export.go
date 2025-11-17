@@ -128,6 +128,47 @@ func (h *ExportHandler) sendCSV(c *gin.Context, csvData [][]string, filename str
 	}
 }
 
+// Helper function to extract English ("en") value from a field, checking both direct field and Data JSONB
+func (h *ExportHandler) extractEnglishValue(directValue string, data models.JSONB, dataKey string) string {
+	// First, check if direct value exists
+	if directValue != "" {
+		// If direct value is a JSON string, try to parse it
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(directValue), &parsed); err == nil {
+			// It's a JSON object, extract "en"
+			if enVal, ok := parsed["en"].(string); ok {
+				return enVal
+			}
+		}
+		// If it's not JSON or doesn't have "en", return as-is
+		return directValue
+	}
+	
+	// If direct value is empty, check Data field
+	if data != nil {
+		if dataValue, ok := data[dataKey]; ok {
+			if strVal, ok := dataValue.(string); ok {
+				// Try to parse as JSON object
+				var parsed map[string]interface{}
+				if err := json.Unmarshal([]byte(strVal), &parsed); err == nil {
+					if enVal, ok := parsed["en"].(string); ok {
+						return enVal
+					}
+				}
+				// If not JSON, return string as-is
+				return strVal
+			} else if mapVal, ok := dataValue.(map[string]interface{}); ok {
+				// Already a map, extract "en"
+				if enVal, ok := mapVal["en"].(string); ok {
+					return enVal
+				}
+			}
+		}
+	}
+	
+	return ""
+}
+
 // Convert quests to CSV format
 func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 	headers := []string{
@@ -142,34 +183,11 @@ func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 		rewardItemIds := h.jsonToStringArray(quest.RewardItemIds)
 		data := h.jsonToStringArray(quest.Data)
 		
-		// Extract name and description, checking Data field if direct fields are empty
-		name := quest.Name
-		if name == "" && quest.Data != nil {
-			if dataName, ok := quest.Data["name"]; ok {
-				if nameStr, ok := dataName.(string); ok {
-					name = nameStr
-				} else {
-					// If it's a JSON object, convert to JSON string
-					if nameBytes, err := json.Marshal(dataName); err == nil {
-						name = string(nameBytes)
-					}
-				}
-			}
-		}
+		// Extract name, preferring "en" from JSON objects
+		name := h.extractEnglishValue(quest.Name, quest.Data, "name")
 		
-		description := quest.Description
-		if description == "" && quest.Data != nil {
-			if dataDesc, ok := quest.Data["description"]; ok {
-				if descStr, ok := dataDesc.(string); ok {
-					description = descStr
-				} else {
-					// If it's a JSON object, convert to JSON string
-					if descBytes, err := json.Marshal(dataDesc); err == nil {
-						description = string(descBytes)
-					}
-				}
-			}
-		}
+		// Extract description, preferring "en" from JSON objects
+		description := h.extractEnglishValue(quest.Description, quest.Data, "description")
 		
 		row := []string{
 			strconv.Itoa(int(quest.ID)),
@@ -200,11 +218,15 @@ func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
 	for _, item := range items {
 		data := h.jsonToStringArray(item.Data)
 		
+		// Extract name and description, preferring "en" from JSON objects
+		name := h.extractEnglishValue(item.Name, item.Data, "name")
+		description := h.extractEnglishValue(item.Description, item.Data, "description")
+		
 		row := []string{
 			strconv.Itoa(int(item.ID)),
 			item.ExternalID,
-			item.Name,
-			item.Description,
+			name,
+			description,
 			item.Type,
 			item.ImageURL,
 			item.ImageFilename,
@@ -232,11 +254,15 @@ func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]strin
 		prerequisiteNodeIds := h.jsonToStringArray(node.PrerequisiteNodeIds)
 		data := h.jsonToStringArray(node.Data)
 		
+		// Extract name and description, preferring "en" from JSON objects
+		name := h.extractEnglishValue(node.Name, node.Data, "name")
+		description := h.extractEnglishValue(node.Description, node.Data, "description")
+		
 		row := []string{
 			strconv.Itoa(int(node.ID)),
 			node.ExternalID,
-			node.Name,
-			node.Description,
+			name,
+			description,
 			node.ImpactedSkill,
 			node.Category,
 			strconv.Itoa(node.MaxPoints),
@@ -266,11 +292,15 @@ func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]
 		levels := h.jsonToStringArray(module.Levels)
 		data := h.jsonToStringArray(module.Data)
 		
+		// Extract name and description, preferring "en" from JSON objects
+		name := h.extractEnglishValue(module.Name, module.Data, "name")
+		description := h.extractEnglishValue(module.Description, module.Data, "description")
+		
 		row := []string{
 			strconv.Itoa(int(module.ID)),
 			module.ExternalID,
-			module.Name,
-			module.Description,
+			name,
+			description,
 			strconv.Itoa(module.MaxLevel),
 			levels,
 			data,
@@ -294,11 +324,15 @@ func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]strin
 		weakpoints := h.jsonToStringArray(enemyType.Weakpoints)
 		data := h.jsonToStringArray(enemyType.Data)
 		
+		// Extract name and description, preferring "en" from JSON objects
+		name := h.extractEnglishValue(enemyType.Name, enemyType.Data, "name")
+		description := h.extractEnglishValue(enemyType.Description, enemyType.Data, "description")
+		
 		row := []string{
 			strconv.Itoa(int(enemyType.ID)),
 			enemyType.ExternalID,
-			enemyType.Name,
-			enemyType.Description,
+			name,
+			description,
 			enemyType.Type,
 			enemyType.ImageURL,
 			enemyType.ImageFilename,
