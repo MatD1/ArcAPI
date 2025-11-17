@@ -142,11 +142,40 @@ func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 		rewardItemIds := h.jsonToStringArray(quest.RewardItemIds)
 		data := h.jsonToStringArray(quest.Data)
 		
+		// Extract name and description, checking Data field if direct fields are empty
+		name := quest.Name
+		if name == "" && quest.Data != nil {
+			if dataName, ok := quest.Data["name"]; ok {
+				if nameStr, ok := dataName.(string); ok {
+					name = nameStr
+				} else {
+					// If it's a JSON object, convert to JSON string
+					if nameBytes, err := json.Marshal(dataName); err == nil {
+						name = string(nameBytes)
+					}
+				}
+			}
+		}
+		
+		description := quest.Description
+		if description == "" && quest.Data != nil {
+			if dataDesc, ok := quest.Data["description"]; ok {
+				if descStr, ok := dataDesc.(string); ok {
+					description = descStr
+				} else {
+					// If it's a JSON object, convert to JSON string
+					if descBytes, err := json.Marshal(dataDesc); err == nil {
+						description = string(descBytes)
+					}
+				}
+			}
+		}
+		
 		row := []string{
 			strconv.Itoa(int(quest.ID)),
 			quest.ExternalID,
-			quest.Name,
-			quest.Description,
+			name,
+			description,
 			quest.Trader,
 			strconv.Itoa(quest.XP),
 			objectives,
