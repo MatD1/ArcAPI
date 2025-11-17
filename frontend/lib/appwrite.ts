@@ -182,7 +182,8 @@ export const createOAuthSession = async (provider: 'github' | 'discord', success
   try {
     // createOAuth2Session redirects automatically, but we can also get the URL if needed
     // For Appwrite SDK, this method will handle the redirect internally
-    await appwrite.account.createOAuth2Session(provider, successUrl, failureUrl);
+    // Type assertion needed as Appwrite SDK expects OAuthProvider type but it's not exported
+    await appwrite.account.createOAuth2Session(provider as any, successUrl, failureUrl);
   } catch (error: any) {
     console.error(`Appwrite OAuth ${provider} error:`, error);
     throw new Error(`Failed to initiate ${provider} OAuth: ${error.message || 'Unknown error'}`);
