@@ -132,7 +132,7 @@ func (h *ExportHandler) sendCSV(c *gin.Context, csvData [][]string, filename str
 func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 	headers := []string{
 		"id", "external_id", "name", "description", "trader", "xp",
-		"objectives", "reward_item_ids", "data", "synced_at", "created_at", "updated_at",
+		"objectives", "reward_item_ids", "data",
 	}
 	
 	rows := [][]string{headers}
@@ -152,9 +152,6 @@ func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 			objectives,
 			rewardItemIds,
 			data,
-			quest.SyncedAt.Format(time.RFC3339),
-			quest.CreatedAt.Format(time.RFC3339),
-			quest.UpdatedAt.Format(time.RFC3339),
 		}
 		rows = append(rows, row)
 	}
@@ -166,7 +163,7 @@ func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
 	headers := []string{
 		"id", "external_id", "name", "description", "type",
-		"image_url", "image_filename", "data", "synced_at", "created_at", "updated_at",
+		"image_url", "image_filename", "data",
 	}
 	
 	rows := [][]string{headers}
@@ -183,9 +180,6 @@ func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
 			item.ImageURL,
 			item.ImageFilename,
 			data,
-			item.SyncedAt.Format(time.RFC3339),
-			item.CreatedAt.Format(time.RFC3339),
-			item.UpdatedAt.Format(time.RFC3339),
 		}
 		rows = append(rows, row)
 	}
@@ -198,7 +192,7 @@ func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]strin
 	headers := []string{
 		"id", "external_id", "name", "description", "impacted_skill", "category",
 		"max_points", "icon_name", "is_major", "position", "known_value",
-		"prerequisite_node_ids", "data", "synced_at", "created_at", "updated_at",
+		"prerequisite_node_ids", "data",
 	}
 	
 	rows := [][]string{headers}
@@ -223,9 +217,6 @@ func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]strin
 			knownValue,
 			prerequisiteNodeIds,
 			data,
-			node.SyncedAt.Format(time.RFC3339),
-			node.CreatedAt.Format(time.RFC3339),
-			node.UpdatedAt.Format(time.RFC3339),
 		}
 		rows = append(rows, row)
 	}
@@ -237,7 +228,7 @@ func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]strin
 func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]string {
 	headers := []string{
 		"id", "external_id", "name", "description", "max_level",
-		"levels", "data", "synced_at", "created_at", "updated_at",
+		"levels", "data",
 	}
 	
 	rows := [][]string{headers}
@@ -254,9 +245,6 @@ func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]
 			strconv.Itoa(module.MaxLevel),
 			levels,
 			data,
-			module.SyncedAt.Format(time.RFC3339),
-			module.CreatedAt.Format(time.RFC3339),
-			module.UpdatedAt.Format(time.RFC3339),
 		}
 		rows = append(rows, row)
 	}
@@ -268,7 +256,7 @@ func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]
 func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]string {
 	headers := []string{
 		"id", "external_id", "name", "description", "type",
-		"image_url", "image_filename", "weakpoints", "data", "synced_at", "created_at", "updated_at",
+		"image_url", "image_filename", "weakpoints", "data",
 	}
 	
 	rows := [][]string{headers}
@@ -287,9 +275,6 @@ func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]strin
 			enemyType.ImageFilename,
 			weakpoints,
 			data,
-			enemyType.SyncedAt.Format(time.RFC3339),
-			enemyType.CreatedAt.Format(time.RFC3339),
-			enemyType.UpdatedAt.Format(time.RFC3339),
 		}
 		rows = append(rows, row)
 	}
@@ -301,7 +286,7 @@ func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]strin
 func (h *ExportHandler) alertsToCSV(alerts []models.Alert) [][]string {
 	headers := []string{
 		"id", "name", "description", "severity", "is_active",
-		"data", "created_at", "updated_at",
+		"data",
 	}
 	
 	rows := [][]string{headers}
@@ -316,8 +301,6 @@ func (h *ExportHandler) alertsToCSV(alerts []models.Alert) [][]string {
 			alert.Severity,
 			strconv.FormatBool(alert.IsActive),
 			data,
-			alert.CreatedAt.Format(time.RFC3339),
-			alert.UpdatedAt.Format(time.RFC3339),
 		}
 		rows = append(rows, row)
 	}
