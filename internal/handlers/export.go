@@ -172,7 +172,7 @@ func (h *ExportHandler) extractEnglishValue(directValue string, data models.JSON
 // Convert quests to CSV format
 func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 	headers := []string{
-		"id", "external_id", "name", "description", "trader", "xp",
+		"system_id", "external_id", "name", "description", "trader", "xp",
 		"objectives", "reward_item_ids", "data",
 	}
 	
@@ -209,7 +209,7 @@ func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 // Convert items to CSV format
 func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
 	headers := []string{
-		"id", "external_id", "name", "description", "type",
+		"system_id", "external_id", "name", "description", "type",
 		"image_url", "image_filename", "data",
 	}
 	
@@ -241,7 +241,7 @@ func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
 // Convert skill nodes to CSV format
 func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]string {
 	headers := []string{
-		"id", "external_id", "name", "description", "impacted_skill", "category",
+		"system_id", "external_id", "name", "description", "impacted_skill", "category",
 		"max_points", "icon_name", "is_major", "position", "known_value",
 		"prerequisite_node_ids", "data",
 	}
@@ -282,7 +282,7 @@ func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]strin
 // Convert hideout modules to CSV format
 func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]string {
 	headers := []string{
-		"id", "external_id", "name", "description", "max_level",
+		"system_id", "external_id", "name", "description", "max_level",
 		"levels", "data",
 	}
 	
@@ -314,7 +314,7 @@ func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]
 // Convert enemy types to CSV format
 func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]string {
 	headers := []string{
-		"id", "external_id", "name", "description", "type",
+		"system_id", "external_id", "name", "description", "type",
 		"image_url", "image_filename", "weakpoints", "data",
 	}
 	
@@ -348,7 +348,7 @@ func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]strin
 // Convert alerts to CSV format
 func (h *ExportHandler) alertsToCSV(alerts []models.Alert) [][]string {
 	headers := []string{
-		"id", "name", "description", "severity", "is_active",
+		"system_id", "name", "description", "severity", "is_active",
 		"data",
 	}
 	
