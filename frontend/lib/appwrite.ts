@@ -207,6 +207,31 @@ class AppwriteService {
     }
   }
 
+  // Convert JSON value to string array for Appwrite compatibility
+  private jsonToStringArray(value: any): string[] {
+    if (value === undefined || value === null) {
+      return [];
+    }
+    
+    // If it's already a string array, return it
+    if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
+      return value;
+    }
+    
+    // If it's an array, convert each element to JSON string
+    if (Array.isArray(value)) {
+      return value.map(item => JSON.stringify(item));
+    }
+    
+    // If it's an object, convert to single-element array with JSON string
+    if (typeof value === 'object') {
+      return [JSON.stringify(value)];
+    }
+    
+    // For primitives, wrap in array as JSON string
+    return [JSON.stringify(value)];
+  }
+
   private normalizeJsonValue(value: any) {
     if (value === undefined || value === null) {
       return null;
@@ -292,7 +317,7 @@ class AppwriteService {
       questData?.objectives !== undefined
         ? questData.objectives
         : this.unwrapNestedField(typedQuest?.objectives, 'objectives');
-    const normalizedObjectives = this.normalizeJsonValue(objectivesCandidate);
+    const normalizedObjectives = this.jsonToStringArray(objectivesCandidate);
 
     const rewardItemsCandidate =
       questData?.rewardItemIds !== undefined
@@ -300,10 +325,11 @@ class AppwriteService {
         : questData?.reward_item_ids !== undefined
           ? questData.reward_item_ids
           : this.unwrapNestedField(typedQuest?.reward_item_ids, 'reward_item_ids');
-    const normalizedRewardItems = this.normalizeJsonValue(rewardItemsCandidate);
+    const normalizedRewardItems = this.jsonToStringArray(rewardItemsCandidate);
 
     const dataValue =
       typedQuest?.data && typeof typedQuest.data === 'object' ? typedQuest.data : {};
+    const normalizedData = this.jsonToStringArray(dataValue);
 
     return {
       external_id: externalId,
@@ -313,7 +339,7 @@ class AppwriteService {
       xp: normalizedXP,
       objectives: normalizedObjectives,
       reward_item_ids: normalizedRewardItems,
-      data: dataValue,
+      data: normalizedData,
     };
   }
 
@@ -357,7 +383,7 @@ class AppwriteService {
 
     const positionCandidate =
       nodeData?.position !== undefined ? nodeData.position : typedSkillNode?.position;
-    const normalizedPosition = this.normalizeJsonValue(positionCandidate);
+    const normalizedPosition = this.jsonToStringArray(positionCandidate);
 
     const knownValueCandidate =
       nodeData?.knownValue !== undefined
@@ -365,7 +391,7 @@ class AppwriteService {
         : nodeData?.known_value !== undefined
           ? nodeData.known_value
           : this.unwrapNestedField(typedSkillNode?.known_value, 'known_value');
-    const normalizedKnownValue = this.normalizeJsonValue(knownValueCandidate);
+    const normalizedKnownValue = this.jsonToStringArray(knownValueCandidate);
 
     const prereqCandidate =
       nodeData?.prerequisiteNodeIds !== undefined
@@ -373,10 +399,11 @@ class AppwriteService {
         : nodeData?.prerequisite_node_ids !== undefined
           ? nodeData.prerequisite_node_ids
           : this.unwrapNestedField(typedSkillNode?.prerequisite_node_ids, 'prerequisite_node_ids');
-    const normalizedPrereqs = this.normalizeJsonValue(prereqCandidate);
+    const normalizedPrereqs = this.jsonToStringArray(prereqCandidate);
 
     const dataValue =
       typedSkillNode?.data && typeof typedSkillNode.data === 'object' ? typedSkillNode.data : {};
+    const normalizedData = this.jsonToStringArray(dataValue);
 
     return {
       external_id: externalId,
@@ -390,7 +417,7 @@ class AppwriteService {
       position: normalizedPosition,
       known_value: normalizedKnownValue,
       prerequisite_node_ids: normalizedPrereqs,
-      data: dataValue,
+      data: normalizedData,
     };
   }
 
@@ -418,10 +445,11 @@ class AppwriteService {
         : typedModule?.levels !== undefined
           ? typedModule.levels
           : null;
-    const normalizedLevels = this.normalizeJsonValue(levelsCandidate);
+    const normalizedLevels = this.jsonToStringArray(levelsCandidate);
 
     const dataValue =
       typedModule?.data && typeof typedModule.data === 'object' ? typedModule.data : {};
+    const normalizedData = this.jsonToStringArray(dataValue);
 
     return {
       external_id: externalId,
@@ -429,7 +457,7 @@ class AppwriteService {
       description: normalizedDescription,
       max_level: normalizedMaxLevel,
       levels: normalizedLevels,
-      data: dataValue,
+      data: normalizedData,
     };
   }
 
@@ -507,7 +535,7 @@ class AppwriteService {
             type: item.type,
             image_url: item.image_url,
             image_filename: item.image_filename,
-            data: item.data || {},
+            data: this.jsonToStringArray(item.data || {}),
           };
 
     try {
@@ -630,8 +658,8 @@ class AppwriteService {
             type: enemyType.type,
             image_url: enemyType.image_url,
             image_filename: enemyType.image_filename,
-            weakpoints: enemyType.weakpoints,
-            data: enemyType.data || {},
+            weakpoints: this.jsonToStringArray(enemyType.weakpoints || {}),
+            data: this.jsonToStringArray(enemyType.data || {}),
           };
 
     try {
@@ -687,7 +715,7 @@ class AppwriteService {
           description: alert.description,
           severity: alert.severity,
           is_active: alert.is_active,
-          data: alert.data || {},
+          data: this.jsonToStringArray(alert.data || {}),
         };
         
         if (docs.documents.length > 0) {
@@ -701,6 +729,35 @@ class AppwriteService {
     }
   }
 
+  // Helper to parse string array back to JSON
+  private stringArrayToJson(value: any): any {
+    if (!value) return null;
+    // If it's already an array of strings, parse each element
+    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+      try {
+        // Try to parse each string as JSON
+        return value.map(str => {
+          try {
+            return JSON.parse(str);
+          } catch {
+            return str; // Return as-is if not valid JSON
+          }
+        });
+      } catch {
+        return value;
+      }
+    }
+    // If it's a single string, try to parse it
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+
   // Helper to convert Appwrite document to Quest
   private documentToQuest(doc: any): Quest {
     return {
@@ -710,9 +767,9 @@ class AppwriteService {
       description: doc.description || '',
       trader: doc.trader || '',
       xp: parseInt(doc.xp || '0', 10),
-      objectives: doc.objectives || null,
-      reward_item_ids: doc.reward_item_ids || null,
-      data: doc.data || null,
+      objectives: this.stringArrayToJson(doc.objectives),
+      reward_item_ids: this.stringArrayToJson(doc.reward_item_ids),
+      data: this.stringArrayToJson(doc.data),
       synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
       created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
       updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
@@ -729,7 +786,7 @@ class AppwriteService {
       type: doc.type || '',
       image_url: doc.image_url || '',
       image_filename: doc.image_filename || '',
-      data: doc.data || null,
+      data: this.stringArrayToJson(doc.data),
       synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
       created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
       updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
@@ -748,10 +805,10 @@ class AppwriteService {
       max_points: parseInt(doc.max_points || '0', 10),
       icon_name: doc.icon_name || '',
       is_major: doc.is_major === true || doc.is_major === 'true',
-      position: doc.position || null,
-      known_value: doc.known_value || null,
-      prerequisite_node_ids: doc.prerequisite_node_ids || null,
-      data: doc.data || null,
+      position: this.stringArrayToJson(doc.position),
+      known_value: this.stringArrayToJson(doc.known_value),
+      prerequisite_node_ids: this.stringArrayToJson(doc.prerequisite_node_ids),
+      data: this.stringArrayToJson(doc.data),
       synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
       created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
       updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
@@ -766,8 +823,8 @@ class AppwriteService {
       name: doc.name || '',
       description: doc.description || '',
       max_level: parseInt(doc.max_level || '0', 10),
-      levels: doc.levels || null,
-      data: doc.data || null,
+      levels: this.stringArrayToJson(doc.levels),
+      data: this.stringArrayToJson(doc.data),
       synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
       created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
       updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
@@ -784,8 +841,8 @@ class AppwriteService {
       type: doc.type || '',
       image_url: doc.image_url || '',
       image_filename: doc.image_filename || '',
-      weakpoints: doc.weakpoints || null,
-      data: doc.data || null,
+      weakpoints: this.stringArrayToJson(doc.weakpoints),
+      data: this.stringArrayToJson(doc.data),
       synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
       created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
       updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
@@ -800,7 +857,7 @@ class AppwriteService {
       description: doc.description || '',
       severity: doc.severity || 'info',
       is_active: doc.is_active === true || doc.is_active === 'true',
-      data: doc.data || null,
+      data: this.stringArrayToJson(doc.data),
       created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
       updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
     };

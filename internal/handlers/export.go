@@ -138,9 +138,9 @@ func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 	rows := [][]string{headers}
 	
 	for _, quest := range quests {
-		objectives := h.jsonToString(quest.Objectives)
-		rewardItemIds := h.jsonToString(quest.RewardItemIds)
-		data := h.jsonToString(quest.Data)
+		objectives := h.jsonToStringArray(quest.Objectives)
+		rewardItemIds := h.jsonToStringArray(quest.RewardItemIds)
+		data := h.jsonToStringArray(quest.Data)
 		
 		row := []string{
 			strconv.Itoa(int(quest.ID)),
@@ -172,7 +172,7 @@ func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
 	rows := [][]string{headers}
 	
 	for _, item := range items {
-		data := h.jsonToString(item.Data)
+		data := h.jsonToStringArray(item.Data)
 		
 		row := []string{
 			strconv.Itoa(int(item.ID)),
@@ -204,10 +204,10 @@ func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]strin
 	rows := [][]string{headers}
 	
 	for _, node := range skillNodes {
-		position := h.jsonToString(node.Position)
-		knownValue := h.jsonToString(node.KnownValue)
-		prerequisiteNodeIds := h.jsonToString(node.PrerequisiteNodeIds)
-		data := h.jsonToString(node.Data)
+		position := h.jsonToStringArray(node.Position)
+		knownValue := h.jsonToStringArray(node.KnownValue)
+		prerequisiteNodeIds := h.jsonToStringArray(node.PrerequisiteNodeIds)
+		data := h.jsonToStringArray(node.Data)
 		
 		row := []string{
 			strconv.Itoa(int(node.ID)),
@@ -243,8 +243,8 @@ func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]
 	rows := [][]string{headers}
 	
 	for _, module := range modules {
-		levels := h.jsonToString(module.Levels)
-		data := h.jsonToString(module.Data)
+		levels := h.jsonToStringArray(module.Levels)
+		data := h.jsonToStringArray(module.Data)
 		
 		row := []string{
 			strconv.Itoa(int(module.ID)),
@@ -274,8 +274,8 @@ func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]strin
 	rows := [][]string{headers}
 	
 	for _, enemyType := range enemyTypes {
-		weakpoints := h.jsonToString(enemyType.Weakpoints)
-		data := h.jsonToString(enemyType.Data)
+		weakpoints := h.jsonToStringArray(enemyType.Weakpoints)
+		data := h.jsonToStringArray(enemyType.Data)
 		
 		row := []string{
 			strconv.Itoa(int(enemyType.ID)),
@@ -307,7 +307,7 @@ func (h *ExportHandler) alertsToCSV(alerts []models.Alert) [][]string {
 	rows := [][]string{headers}
 	
 	for _, alert := range alerts {
-		data := h.jsonToString(alert.Data)
+		data := h.jsonToStringArray(alert.Data)
 		
 		row := []string{
 			strconv.Itoa(int(alert.ID)),
@@ -325,15 +325,49 @@ func (h *ExportHandler) alertsToCSV(alerts []models.Alert) [][]string {
 	return rows
 }
 
-// Helper to convert JSONB to string
-func (h *ExportHandler) jsonToString(jsonb models.JSONB) string {
+// Helper to convert JSONB to string array (for Appwrite compatibility)
+func (h *ExportHandler) jsonToStringArray(jsonb models.JSONB) string {
 	if jsonb == nil {
 		return ""
 	}
+	
+	// JSONB is map[string]interface{}, so we need to check the underlying value
+	// First, marshal to see what we have
 	data, err := json.Marshal(jsonb)
 	if err != nil {
 		return ""
 	}
-	return string(data)
+	
+	// Try to unmarshal as array to check if it's an array
+	var arr []interface{}
+	if err := json.Unmarshal(data, &arr); err == nil {
+		// It's an array, convert each element to string
+		result := make([]string, 0, len(arr))
+		for _, item := range arr {
+			itemData, err := json.Marshal(item)
+			if err != nil {
+				continue
+			}
+			result = append(result, string(itemData))
+		}
+		resultData, err := json.Marshal(result)
+		if err != nil {
+			return ""
+		}
+		return string(resultData)
+	}
+	
+	// It's an object or other type, convert to single-element array
+	result := []string{string(data)}
+	resultData, err := json.Marshal(result)
+	if err != nil {
+		return ""
+	}
+	return string(resultData)
+}
+
+// Helper to convert JSONB to string (deprecated - use jsonToStringArray for Appwrite)
+func (h *ExportHandler) jsonToString(jsonb models.JSONB) string {
+	return h.jsonToStringArray(jsonb)
 }
 
