@@ -172,6 +172,47 @@ export const getAppwriteSession = async (): Promise<any | null> => {
   }
 };
 
+// OAuth methods for Appwrite
+export const createOAuthSession = async (provider: 'github' | 'discord', successUrl: string, failureUrl: string): Promise<void> => {
+  const appwrite = await getAppwriteClient();
+  if (!appwrite) {
+    throw new Error('Appwrite is not enabled');
+  }
+  
+  try {
+    // createOAuth2Session redirects automatically, but we can also get the URL if needed
+    // For Appwrite SDK, this method will handle the redirect internally
+    await appwrite.account.createOAuth2Session(provider, successUrl, failureUrl);
+  } catch (error: any) {
+    console.error(`Appwrite OAuth ${provider} error:`, error);
+    throw new Error(`Failed to initiate ${provider} OAuth: ${error.message || 'Unknown error'}`);
+  }
+};
+
+export const loginWithGitHub = async (): Promise<void> => {
+  const successUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/appwrite?oauth=success`
+    : '/appwrite?oauth=success';
+  const failureUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/appwrite?oauth=failure`
+    : '/appwrite?oauth=failure';
+  
+  await createOAuthSession('github', successUrl, failureUrl);
+  // createOAuthSession will redirect automatically
+};
+
+export const loginWithDiscord = async (): Promise<void> => {
+  const successUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/appwrite?oauth=success`
+    : '/appwrite?oauth=success';
+  const failureUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/appwrite?oauth=failure`
+    : '/appwrite?oauth=failure';
+  
+  await createOAuthSession('discord', successUrl, failureUrl);
+  // createOAuthSession will redirect automatically
+};
+
 // Appwrite service for syncing data
 class AppwriteService {
   private databases: Databases | null = null;
