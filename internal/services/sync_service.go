@@ -222,12 +222,15 @@ func (s *SyncService) loadJSONCollection(ctx context.Context, owner, repo, dir, 
 }
 
 func (s *SyncService) fetchDirectoryJSONs(ctx context.Context, owner, repo, dir string) ([]map[string]interface{}, error) {
-	contents, _, _, err := s.githubClient.Repositories.GetContents(ctx, owner, repo, dir, nil)
+	_, directoryContents, _, err := s.githubClient.Repositories.GetContents(ctx, owner, repo, dir, nil)
 	if err != nil {
 		return nil, err
 	}
+	if directoryContents == nil {
+		return nil, fmt.Errorf("no contents found in %s", dir)
+	}
 	var result []map[string]interface{}
-	for _, content := range contents {
+	for _, content := range directoryContents {
 		if content.GetType() != "file" {
 			continue
 		}
