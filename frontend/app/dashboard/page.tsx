@@ -50,6 +50,31 @@ export default function DashboardPage() {
               description="Manage hideout modules"
               href="/hideout-modules/"
             />
+            <DashboardCard
+              title="Enemy Types"
+              description="Manage enemy types"
+              href="/enemy-types/"
+            />
+            <DashboardCard
+              title="Bots"
+              description="View bot data"
+              href="/bots/"
+            />
+            <DashboardCard
+              title="Maps"
+              description="View map data"
+              href="/maps/"
+            />
+            <DashboardCard
+              title="Traders"
+              description="View trader data"
+              href="/traders/"
+            />
+            <DashboardCard
+              title="Projects"
+              description="View project data"
+              href="/projects/"
+            />
           </div>
         </div>
       </div>

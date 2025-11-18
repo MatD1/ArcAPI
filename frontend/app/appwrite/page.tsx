@@ -96,17 +96,28 @@ export default function AppwritePage() {
 
     if (oauthStatus === "success") {
       window.history.replaceState({}, "", window.location.pathname);
-      setTimeout(async () => {
+      // Try multiple times with increasing delays to catch the session
+      const checkSession = async (attempt = 0) => {
         try {
           const session = await getAppwriteSession();
           if (session) {
             setAppwriteUser(session);
             await loadCounts();
+            return;
+          }
+          // If no session yet and we haven't tried too many times, try again
+          if (attempt < 5) {
+            setTimeout(() => checkSession(attempt + 1), 500 * (attempt + 1));
           }
         } catch (err) {
           console.error("Failed to get Appwrite session after OAuth:", err);
+          // Retry on error
+          if (attempt < 5) {
+            setTimeout(() => checkSession(attempt + 1), 500 * (attempt + 1));
+          }
         }
-      }, 500);
+      };
+      checkSession();
     } else if (oauthStatus === "failure") {
       setError("OAuth authentication failed. Please try again.");
       window.history.replaceState({}, "", window.location.pathname);
@@ -128,14 +139,18 @@ export default function AppwritePage() {
           setAppwriteUser(session);
         }
       } catch (err) {
+        // Only set to null if we're sure there's no session
+        // Don't log errors for unauthenticated state
         if (mounted) {
           setAppwriteUser(null);
         }
       }
     };
 
+    // Check immediately
     trackAppwriteUser();
-    const interval = setInterval(trackAppwriteUser, 5000);
+    // Then poll every 3 seconds
+    const interval = setInterval(trackAppwriteUser, 3000);
 
     return () => {
       mounted = false;

@@ -433,6 +433,27 @@ class APIClient {
     return response.data;
   }
 
+  // GitHub Data (Bots, Maps, Traders, Projects)
+  async getBots(): Promise<any> {
+    const response = await this.client.get('/data/bots');
+    return response.data;
+  }
+
+  async getMaps(): Promise<any> {
+    const response = await this.client.get('/data/maps');
+    return response.data;
+  }
+
+  async getTraders(): Promise<any> {
+    const response = await this.client.get('/data/traders');
+    return response.data;
+  }
+
+  async getProjects(): Promise<any> {
+    const response = await this.client.get('/data/projects');
+    return response.data;
+  }
+
   async getAlert(id: number): Promise<Alert> {
     const response = await this.client.get<Alert>(`/alerts/${id}`);
     return response.data;
