@@ -1162,11 +1162,12 @@ class AppwriteService {
     // Build GraphQL query - Appwrite GraphQL uses different field names
     // Try to fetch all items in one query if possible, or paginate
     const query = `
-      query GetItems($databaseId: String!, $collectionId: String!, $queries: [String!]) {
+      query GetItems($databaseId: String!, $collectionId: String!, $limit: Int!, $offset: Int) {
         databasesListDocuments(
           databaseId: $databaseId
           collectionId: $collectionId
-          queries: $queries
+          limit: $limit
+          offset: $offset
         ) {
           total
           documents {
@@ -1198,15 +1199,12 @@ class AppwriteService {
       try {
         const remaining = limit ? Math.max(limit - allItems.length, 1) : pageLimit;
         const effectiveLimit = Math.min(pageLimit, remaining);
-        const queries = [
-          Query.limit(effectiveLimit),
-          Query.offset(offset),
-        ];
 
         const variables: any = {
           databaseId,
           collectionId: 'items',
-          queries,
+          limit: effectiveLimit,
+          offset,
         };
 
         if (process.env.NODE_ENV === 'development') {
