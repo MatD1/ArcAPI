@@ -30,19 +30,18 @@ func (h *ConfigHandler) GetFrontendConfig(c *gin.Context) {
 	if appwriteDatabaseID == "" {
 		appwriteDatabaseID = os.Getenv("NEXT_PUBLIC_APPWRITE_DATABASE_ID")
 	}
-	if appwriteDatabaseID == "" {
-		appwriteDatabaseID = "arcapi" // Default
-	}
-	
+	// Note: databaseId should be the actual Appwrite database ID (not the name)
+	// The database ID is a unique identifier found in the Appwrite console
+	// No default value - must be explicitly configured
+
 	config := gin.H{
 		"appwrite": gin.H{
-			"enabled":   appwriteEnabled && appwriteEndpoint != "" && appwriteProjectID != "",
-			"endpoint":  appwriteEndpoint,
-			"projectId": appwriteProjectID,
+			"enabled":    appwriteEnabled && appwriteEndpoint != "" && appwriteProjectID != "",
+			"endpoint":   appwriteEndpoint,
+			"projectId":  appwriteProjectID,
 			"databaseId": appwriteDatabaseID,
 		},
 	}
 
 	c.JSON(http.StatusOK, config)
 }
-

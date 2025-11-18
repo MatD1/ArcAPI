@@ -14,7 +14,7 @@ let configLoadPromise: Promise<void> | null = null;
 
 type AppwriteConfigShape = { endpoint: string; projectId: string; enabled: boolean; databaseId?: string };
 
-const defaultConfig: AppwriteConfigShape = { endpoint: '', projectId: '', enabled: false, databaseId: 'arcapi' };
+const defaultConfig: AppwriteConfigShape = { endpoint: '', projectId: '', enabled: false, databaseId: '' };
 
 const loadStaticAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
   try {
@@ -25,7 +25,7 @@ const loadStaticAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
         enabled: data.enabled === true,
         endpoint: data.endpoint || '',
         projectId: data.projectId || '',
-        databaseId: data.databaseId || 'arcapi',
+        databaseId: data.databaseId || '',
       };
     }
   } catch (error) {
@@ -58,7 +58,7 @@ const loadRuntimeConfig = async (): Promise<AppwriteConfigShape> => {
           enabled: data.appwrite?.enabled === true,
           endpoint: data.appwrite?.endpoint || '',
           projectId: data.appwrite?.projectId || '',
-          databaseId: data.appwrite?.databaseId || 'arcapi',
+          databaseId: data.appwrite?.databaseId || '',
         };
       } else {
         runtimeConfig = await loadStaticAppwriteConfig();
@@ -72,7 +72,7 @@ const loadRuntimeConfig = async (): Promise<AppwriteConfigShape> => {
         enabled: process.env.NEXT_PUBLIC_APPWRITE_ENABLED === 'true',
         endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '',
         projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '',
-        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'arcapi',
+        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
       };
     }
   })();
@@ -93,7 +93,7 @@ const getAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
     endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '',
     projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '',
     enabled: process.env.NEXT_PUBLIC_APPWRITE_ENABLED === 'true',
-    databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'arcapi',
+    databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
   };
 };
 
@@ -507,11 +507,19 @@ class AppwriteService {
   // Can be set via runtime config from API or build-time env var
   private getDatabaseId(): string {
     // Try runtime config first (from API)
+    // Note: This should be the actual Appwrite database ID (not the name)
+    // The database ID is a unique identifier found in the Appwrite console
     if (runtimeConfig?.databaseId) {
       return runtimeConfig.databaseId;
     }
     // Fallback to build-time env var
-    return process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'arcapi';
+    // IMPORTANT: This should be the database ID, not the database name
+    // You can find the database ID in the Appwrite console under Database settings
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+    if (!dbId) {
+      console.warn('Appwrite database ID not configured. Please set NEXT_PUBLIC_APPWRITE_DATABASE_ID to the actual database ID from Appwrite console.');
+    }
+    return dbId || '';
   }
 
   // Quest operations
@@ -524,6 +532,10 @@ class AppwriteService {
     }
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping quest sync');
+      return;
+    }
     const collectionId = 'quests';
 
     try {
@@ -565,6 +577,10 @@ class AppwriteService {
     }
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping item sync');
+      return;
+    }
     const collectionId = 'items';
 
     const payload =
@@ -615,6 +631,10 @@ class AppwriteService {
     const payload = this.buildSkillNodePayload(skillNode);
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping skill node sync');
+      return;
+    }
     const collectionId = 'skill_nodes';
 
     try {
@@ -652,6 +672,10 @@ class AppwriteService {
     const payload = this.buildHideoutModulePayload(module);
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping hideout module sync');
+      return;
+    }
     const collectionId = 'hideout_modules';
 
     try {
@@ -688,6 +712,10 @@ class AppwriteService {
     }
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping enemy type sync');
+      return;
+    }
     const collectionId = 'enemy_types';
 
     const payload =
@@ -734,6 +762,10 @@ class AppwriteService {
     if (!databases) return;
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping alert sync');
+      return;
+    }
     const collectionId = 'alerts';
 
     try {
@@ -911,6 +943,10 @@ class AppwriteService {
     if (!databases) return [];
     try {
       const databaseId = this.getDatabaseId();
+      if (!databaseId) {
+        console.warn('Appwrite database ID not configured, returning empty quests');
+        return [];
+      }
       const { documents } = await databases.listDocuments(databaseId, 'quests', [
         Query.limit(limit),
         Query.orderDesc('created_at')
@@ -927,6 +963,10 @@ class AppwriteService {
     if (!databases) return [];
     try {
       const databaseId = this.getDatabaseId();
+      if (!databaseId) {
+        console.warn('Appwrite database ID not configured, returning empty items');
+        return [];
+      }
       const { documents } = await databases.listDocuments(databaseId, 'items', [
         Query.limit(limit),
         Query.orderDesc('created_at')
@@ -943,6 +983,10 @@ class AppwriteService {
     if (!databases) return [];
     try {
       const databaseId = this.getDatabaseId();
+      if (!databaseId) {
+        console.warn('Appwrite database ID not configured, returning empty skill nodes');
+        return [];
+      }
       const { documents } = await databases.listDocuments(databaseId, 'skill_nodes', [
         Query.limit(limit),
         Query.orderDesc('created_at')
@@ -959,6 +1003,10 @@ class AppwriteService {
     if (!databases) return [];
     try {
       const databaseId = this.getDatabaseId();
+      if (!databaseId) {
+        console.warn('Appwrite database ID not configured, returning empty hideout modules');
+        return [];
+      }
       const { documents } = await databases.listDocuments(databaseId, 'hideout_modules', [
         Query.limit(limit),
         Query.orderDesc('created_at')
@@ -975,6 +1023,10 @@ class AppwriteService {
     if (!databases) return [];
     try {
       const databaseId = this.getDatabaseId();
+      if (!databaseId) {
+        console.warn('Appwrite database ID not configured, returning empty enemy types');
+        return [];
+      }
       const { documents } = await databases.listDocuments(databaseId, 'enemy_types', [
         Query.limit(limit),
         Query.orderDesc('created_at')
@@ -991,6 +1043,10 @@ class AppwriteService {
     if (!databases) return [];
     try {
       const databaseId = this.getDatabaseId();
+      if (!databaseId) {
+        console.warn('Appwrite database ID not configured, returning empty alerts');
+        return [];
+      }
       const { documents } = await databases.listDocuments(databaseId, 'alerts', [
         Query.limit(limit),
         Query.orderDesc('created_at')
@@ -1008,6 +1064,10 @@ class AppwriteService {
     if (!databases) return {};
     try {
       const databaseId = this.getDatabaseId();
+      if (!databaseId) {
+        console.warn('Appwrite database ID not configured, returning empty counts');
+        return {};
+      }
       const [quests, items, skillNodes, hideoutModules, enemyTypes, alerts] = await Promise.all([
         databases.listDocuments(databaseId, 'quests', [Query.limit(1)]),
         databases.listDocuments(databaseId, 'items', [Query.limit(1)]),
