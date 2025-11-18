@@ -262,29 +262,61 @@ class AppwriteService {
     const allDocuments: T[] = [];
     const limit = 100; // Appwrite maximum per request
     let offset = 0;
+    let total = 0;
     let hasMore = true;
 
     while (hasMore) {
       try {
-        const response = await databases.listDocuments(databaseId, collectionId, [
+        // Build query - always specify limit explicitly to avoid default limits
+        const queries = [
           Query.limit(limit),
-          Query.offset(offset),
-          Query.orderDesc('created_at')
-        ]);
+          Query.offset(offset)
+        ];
+        
+        // Only add ordering if the field exists (some collections might not have created_at)
+        // For now, let's try without ordering to see if that's causing issues
+        // queries.push(Query.orderDesc('created_at'));
+        
+        const response = await databases.listDocuments(databaseId, collectionId, queries);
+
+        // Get total from first response
+        if (offset === 0 && response.total !== undefined) {
+          total = response.total;
+        }
 
         const documents = response.documents || [];
         allDocuments.push(...documents.map(mapper));
 
-        // If we got fewer documents than the limit, we've reached the end
-        if (documents.length < limit) {
-          hasMore = false;
+        // Check if we've fetched all documents
+        // Use total if available, otherwise check if we got fewer than limit
+        if (total > 0) {
+          // We know the total, check if we've fetched all
+          if (allDocuments.length >= total) {
+            hasMore = false;
+          } else {
+            offset += limit;
+          }
         } else {
-          offset += limit;
+          // No total available, use the old method
+          if (documents.length < limit) {
+            hasMore = false;
+          } else {
+            offset += limit;
+          }
+        }
+
+        // Safety check: if we're not making progress, stop
+        if (documents.length === 0) {
+          hasMore = false;
         }
       } catch (error) {
         this.logError(`fetchAllDocuments(${collectionId})`, error);
         hasMore = false; // Stop on error
       }
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Fetched ${allDocuments.length} documents from ${collectionId}${total > 0 ? ` (total: ${total})` : ''}`);
     }
 
     return allDocuments;
@@ -1027,6 +1059,7 @@ class AppwriteService {
       }
       
       // Otherwise, fetch all records using pagination
+      // Remove ordering to avoid potential issues, or use a more reliable field
       return await this.fetchAllDocuments(databaseId, 'items', (doc) => this.documentToItem(doc));
     } catch (error) {
       this.logError('getItems', error);
