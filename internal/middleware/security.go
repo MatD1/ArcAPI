@@ -15,8 +15,11 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get Supabase URL from environment for CSP
 		supabaseURL := os.Getenv("NEXT_PUBLIC_SUPABASE_URL")
-		// Get Appwrite endpoint from environment for CSP
-		appwriteEndpoint := os.Getenv("NEXT_PUBLIC_APPWRITE_ENDPOINT")
+		// Get Appwrite endpoint from environment for CSP (check both env var names)
+		appwriteEndpoint := os.Getenv("APPWRITE_ENDPOINT")
+		if appwriteEndpoint == "" {
+			appwriteEndpoint = os.Getenv("NEXT_PUBLIC_APPWRITE_ENDPOINT")
+		}
 		
 		// Build CSP policy
 		// Note: frame-ancestors allows embedding (for OAuth redirects), form-action allows form submissions
@@ -40,7 +43,28 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 			}
 		}
 		
-		// Add Appwrite to CSP
+		// Always allow Appwrite cloud instances (for OAuth redirects and API calls)
+		// This ensures it works even if endpoint is loaded dynamically from API config
+		// CSP wildcards only match one level, so we need multiple patterns for different Appwrite regions
+		// Allow all Appwrite cloud instances (e.g., syd.cloud.appwrite.io, fra.cloud.appwrite.io, etc.)
+		// Pattern: *.cloud.appwrite.io matches any subdomain of cloud.appwrite.io (e.g., syd.cloud.appwrite.io)
+		connectSrc += " https://*.appwrite.io https://*.cloud.appwrite.io https://appwrite.io"
+		frameSrc += " https://*.appwrite.io https://*.cloud.appwrite.io https://appwrite.io"
+		
+		// Also allow common Appwrite cloud regions explicitly (as a fallback)
+		// This ensures coverage even if wildcard matching has issues
+		commonRegions := []string{
+			"syd.cloud.appwrite.io", "fra.cloud.appwrite.io", "nyc.cloud.appwrite.io",
+			"lon.cloud.appwrite.io", "tor.cloud.appwrite.io", "sgp.cloud.appwrite.io",
+			"ams.cloud.appwrite.io", "blr.cloud.appwrite.io", "waw.cloud.appwrite.io",
+			"iad.cloud.appwrite.io", "cle.cloud.appwrite.io", "dub.cloud.appwrite.io",
+		}
+		for _, region := range commonRegions {
+			connectSrc += " https://" + region
+			frameSrc += " https://" + region
+		}
+		
+		// Add specific Appwrite endpoint if configured (for self-hosted instances)
 		if appwriteEndpoint != "" {
 			// Parse URL to extract scheme and host
 			parsedURL, err := url.Parse(appwriteEndpoint)
@@ -49,11 +73,6 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 				domain := parsedURL.Scheme + "://" + parsedURL.Host
 				connectSrc += " " + domain
 				frameSrc += " " + domain
-				// Also allow common Appwrite patterns (cloud.appwrite.io, etc.)
-				if strings.Contains(parsedURL.Host, "appwrite.io") {
-					connectSrc += " https://*.appwrite.io"
-					frameSrc += " https://*.appwrite.io"
-				}
 			} else {
 				// If parsing fails, just add the URL as-is
 				connectSrc += " " + appwriteEndpoint
