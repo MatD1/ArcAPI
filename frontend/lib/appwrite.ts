@@ -12,7 +12,7 @@ import type {
 let runtimeConfig: AppwriteConfigShape | null = null;
 let configLoadPromise: Promise<void> | null = null;
 
-type AppwriteConfigShape = { endpoint: string; projectId: string; enabled: boolean; databaseId?: string };
+type AppwriteConfigShape = { endpoint: string; projectId: string; enabled: boolean; databaseId?: string; graphqlEnabled?: boolean };
 
 const defaultConfig: AppwriteConfigShape = { endpoint: '', projectId: '', enabled: false, databaseId: '' };
 
@@ -26,6 +26,7 @@ const loadStaticAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
         endpoint: data.endpoint || '',
         projectId: data.projectId || '',
         databaseId: data.databaseId || '',
+        graphqlEnabled: data.graphqlEnabled !== false, // Default to true
       };
     }
   } catch (error) {
@@ -59,6 +60,7 @@ const loadRuntimeConfig = async (): Promise<AppwriteConfigShape> => {
           endpoint: data.appwrite?.endpoint || '',
           projectId: data.appwrite?.projectId || '',
           databaseId: data.appwrite?.databaseId || '',
+          graphqlEnabled: data.appwrite?.graphqlEnabled !== false, // Default to true if not specified
         };
       } else {
         runtimeConfig = await loadStaticAppwriteConfig();
@@ -89,11 +91,13 @@ const getAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
   }
   
   // Server-side or fallback: use build-time env vars
+  const graphqlEnabledEnv = process.env.NEXT_PUBLIC_APPWRITE_GRAPHQL_ENABLED;
   return {
     endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '',
     projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '',
     enabled: process.env.NEXT_PUBLIC_APPWRITE_ENABLED === 'true',
     databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
+    graphqlEnabled: graphqlEnabledEnv === undefined || graphqlEnabledEnv === 'true', // Default to true
   };
 };
 
@@ -247,9 +251,14 @@ class AppwriteService {
 
   constructor() {
     // Initialize databases and GraphQL asynchronously
-    this.databasesPromise = getAppwriteClient().then((appwrite) => {
+    this.databasesPromise = getAppwriteClient().then(async (appwrite) => {
       this.databases = appwrite?.databases || null;
       this.graphql = appwrite?.graphql || null;
+      
+      // Check if GraphQL is enabled via config
+      const config = await getAppwriteConfig();
+      this.useGraphQL = config.graphqlEnabled !== false; // Default to true
+      
       return { databases: this.databases, graphql: this.graphql };
     });
   }
@@ -312,6 +321,10 @@ class AppwriteService {
     let total = 0;
     let hasMore = true;
 
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Starting to fetch all documents from ${collectionId}...`);
+    }
+
     while (hasMore) {
       try {
         // Build query - always specify limit explicitly to avoid default limits
@@ -320,22 +333,25 @@ class AppwriteService {
           Query.offset(offset)
         ];
         
-        // Only add ordering if the field exists (some collections might not have created_at)
-        // For now, let's try without ordering to see if that's causing issues
-        // queries.push(Query.orderDesc('created_at'));
-        
         const response = await databases.listDocuments(databaseId, collectionId, queries);
 
         // Get total from first response
-        if (offset === 0 && response.total !== undefined) {
-          total = response.total;
+        if (offset === 0) {
+          total = response.total || 0;
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`Total documents in ${collectionId}: ${total}`);
+          }
         }
 
         const documents = response.documents || [];
-        allDocuments.push(...documents.map(mapper));
+        const mapped = documents.map(mapper);
+        allDocuments.push(...mapped);
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Fetched ${documents.length} documents (offset: ${offset}, total so far: ${allDocuments.length})`);
+        }
 
         // Check if we've fetched all documents
-        // Use total if available, otherwise check if we got fewer than limit
         if (total > 0) {
           // We know the total, check if we've fetched all
           if (allDocuments.length >= total) {
@@ -363,7 +379,7 @@ class AppwriteService {
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`Fetched ${allDocuments.length} documents from ${collectionId}${total > 0 ? ` (total: ${total})` : ''}`);
+      console.log(`Finished fetching ${allDocuments.length} documents from ${collectionId}${total > 0 ? ` (expected: ${total})` : ''}`);
     }
 
     return allDocuments;
@@ -1090,7 +1106,14 @@ class AppwriteService {
     // Try GraphQL first if enabled
     if (this.useGraphQL) {
       try {
-        return await this.getItemsGraphQL(limit);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Attempting to fetch items via GraphQL...');
+        }
+        const result = await this.getItemsGraphQL(limit);
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`GraphQL returned ${result.length} items`);
+        }
+        return result;
       } catch (error) {
         console.warn('GraphQL query failed, falling back to REST API:', error);
         // Fall back to REST API
@@ -1207,14 +1230,21 @@ class AppwriteService {
           limit: pageLimit,
         };
         
-        if (offset > 0 || (!limit || limit > 100)) {
-          variables.offset = offset;
+        // Always include offset for pagination (even if 0, it helps with consistency)
+        variables.offset = offset;
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`GraphQL query: offset=${offset}, limit=${variables.limit}`);
         }
 
         const response = await graphql.query({
           query,
           variables,
         }) as any; // Appwrite GraphQL response type is not fully typed
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('GraphQL response:', response);
+        }
 
         // Handle different possible response structures
         const result = response.data?.databasesListDocuments || 
