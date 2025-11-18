@@ -16,7 +16,7 @@ import {
 
 type EntityType = 'quests' | 'items' | 'skillNodes' | 'hideoutModules' | 'enemyTypes' | 'alerts';
 
-export default function AppwritePage() {
+export default function Page() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [enabled, setEnabled] = useState(false);
