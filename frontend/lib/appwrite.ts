@@ -106,9 +106,7 @@ let appwriteClient: Client | null = null;
 let databases: Databases | null = null;
 let account: Account | null = null;
 let graphql: Graphql | null = null;
-let graphql: Graphql | null = null;
 
-export const getAppwriteClient = async (): Promise<{ client: Client; databases: Databases; account: Account; graphql: Graphql } | null> => {
 export const getAppwriteClient = async (): Promise<{ client: Client; databases: Databases; account: Account; graphql: Graphql } | null> => {
   const { endpoint, projectId, enabled } = await getAppwriteConfig();
 
@@ -133,7 +131,6 @@ export const getAppwriteClient = async (): Promise<{ client: Client; databases: 
     graphql = new Graphql(appwriteClient);
   }
 
-  return { client: appwriteClient, databases: databases!, account: account!, graphql: graphql! };
   return { client: appwriteClient, databases: databases!, account: account!, graphql: graphql! };
 };
 
