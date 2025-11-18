@@ -14,6 +14,10 @@ const navigation = [
   { name: 'Skill Nodes', href: '/skill-nodes/', icon: '🔧' },
   { name: 'Hideout Modules', href: '/hideout-modules/', icon: '🏠' },
   { name: 'Enemy Types', href: '/enemy-types/', icon: '👾' },
+  { name: 'Bots', href: '/bots/', icon: '🤖' },
+  { name: 'Maps', href: '/maps/', icon: '🗺️' },
+  { name: 'Traders', href: '/traders/', icon: '💼' },
+  { name: 'Projects', href: '/projects/', icon: '🚀' },
 ];
 
 const adminNavigation = [

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,23 +15,54 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get Supabase URL from environment for CSP
 		supabaseURL := os.Getenv("NEXT_PUBLIC_SUPABASE_URL")
+		// Get Appwrite endpoint from environment for CSP
+		appwriteEndpoint := os.Getenv("NEXT_PUBLIC_APPWRITE_ENDPOINT")
 		
 		// Build CSP policy
-		csp := "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.arctracker.io; connect-src 'self'"
+		// Note: frame-ancestors allows embedding (for OAuth redirects), form-action allows form submissions
+		// frame-src allows iframes (for OAuth flows), connect-src allows fetch/XHR requests
+		connectSrc := "'self'"
+		frameSrc := "'self'"
+		
+		// Add Supabase to CSP
 		if supabaseURL != "" {
 			// Parse URL to extract scheme and host
 			parsedURL, err := url.Parse(supabaseURL)
 			if err == nil {
 				// Allow the full Supabase URL domain
 				domain := parsedURL.Scheme + "://" + parsedURL.Host
-				csp += " " + domain
+				connectSrc += " " + domain
 				// Also allow common Supabase patterns
-				csp += " https://*.supabase.co https://*.supabase.in"
+				connectSrc += " https://*.supabase.co https://*.supabase.in"
 			} else {
 				// If parsing fails, just add the URL as-is
-				csp += " " + supabaseURL + " https://*.supabase.co https://*.supabase.in"
+				connectSrc += " " + supabaseURL + " https://*.supabase.co https://*.supabase.in"
 			}
 		}
+		
+		// Add Appwrite to CSP
+		if appwriteEndpoint != "" {
+			// Parse URL to extract scheme and host
+			parsedURL, err := url.Parse(appwriteEndpoint)
+			if err == nil {
+				// Allow the full Appwrite endpoint domain
+				domain := parsedURL.Scheme + "://" + parsedURL.Host
+				connectSrc += " " + domain
+				frameSrc += " " + domain
+				// Also allow common Appwrite patterns (cloud.appwrite.io, etc.)
+				if strings.Contains(parsedURL.Host, "appwrite.io") {
+					connectSrc += " https://*.appwrite.io"
+					frameSrc += " https://*.appwrite.io"
+				}
+			} else {
+				// If parsing fails, just add the URL as-is
+				connectSrc += " " + appwriteEndpoint
+				frameSrc += " " + appwriteEndpoint
+			}
+		}
+		
+		csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.arctracker.io; connect-src %s; frame-src %s; frame-ancestors 'self'; form-action 'self'", connectSrc, frameSrc)
+		
 		csp += ";"
 
 		// Security headers
