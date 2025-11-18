@@ -244,7 +244,7 @@ func (h *ExportHandler) genericDataToCSV(data interface{}) [][]string {
 	case map[string]interface{}:
 		rows = append(rows, []string{"0", h.marshalValueToString(list)})
 	default:
-		rows = append(rows, []string{"0", h.jsonToString(list)})
+		rows = append(rows, []string{"0", h.marshalValueToString(list)})
 	}
 
 	return rows
