@@ -433,24 +433,32 @@ class APIClient {
     return response.data;
   }
 
-  // GitHub Data (Bots, Maps, Traders, Projects)
-  async getBots(): Promise<any> {
-    const response = await this.client.get('/data/bots');
+  // GitHub Data (Bots, Maps, Traders, Projects) - Now from database
+  async getBots(offset = 0, limit = 20): Promise<PaginatedResponse<any>> {
+    const response = await this.client.get('/bots', {
+      params: { offset, limit },
+    });
     return response.data;
   }
 
-  async getMaps(): Promise<any> {
-    const response = await this.client.get('/data/maps');
+  async getMaps(offset = 0, limit = 20): Promise<PaginatedResponse<any>> {
+    const response = await this.client.get('/maps', {
+      params: { offset, limit },
+    });
     return response.data;
   }
 
-  async getTraders(): Promise<any> {
-    const response = await this.client.get('/data/traders');
+  async getTraders(offset = 0, limit = 20): Promise<PaginatedResponse<any>> {
+    const response = await this.client.get('/repo-traders', {
+      params: { offset, limit },
+    });
     return response.data;
   }
 
-  async getProjects(): Promise<any> {
-    const response = await this.client.get('/data/projects');
+  async getProjects(offset = 0, limit = 20): Promise<PaginatedResponse<any>> {
+    const response = await this.client.get('/projects', {
+      params: { offset, limit },
+    });
     return response.data;
   }
 

@@ -25,8 +25,8 @@ export default function BotsPage() {
     try {
       setLoading(true);
       setError('');
-      const result = await apiClient.getBots();
-      setData(result);
+      const result = await apiClient.getBots(0, 1000);
+      setData(result.data);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

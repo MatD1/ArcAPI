@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/repository"
-	"github.com/mat/arcapi/internal/services"
 )
 
 type ExportHandler struct {
@@ -21,7 +20,10 @@ type ExportHandler struct {
 	hideoutModuleRepo *repository.HideoutModuleRepository
 	enemyTypeRepo     *repository.EnemyTypeRepository
 	alertRepo         *repository.AlertRepository
-	githubDataService *services.GitHubDataService
+	botRepo           *repository.BotRepository
+	mapRepo           *repository.MapRepository
+	traderRepo        *repository.TraderRepository
+	projectRepo       *repository.ProjectRepository
 }
 
 func NewExportHandler(
@@ -31,7 +33,10 @@ func NewExportHandler(
 	hideoutModuleRepo *repository.HideoutModuleRepository,
 	enemyTypeRepo *repository.EnemyTypeRepository,
 	alertRepo *repository.AlertRepository,
-	githubDataService *services.GitHubDataService,
+	botRepo *repository.BotRepository,
+	mapRepo *repository.MapRepository,
+	traderRepo *repository.TraderRepository,
+	projectRepo *repository.ProjectRepository,
 ) *ExportHandler {
 	return &ExportHandler{
 		questRepo:         questRepo,
@@ -40,66 +45,54 @@ func NewExportHandler(
 		hideoutModuleRepo: hideoutModuleRepo,
 		enemyTypeRepo:     enemyTypeRepo,
 		alertRepo:         alertRepo,
+		botRepo:           botRepo,
+		mapRepo:           mapRepo,
+		traderRepo:        traderRepo,
+		projectRepo:       projectRepo,
 	}
 }
 
 func (h *ExportHandler) ExportBots(c *gin.Context) {
-	if h.githubDataService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub data service unavailable"})
-		return
-	}
-	data, err := h.githubDataService.GetBots(c.Request.Context())
+	bots, _, err := h.botRepo.FindAll(0, 10000) // Get all bots
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch bots data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch bots"})
 		return
 	}
 
-	csvData := h.genericDataToCSV(data)
+	csvData := h.botsToCSV(bots)
 	h.sendCSV(c, csvData, "bots")
 }
 
 func (h *ExportHandler) ExportMaps(c *gin.Context) {
-	if h.githubDataService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub data service unavailable"})
-		return
-	}
-	data, err := h.githubDataService.GetMaps(c.Request.Context())
+	maps, _, err := h.mapRepo.FindAll(0, 10000) // Get all maps
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch maps data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch maps"})
 		return
 	}
 
-	csvData := h.genericDataToCSV(data)
+	csvData := h.mapsToCSV(maps)
 	h.sendCSV(c, csvData, "maps")
 }
 
 func (h *ExportHandler) ExportTraders(c *gin.Context) {
-	if h.githubDataService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub data service unavailable"})
-		return
-	}
-	data, err := h.githubDataService.GetTraders(c.Request.Context())
+	traders, _, err := h.traderRepo.FindAll(0, 10000) // Get all traders
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch traders data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch traders"})
 		return
 	}
 
-	csvData := h.genericDataToCSV(data)
+	csvData := h.tradersToCSV(traders)
 	h.sendCSV(c, csvData, "traders")
 }
 
 func (h *ExportHandler) ExportProjects(c *gin.Context) {
-	if h.githubDataService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub data service unavailable"})
-		return
-	}
-	data, err := h.githubDataService.GetProjects(c.Request.Context())
+	projects, _, err := h.projectRepo.FindAll(0, 10000) // Get all projects
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch projects data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch projects"})
 		return
 	}
 
-	csvData := h.genericDataToCSV(data)
+	csvData := h.projectsToCSV(projects)
 	h.sendCSV(c, csvData, "projects")
 }
 
@@ -504,4 +497,84 @@ func (h *ExportHandler) jsonToStringArray(jsonb models.JSONB) string {
 // Helper to convert JSONB to string (deprecated - use jsonToStringArray for Appwrite)
 func (h *ExportHandler) jsonToString(jsonb models.JSONB) string {
 	return h.jsonToStringArray(jsonb)
+}
+
+// Convert bots to CSV format
+func (h *ExportHandler) botsToCSV(bots []models.Bot) [][]string {
+	headers := []string{"system_id", "external_id", "name", "data"}
+
+	rows := [][]string{headers}
+
+	for _, bot := range bots {
+		data := h.jsonToStringArray(bot.Data)
+		row := []string{
+			strconv.Itoa(int(bot.ID)),
+			bot.ExternalID,
+			bot.Name,
+			data,
+		}
+		rows = append(rows, row)
+	}
+
+	return rows
+}
+
+// Convert maps to CSV format
+func (h *ExportHandler) mapsToCSV(maps []models.Map) [][]string {
+	headers := []string{"system_id", "external_id", "name", "data"}
+
+	rows := [][]string{headers}
+
+	for _, m := range maps {
+		data := h.jsonToStringArray(m.Data)
+		row := []string{
+			strconv.Itoa(int(m.ID)),
+			m.ExternalID,
+			m.Name,
+			data,
+		}
+		rows = append(rows, row)
+	}
+
+	return rows
+}
+
+// Convert traders to CSV format
+func (h *ExportHandler) tradersToCSV(traders []models.Trader) [][]string {
+	headers := []string{"system_id", "external_id", "name", "data"}
+
+	rows := [][]string{headers}
+
+	for _, trader := range traders {
+		data := h.jsonToStringArray(trader.Data)
+		row := []string{
+			strconv.Itoa(int(trader.ID)),
+			trader.ExternalID,
+			trader.Name,
+			data,
+		}
+		rows = append(rows, row)
+	}
+
+	return rows
+}
+
+// Convert projects to CSV format
+func (h *ExportHandler) projectsToCSV(projects []models.Project) [][]string {
+	headers := []string{"system_id", "external_id", "name", "data"}
+
+	rows := [][]string{headers}
+
+	for _, project := range projects {
+		data := h.jsonToStringArray(project.Data)
+		row := []string{
+			strconv.Itoa(int(project.ID)),
+			project.ExternalID,
+			project.Name,
+			data,
+		}
+		rows = append(rows, row)
+	}
+
+	return rows
 }

@@ -25,8 +25,8 @@ export default function MapsPage() {
     try {
       setLoading(true);
       setError('');
-      const result = await apiClient.getMaps();
-      setData(result);
+      const result = await apiClient.getMaps(0, 1000);
+      setData(result.data);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

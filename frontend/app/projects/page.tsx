@@ -25,8 +25,8 @@ export default function ProjectsPage() {
     try {
       setLoading(true);
       setError('');
-      const result = await apiClient.getProjects();
-      setData(result);
+      const result = await apiClient.getProjects(0, 1000);
+      setData(result.data);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

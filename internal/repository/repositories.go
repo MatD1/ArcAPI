@@ -785,3 +785,207 @@ func (r *UserBlueprintProgressRepository) FindByUserAndItem(userID, itemID uint)
 func (r *UserBlueprintProgressRepository) Delete(userID, itemID uint) error {
 	return r.db.Where("user_id = ? AND item_id = ?", userID, itemID).Delete(&models.UserBlueprintProgress{}).Error
 }
+
+// Bot Repository
+type BotRepository struct {
+	db *DB
+}
+
+func NewBotRepository(db *DB) *BotRepository {
+	return &BotRepository{db: db}
+}
+
+func (r *BotRepository) FindByID(id uint) (*models.Bot, error) {
+	var bot models.Bot
+	err := r.db.First(&bot, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &bot, nil
+}
+
+func (r *BotRepository) FindByExternalID(externalID string) (*models.Bot, error) {
+	var bot models.Bot
+	err := r.db.Where("external_id = ?", externalID).First(&bot).Error
+	if err != nil {
+		return nil, err
+	}
+	return &bot, nil
+}
+
+func (r *BotRepository) FindAll(offset, limit int) ([]models.Bot, int64, error) {
+	var bots []models.Bot
+	var count int64
+	err := r.db.Model(&models.Bot{}).Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&bots).Error
+	return bots, count, err
+}
+
+func (r *BotRepository) UpsertByExternalID(bot *models.Bot) error {
+	var existing models.Bot
+	err := r.db.Where("external_id = ?", bot.ExternalID).First(&existing).Error
+	if err == gorm.ErrRecordNotFound {
+		return r.db.Create(bot).Error
+	}
+	if err != nil {
+		return err
+	}
+	bot.ID = existing.ID
+	return r.db.Save(bot).Error
+}
+
+// Map Repository
+type MapRepository struct {
+	db *DB
+}
+
+func NewMapRepository(db *DB) *MapRepository {
+	return &MapRepository{db: db}
+}
+
+func (r *MapRepository) FindByID(id uint) (*models.Map, error) {
+	var m models.Map
+	err := r.db.First(&m, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (r *MapRepository) FindByExternalID(externalID string) (*models.Map, error) {
+	var m models.Map
+	err := r.db.Where("external_id = ?", externalID).First(&m).Error
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (r *MapRepository) FindAll(offset, limit int) ([]models.Map, int64, error) {
+	var maps []models.Map
+	var count int64
+	err := r.db.Model(&models.Map{}).Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&maps).Error
+	return maps, count, err
+}
+
+func (r *MapRepository) UpsertByExternalID(m *models.Map) error {
+	var existing models.Map
+	err := r.db.Where("external_id = ?", m.ExternalID).First(&existing).Error
+	if err == gorm.ErrRecordNotFound {
+		return r.db.Create(m).Error
+	}
+	if err != nil {
+		return err
+	}
+	m.ID = existing.ID
+	return r.db.Save(m).Error
+}
+
+// Trader Repository
+type TraderRepository struct {
+	db *DB
+}
+
+func NewTraderRepository(db *DB) *TraderRepository {
+	return &TraderRepository{db: db}
+}
+
+func (r *TraderRepository) FindByID(id uint) (*models.Trader, error) {
+	var trader models.Trader
+	err := r.db.First(&trader, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &trader, nil
+}
+
+func (r *TraderRepository) FindByExternalID(externalID string) (*models.Trader, error) {
+	var trader models.Trader
+	err := r.db.Where("external_id = ?", externalID).First(&trader).Error
+	if err != nil {
+		return nil, err
+	}
+	return &trader, nil
+}
+
+func (r *TraderRepository) FindAll(offset, limit int) ([]models.Trader, int64, error) {
+	var traders []models.Trader
+	var count int64
+	err := r.db.Model(&models.Trader{}).Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&traders).Error
+	return traders, count, err
+}
+
+func (r *TraderRepository) UpsertByExternalID(trader *models.Trader) error {
+	var existing models.Trader
+	err := r.db.Where("external_id = ?", trader.ExternalID).First(&existing).Error
+	if err == gorm.ErrRecordNotFound {
+		return r.db.Create(trader).Error
+	}
+	if err != nil {
+		return err
+	}
+	trader.ID = existing.ID
+	return r.db.Save(trader).Error
+}
+
+// Project Repository
+type ProjectRepository struct {
+	db *DB
+}
+
+func NewProjectRepository(db *DB) *ProjectRepository {
+	return &ProjectRepository{db: db}
+}
+
+func (r *ProjectRepository) FindByID(id uint) (*models.Project, error) {
+	var project models.Project
+	err := r.db.First(&project, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+func (r *ProjectRepository) FindByExternalID(externalID string) (*models.Project, error) {
+	var project models.Project
+	err := r.db.Where("external_id = ?", externalID).First(&project).Error
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+func (r *ProjectRepository) FindAll(offset, limit int) ([]models.Project, int64, error) {
+	var projects []models.Project
+	var count int64
+	err := r.db.Model(&models.Project{}).Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&projects).Error
+	return projects, count, err
+}
+
+func (r *ProjectRepository) UpsertByExternalID(project *models.Project) error {
+	var existing models.Project
+	err := r.db.Where("external_id = ?", project.ExternalID).First(&existing).Error
+	if err == gorm.ErrRecordNotFound {
+		return r.db.Create(project).Error
+	}
+	if err != nil {
+		return err
+	}
+	project.ID = existing.ID
+	return r.db.Save(project).Error
+}

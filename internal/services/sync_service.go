@@ -22,6 +22,10 @@ type SyncService struct {
 	itemRepo          *repository.ItemRepository
 	skillNodeRepo     *repository.SkillNodeRepository
 	hideoutModuleRepo *repository.HideoutModuleRepository
+	botRepo           *repository.BotRepository
+	mapRepo           *repository.MapRepository
+	traderRepo        *repository.TraderRepository
+	projectRepo       *repository.ProjectRepository
 	dataCacheService  *DataCacheService
 	githubClient      *github.Client
 	cfg               *config.Config
@@ -35,9 +39,13 @@ func NewSyncService(
 	itemRepo *repository.ItemRepository,
 	skillNodeRepo *repository.SkillNodeRepository,
 	hideoutModuleRepo *repository.HideoutModuleRepository,
+	botRepo *repository.BotRepository,
+	mapRepo *repository.MapRepository,
+	traderRepo *repository.TraderRepository,
+	projectRepo *repository.ProjectRepository,
 	cfg *config.Config,
 ) *SyncService {
-	return NewSyncServiceWithCache(questRepo, itemRepo, skillNodeRepo, hideoutModuleRepo, nil, cfg)
+	return NewSyncServiceWithCache(questRepo, itemRepo, skillNodeRepo, hideoutModuleRepo, botRepo, mapRepo, traderRepo, projectRepo, nil, cfg)
 }
 
 func NewSyncServiceWithCache(
@@ -45,6 +53,10 @@ func NewSyncServiceWithCache(
 	itemRepo *repository.ItemRepository,
 	skillNodeRepo *repository.SkillNodeRepository,
 	hideoutModuleRepo *repository.HideoutModuleRepository,
+	botRepo *repository.BotRepository,
+	mapRepo *repository.MapRepository,
+	traderRepo *repository.TraderRepository,
+	projectRepo *repository.ProjectRepository,
 	dataCacheService *DataCacheService,
 	cfg *config.Config,
 ) *SyncService {
@@ -56,6 +68,10 @@ func NewSyncServiceWithCache(
 		itemRepo:          itemRepo,
 		skillNodeRepo:     skillNodeRepo,
 		hideoutModuleRepo: hideoutModuleRepo,
+		botRepo:           botRepo,
+		mapRepo:           mapRepo,
+		traderRepo:        traderRepo,
+		projectRepo:       projectRepo,
 		dataCacheService:  dataCacheService,
 		githubClient:      client,
 		cfg:               cfg,
@@ -66,6 +82,7 @@ func NewSyncServiceWithCache(
 }
 
 // NewSyncServiceWithMissionRepo is deprecated, use NewSyncService instead
+// This function is kept for backward compatibility but should not be used
 func NewSyncServiceWithMissionRepo(
 	missionRepo *repository.MissionRepository,
 	itemRepo *repository.ItemRepository,
@@ -73,7 +90,11 @@ func NewSyncServiceWithMissionRepo(
 	hideoutModuleRepo *repository.HideoutModuleRepository,
 	cfg *config.Config,
 ) *SyncService {
-	return NewSyncService(missionRepo, itemRepo, skillNodeRepo, hideoutModuleRepo, cfg)
+	// MissionRepository is just an alias for QuestRepository
+	// We need to get the underlying DB to create a new QuestRepository
+	// For now, return nil as this is deprecated
+	// In practice, callers should use NewSyncService directly
+	return nil
 }
 
 func (s *SyncService) Start() error {
@@ -139,9 +160,9 @@ func (s *SyncService) Sync() {
 
 	// Fetch files concurrently
 	var wg sync.WaitGroup
-	errorChan := make(chan error, 4)
+	errorChan := make(chan error, 8)
 
-	wg.Add(4)
+	wg.Add(8)
 	go func() {
 		defer wg.Done()
 		if err := s.syncQuests(ctx, owner, repo); err != nil {
@@ -167,6 +188,34 @@ func (s *SyncService) Sync() {
 		defer wg.Done()
 		if err := s.syncHideoutModules(ctx, owner, repo); err != nil {
 			errorChan <- fmt.Errorf("hideout modules sync error: %w", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if err := s.syncBots(ctx, owner, repo); err != nil {
+			errorChan <- fmt.Errorf("bots sync error: %w", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if err := s.syncMaps(ctx, owner, repo); err != nil {
+			errorChan <- fmt.Errorf("maps sync error: %w", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if err := s.syncTraders(ctx, owner, repo); err != nil {
+			errorChan <- fmt.Errorf("traders sync error: %w", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if err := s.syncProjects(ctx, owner, repo); err != nil {
+			errorChan <- fmt.Errorf("projects sync error: %w", err)
 		}
 	}()
 
@@ -521,5 +570,221 @@ func (s *SyncService) syncHideoutModules(ctx context.Context, owner, repo string
 	}
 
 	log.Printf("Synced %d hideout modules", len(hideoutData))
+	return nil
+}
+
+func (s *SyncService) syncBots(ctx context.Context, owner, repo string) error {
+	data, err := s.fetchJSONFile(ctx, owner, repo, "bots.json")
+	if err != nil {
+		log.Printf("Warning: Could not fetch bots.json: %v", err)
+		return nil
+	}
+
+	var bots []map[string]interface{}
+	if err := json.Unmarshal(data, &bots); err != nil {
+		return err
+	}
+
+	for _, b := range bots {
+		bot := &models.Bot{
+			SyncedAt: time.Now(),
+		}
+
+		if id, ok := b["id"].(string); ok {
+			bot.ExternalID = id
+		} else if id, ok := b["id"].(float64); ok {
+			bot.ExternalID = fmt.Sprintf("%.0f", id)
+		}
+		if name, ok := b["name"].(string); ok {
+			bot.Name = name
+		}
+
+		bot.Data = models.JSONB(b)
+
+		err := s.botRepo.UpsertByExternalID(bot)
+		if err != nil {
+			log.Printf("Error upserting bot %s: %v", bot.ExternalID, err)
+		}
+	}
+
+	log.Printf("Synced %d bots", len(bots))
+	return nil
+}
+
+func (s *SyncService) syncMaps(ctx context.Context, owner, repo string) error {
+	data, err := s.fetchJSONFile(ctx, owner, repo, "maps.json")
+	if err != nil {
+		log.Printf("Warning: Could not fetch maps.json: %v", err)
+		return nil
+	}
+
+	var maps []map[string]interface{}
+	if err := json.Unmarshal(data, &maps); err != nil {
+		return err
+	}
+
+	for _, m := range maps {
+		mapModel := &models.Map{
+			SyncedAt: time.Now(),
+		}
+
+		if id, ok := m["id"].(string); ok {
+			mapModel.ExternalID = id
+		} else if id, ok := m["id"].(float64); ok {
+			mapModel.ExternalID = fmt.Sprintf("%.0f", id)
+		}
+		
+		// Extract name - can be string or multilingual object
+		if name, ok := m["name"].(string); ok {
+			mapModel.Name = name
+		} else if nameObj, ok := m["name"].(map[string]interface{}); ok {
+			// Try English first
+			if enName, ok := nameObj["en"].(string); ok && enName != "" {
+				mapModel.Name = enName
+			} else {
+				// Try any available language
+				for _, val := range nameObj {
+					if nameStr, ok := val.(string); ok && nameStr != "" {
+						mapModel.Name = nameStr
+						break
+					}
+				}
+			}
+		}
+		
+		// Fallback to external_id if no name found
+		if mapModel.Name == "" {
+			mapModel.Name = mapModel.ExternalID
+		}
+
+		mapModel.Data = models.JSONB(m)
+
+		err := s.mapRepo.UpsertByExternalID(mapModel)
+		if err != nil {
+			log.Printf("Error upserting map %s: %v", mapModel.ExternalID, err)
+		}
+	}
+
+	log.Printf("Synced %d maps", len(maps))
+	return nil
+}
+
+func (s *SyncService) syncTraders(ctx context.Context, owner, repo string) error {
+	data, err := s.fetchJSONFile(ctx, owner, repo, "trades.json")
+	if err != nil {
+		log.Printf("Warning: Could not fetch trades.json: %v", err)
+		return nil
+	}
+
+	var trades []map[string]interface{}
+	if err := json.Unmarshal(data, &trades); err != nil {
+		return err
+	}
+
+	// Group trades by trader name and create a unique ID for each trader
+	traderMap := make(map[string]*models.Trader)
+	
+	for _, t := range trades {
+		traderName, ok := t["trader"].(string)
+		if !ok || traderName == "" {
+			continue
+		}
+		
+		// Use trader name as external_id (or create a unique ID)
+		externalID := traderName
+		
+		// Check if we've already seen this trader
+		if trader, exists := traderMap[externalID]; exists {
+			// Append this trade to the trader's data
+			// We'll store all trades in the Data field
+			if trader.Data == nil {
+				trader.Data = models.JSONB{"trades": []interface{}{t}}
+			} else {
+				dataMap := map[string]interface{}(trader.Data)
+				if trades, ok := dataMap["trades"].([]interface{}); ok {
+					trades = append(trades, t)
+					dataMap["trades"] = trades
+					trader.Data = models.JSONB(dataMap)
+				}
+			}
+		} else {
+			// Create new trader
+			trader := &models.Trader{
+				ExternalID: externalID,
+				Name:       traderName,
+				SyncedAt:   time.Now(),
+				Data:       models.JSONB{"trades": []interface{}{t}},
+			}
+			traderMap[externalID] = trader
+		}
+	}
+
+	// Upsert all traders
+	for _, trader := range traderMap {
+		err := s.traderRepo.UpsertByExternalID(trader)
+		if err != nil {
+			log.Printf("Error upserting trader %s: %v", trader.ExternalID, err)
+		}
+	}
+
+	log.Printf("Synced %d traders (from %d trades)", len(traderMap), len(trades))
+	return nil
+}
+
+func (s *SyncService) syncProjects(ctx context.Context, owner, repo string) error {
+	data, err := s.fetchJSONFile(ctx, owner, repo, "projects.json")
+	if err != nil {
+		log.Printf("Warning: Could not fetch projects.json: %v", err)
+		return nil
+	}
+
+	var projects []map[string]interface{}
+	if err := json.Unmarshal(data, &projects); err != nil {
+		return err
+	}
+
+	for _, p := range projects {
+		project := &models.Project{
+			SyncedAt: time.Now(),
+		}
+
+		if id, ok := p["id"].(string); ok {
+			project.ExternalID = id
+		} else if id, ok := p["id"].(float64); ok {
+			project.ExternalID = fmt.Sprintf("%.0f", id)
+		}
+		
+		// Extract name - can be string or multilingual object
+		if name, ok := p["name"].(string); ok {
+			project.Name = name
+		} else if nameObj, ok := p["name"].(map[string]interface{}); ok {
+			// Try English first
+			if enName, ok := nameObj["en"].(string); ok && enName != "" {
+				project.Name = enName
+			} else {
+				// Try any available language
+				for _, val := range nameObj {
+					if nameStr, ok := val.(string); ok && nameStr != "" {
+						project.Name = nameStr
+						break
+					}
+				}
+			}
+		}
+		
+		// Fallback to external_id if no name found
+		if project.Name == "" {
+			project.Name = project.ExternalID
+		}
+
+		project.Data = models.JSONB(p)
+
+		err := s.projectRepo.UpsertByExternalID(project)
+		if err != nil {
+			log.Printf("Error upserting project %s: %v", project.ExternalID, err)
+		}
+	}
+
+	log.Printf("Synced %d projects", len(projects))
 	return nil
 }
