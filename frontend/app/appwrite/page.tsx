@@ -99,7 +99,8 @@ export default function AppwritePage() {
       // Try multiple times with increasing delays to catch the session
       const checkSession = async (attempt = 0) => {
         try {
-          const session = await getAppwriteSession();
+          // Force refresh after OAuth to get the new session
+          const session = await getAppwriteSession(true);
           if (session) {
             setAppwriteUser(session);
             await loadCounts();
@@ -107,13 +108,13 @@ export default function AppwritePage() {
           }
           // If no session yet and we haven't tried too many times, try again
           if (attempt < 5) {
-            setTimeout(() => checkSession(attempt + 1), 500 * (attempt + 1));
+            setTimeout(() => checkSession(attempt + 1), 1000 * (attempt + 1)); // Increased delay
           }
         } catch (err) {
           console.error("Failed to get Appwrite session after OAuth:", err);
           // Retry on error
           if (attempt < 5) {
-            setTimeout(() => checkSession(attempt + 1), 500 * (attempt + 1));
+            setTimeout(() => checkSession(attempt + 1), 1000 * (attempt + 1)); // Increased delay
           }
         }
       };
@@ -124,7 +125,8 @@ export default function AppwritePage() {
     }
   }, [isAuthenticated, enabled]);
 
-  // Track Appwrite user session
+  // Check Appwrite session on mount and when page becomes visible
+  // The SDK handles session automatically via cookies, we only check for UI state
   useEffect(() => {
     if (!enabled) {
       setAppwriteUser(null);
@@ -132,14 +134,16 @@ export default function AppwritePage() {
     }
 
     let mounted = true;
-    const trackAppwriteUser = async () => {
+
+    const checkSession = async () => {
+      if (!mounted) return;
+
       try {
-        const session = await getAppwriteSession();
+        const session = await getAppwriteSession(true);
         if (mounted) {
           setAppwriteUser(session);
         }
       } catch (err) {
-        // Only set to null if we're sure there's no session
         // Don't log errors for unauthenticated state
         if (mounted) {
           setAppwriteUser(null);
@@ -147,14 +151,20 @@ export default function AppwritePage() {
       }
     };
 
-    // Check immediately
-    trackAppwriteUser();
-    // Then poll every 3 seconds
-    const interval = setInterval(trackAppwriteUser, 3000);
+    // Check immediately on mount
+    checkSession();
+
+    // Optionally refresh when page becomes visible (user might have logged in another tab)
+    const handleVisibilityChange = () => {
+      if (!document.hidden && mounted) {
+        checkSession();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       mounted = false;
-      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [enabled]);
 
@@ -189,7 +199,7 @@ export default function AppwritePage() {
     setAppwriteAuthLoading(true);
     try {
       await signOutOfAppwrite();
-      setAppwriteUser(null);
+      setAppwriteUser(null); // Update UI immediately
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

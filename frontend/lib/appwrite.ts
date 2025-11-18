@@ -1,4 +1,4 @@
-import { Client, Databases, Account, ID, Query } from 'appwrite';
+import { Client, Databases, Account, Graphql, ID, Query } from 'appwrite';
 import type {
   Quest,
   Item,
@@ -101,8 +101,9 @@ const getAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
 let appwriteClient: Client | null = null;
 let databases: Databases | null = null;
 let account: Account | null = null;
+let graphql: Graphql | null = null;
 
-export const getAppwriteClient = async (): Promise<{ client: Client; databases: Databases; account: Account } | null> => {
+export const getAppwriteClient = async (): Promise<{ client: Client; databases: Databases; account: Account; graphql: Graphql } | null> => {
   const { endpoint, projectId, enabled } = await getAppwriteConfig();
 
   if (!enabled || !endpoint || !projectId) {
@@ -122,9 +123,10 @@ export const getAppwriteClient = async (): Promise<{ client: Client; databases: 
     
     databases = new Databases(appwriteClient);
     account = new Account(appwriteClient);
+    graphql = new Graphql(appwriteClient);
   }
 
-  return { client: appwriteClient, databases: databases!, account: account! };
+  return { client: appwriteClient, databases: databases!, account: account!, graphql: graphql! };
 };
 
 // Check if Appwrite is enabled (async version)
@@ -153,23 +155,45 @@ export const signOutOfAppwrite = async (): Promise<void> => {
   }
   try {
     await appwrite.account.deleteSession('current');
+    // Clear session cache after logout
+    clearAppwriteSessionCache();
   } catch (error) {
     // Ignore errors if not logged in
     console.warn('Appwrite sign out error:', error);
+    // Still clear cache even if API call fails
+    clearAppwriteSessionCache();
   }
 };
 
-export const getAppwriteSession = async (): Promise<any | null> => {
+// Cache for session to prevent excessive API calls
+let sessionCache: { session: any | null; timestamp: number } | null = null;
+const SESSION_CACHE_DURATION = 30000; // 30 seconds cache
+
+export const getAppwriteSession = async (forceRefresh = false): Promise<any | null> => {
+  // Return cached session if still valid and not forcing refresh
+  if (!forceRefresh && sessionCache && Date.now() - sessionCache.timestamp < SESSION_CACHE_DURATION) {
+    return sessionCache.session;
+  }
+
   const appwrite = await getAppwriteClient();
   if (!appwrite) {
+    sessionCache = { session: null, timestamp: Date.now() };
     return null;
   }
   try {
     const session = await appwrite.account.get();
+    sessionCache = { session, timestamp: Date.now() };
     return session;
   } catch (error) {
+    // Cache null result to avoid repeated failed requests
+    sessionCache = { session: null, timestamp: Date.now() };
     return null;
   }
+};
+
+// Clear session cache (useful after logout or login)
+export const clearAppwriteSessionCache = (): void => {
+  sessionCache = null;
 };
 
 // OAuth methods for Appwrite
@@ -217,13 +241,16 @@ export const loginWithDiscord = async (): Promise<void> => {
 // Appwrite service for syncing data
 class AppwriteService {
   private databases: Databases | null = null;
-  private databasesPromise: Promise<Databases | null> | null = null;
+  private graphql: Graphql | null = null;
+  private databasesPromise: Promise<{ databases: Databases | null; graphql: Graphql | null } | null> | null = null;
+  private useGraphQL: boolean = true; // Toggle to use GraphQL or REST API
 
   constructor() {
-    // Initialize databases asynchronously
+    // Initialize databases and GraphQL asynchronously
     this.databasesPromise = getAppwriteClient().then((appwrite) => {
       this.databases = appwrite?.databases || null;
-      return this.databases;
+      this.graphql = appwrite?.graphql || null;
+      return { databases: this.databases, graphql: this.graphql };
     });
   }
 
@@ -232,13 +259,33 @@ class AppwriteService {
       return this.databases;
     }
     if (this.databasesPromise) {
-      return await this.databasesPromise;
+      const result = await this.databasesPromise;
+      return result?.databases || null;
     }
     this.databasesPromise = getAppwriteClient().then((appwrite) => {
       this.databases = appwrite?.databases || null;
-      return this.databases;
+      this.graphql = appwrite?.graphql || null;
+      return { databases: this.databases, graphql: this.graphql };
     });
-    return await this.databasesPromise;
+    const result = await this.databasesPromise;
+    return result?.databases || null;
+  }
+
+  private async ensureGraphQL(): Promise<Graphql | null> {
+    if (this.graphql) {
+      return this.graphql;
+    }
+    if (this.databasesPromise) {
+      const result = await this.databasesPromise;
+      return result?.graphql || null;
+    }
+    this.databasesPromise = getAppwriteClient().then((appwrite) => {
+      this.databases = appwrite?.databases || null;
+      this.graphql = appwrite?.graphql || null;
+      return { databases: this.databases, graphql: this.graphql };
+    });
+    const result = await this.databasesPromise;
+    return result?.graphql || null;
   }
 
   // Helper to log errors silently
@@ -1040,6 +1087,17 @@ class AppwriteService {
   }
 
   async getItems(limit?: number): Promise<Item[]> {
+    // Try GraphQL first if enabled
+    if (this.useGraphQL) {
+      try {
+        return await this.getItemsGraphQL(limit);
+      } catch (error) {
+        console.warn('GraphQL query failed, falling back to REST API:', error);
+        // Fall back to REST API
+      }
+    }
+
+    // REST API fallback
     const databases = await this.ensureDatabases();
     if (!databases) return [];
     try {
@@ -1059,12 +1117,155 @@ class AppwriteService {
       }
       
       // Otherwise, fetch all records using pagination
-      // Remove ordering to avoid potential issues, or use a more reliable field
       return await this.fetchAllDocuments(databaseId, 'items', (doc) => this.documentToItem(doc));
     } catch (error) {
       this.logError('getItems', error);
       return [];
     }
+  }
+
+  // GraphQL-based method to fetch items
+  private async getItemsGraphQL(limit?: number): Promise<Item[]> {
+    const graphql = await this.ensureGraphQL();
+    if (!graphql) {
+      throw new Error('GraphQL not available');
+    }
+
+    const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      throw new Error('Database ID not configured');
+    }
+
+    // Build GraphQL query - Appwrite GraphQL uses different field names
+    // Try to fetch all items in one query if possible, or paginate
+    const query = limit && limit <= 100
+      ? `
+        query GetItems($databaseId: String!, $collectionId: String!, $limit: Int!) {
+          databasesListDocuments(
+            databaseId: $databaseId
+            collectionId: $collectionId
+            limit: $limit
+          ) {
+            total
+            documents {
+              _id
+              _createdAt
+              _updatedAt
+              external_id
+              name
+              description
+              type
+              image_url
+              image_filename
+              data
+              synced_at
+              created_at
+              updated_at
+            }
+          }
+        }
+      `
+      : `
+        query GetItems($databaseId: String!, $collectionId: String!, $limit: Int!, $offset: Int!) {
+          databasesListDocuments(
+            databaseId: $databaseId
+            collectionId: $collectionId
+            limit: $limit
+            offset: $offset
+          ) {
+            total
+            documents {
+              _id
+              _createdAt
+              _updatedAt
+              external_id
+              name
+              description
+              type
+              image_url
+              image_filename
+              data
+              synced_at
+              created_at
+              updated_at
+            }
+          }
+        }
+      `;
+
+    const allItems: Item[] = [];
+    const pageLimit = 100; // Appwrite GraphQL still has limits per request
+    let offset = 0;
+    let total = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const variables: any = {
+          databaseId,
+          collectionId: 'items',
+          limit: pageLimit,
+        };
+        
+        if (offset > 0 || (!limit || limit > 100)) {
+          variables.offset = offset;
+        }
+
+        const response = await graphql.query({
+          query,
+          variables,
+        }) as any; // Appwrite GraphQL response type is not fully typed
+
+        // Handle different possible response structures
+        const result = response.data?.databasesListDocuments || 
+                      response.databasesListDocuments ||
+                      response.data;
+        
+        if (!result || !result.documents) {
+          // Try alternative response structure
+          const altResult = (response as any).databases?.listDocuments;
+          if (!altResult) {
+            throw new Error('Invalid GraphQL response structure');
+          }
+          const documents = altResult.documents || [];
+          allItems.push(...documents.map((doc: any) => this.documentToItem(doc)));
+          total = altResult.total || documents.length;
+          hasMore = false;
+          break;
+        }
+
+        if (offset === 0) {
+          total = result.total || 0;
+        }
+
+        const documents = result.documents || [];
+        allItems.push(...documents.map((doc: any) => this.documentToItem(doc)));
+
+        // Check if we've fetched all documents
+        if (total > 0 && allItems.length >= total) {
+          hasMore = false;
+        } else if (documents.length === 0) {
+          hasMore = false;
+        } else if (limit && allItems.length >= limit) {
+          hasMore = false;
+        } else {
+          offset += documents.length;
+        }
+      } catch (error: any) {
+        // If it's a schema error, the GraphQL API might not be available or have different structure
+        if (error?.message?.includes('Unknown type') || error?.message?.includes('Cannot query field')) {
+          throw new Error('GraphQL schema mismatch - falling back to REST API');
+        }
+        this.logError('getItemsGraphQL', error);
+        throw error; // Re-throw to trigger REST API fallback
+      }
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`GraphQL: Fetched ${allItems.length} items${total > 0 ? ` (total: ${total})` : ''}`);
+    }
+
+    return limit ? allItems.slice(0, limit) : allItems;
   }
 
   async getSkillNodes(limit?: number): Promise<SkillNode[]> {
