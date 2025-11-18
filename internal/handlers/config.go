@@ -30,19 +30,27 @@ func (h *ConfigHandler) GetFrontendConfig(c *gin.Context) {
 	if appwriteDatabaseID == "" {
 		appwriteDatabaseID = os.Getenv("NEXT_PUBLIC_APPWRITE_DATABASE_ID")
 	}
-	if appwriteDatabaseID == "" {
-		appwriteDatabaseID = "arcapi" // Default
+	// Note: databaseId should be the actual Appwrite database ID (not the name)
+	// The database ID is a unique identifier found in the Appwrite console
+	// No default value - must be explicitly configured
+
+	// GraphQL is enabled by default in Appwrite, but can be disabled via env var
+	appwriteGraphQLEnabled := os.Getenv("APPWRITE_GRAPHQL_ENABLED")
+	if appwriteGraphQLEnabled == "" {
+		appwriteGraphQLEnabled = os.Getenv("NEXT_PUBLIC_APPWRITE_GRAPHQL_ENABLED")
 	}
-	
+	// Default to true if not specified (GraphQL is enabled by default in Appwrite)
+	graphqlEnabled := appwriteGraphQLEnabled == "" || appwriteGraphQLEnabled == "true"
+
 	config := gin.H{
 		"appwrite": gin.H{
-			"enabled":   appwriteEnabled && appwriteEndpoint != "" && appwriteProjectID != "",
-			"endpoint":  appwriteEndpoint,
-			"projectId": appwriteProjectID,
-			"databaseId": appwriteDatabaseID,
+			"enabled":        appwriteEnabled && appwriteEndpoint != "" && appwriteProjectID != "",
+			"endpoint":       appwriteEndpoint,
+			"projectId":      appwriteProjectID,
+			"databaseId":     appwriteDatabaseID,
+			"graphqlEnabled": graphqlEnabled,
 		},
 	}
 
 	c.JSON(http.StatusOK, config)
 }
-

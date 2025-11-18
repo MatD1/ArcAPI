@@ -6,7 +6,17 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuthStore } from '@/store/authStore';
 import { apiClient, getErrorMessage } from '@/lib/api';
 
-type ExportType = 'quests' | 'items' | 'skillNodes' | 'hideoutModules' | 'enemyTypes' | 'alerts';
+type ExportType =
+  | 'quests'
+  | 'items'
+  | 'skillNodes'
+  | 'hideoutModules'
+  | 'enemyTypes'
+  | 'alerts'
+  | 'bots'
+  | 'maps'
+  | 'repoTraders'
+  | 'projects';
 
 export default function ExportPage() {
   const router = useRouter();
@@ -33,6 +43,10 @@ export default function ExportPage() {
     hideoutModules: 'Hideout Modules',
     enemyTypes: 'Enemy Types',
     alerts: 'Alerts',
+    bots: 'Bots',
+    maps: 'Maps',
+    repoTraders: 'Traders',
+    projects: 'Projects',
   };
 
   const handleExport = async (type: ExportType) => {
@@ -60,11 +74,22 @@ export default function ExportPage() {
   };
 
   const handleExportAll = async () => {
-    if (!confirm('This will download 6 CSV files. Continue?')) {
+    if (!confirm('This will download 10 CSV files. Continue?')) {
       return;
     }
 
-    const types: ExportType[] = ['quests', 'items', 'skillNodes', 'hideoutModules', 'enemyTypes', 'alerts'];
+    const types: ExportType[] = [
+      'quests',
+      'items',
+      'skillNodes',
+      'hideoutModules',
+      'enemyTypes',
+      'alerts',
+      'bots',
+      'maps',
+      'repoTraders',
+      'projects',
+    ];
     
     for (const type of types) {
       try {

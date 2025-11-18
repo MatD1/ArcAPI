@@ -433,6 +433,35 @@ class APIClient {
     return response.data;
   }
 
+  // GitHub Data (Bots, Maps, Traders, Projects) - Now from database
+  async getBots(offset = 0, limit = 20): Promise<PaginatedResponse<any>> {
+    const response = await this.client.get('/bots', {
+      params: { offset, limit },
+    });
+    return response.data;
+  }
+
+  async getMaps(offset = 0, limit = 20): Promise<PaginatedResponse<any>> {
+    const response = await this.client.get('/maps', {
+      params: { offset, limit },
+    });
+    return response.data;
+  }
+
+  async getTraders(offset = 0, limit = 20): Promise<PaginatedResponse<any>> {
+    const response = await this.client.get('/repo-traders', {
+      params: { offset, limit },
+    });
+    return response.data;
+  }
+
+  async getProjects(offset = 0, limit = 20): Promise<PaginatedResponse<any>> {
+    const response = await this.client.get('/projects', {
+      params: { offset, limit },
+    });
+    return response.data;
+  }
+
   async getAlert(id: number): Promise<Alert> {
     const response = await this.client.get<Alert>(`/alerts/${id}`);
     return response.data;
@@ -673,27 +702,28 @@ class APIClient {
   }
 
   // Appwrite Management
-  async getAppwriteQuests(limit = 100): Promise<Quest[]> {
+  // Fetch all Appwrite records (no limit) or specify a limit
+  async getAppwriteQuests(limit?: number): Promise<Quest[]> {
     return appwriteService.getQuests(limit);
   }
 
-  async getAppwriteItems(limit = 100): Promise<Item[]> {
+  async getAppwriteItems(limit?: number): Promise<Item[]> {
     return appwriteService.getItems(limit);
   }
 
-  async getAppwriteSkillNodes(limit = 100): Promise<SkillNode[]> {
+  async getAppwriteSkillNodes(limit?: number): Promise<SkillNode[]> {
     return appwriteService.getSkillNodes(limit);
   }
 
-  async getAppwriteHideoutModules(limit = 100): Promise<HideoutModule[]> {
+  async getAppwriteHideoutModules(limit?: number): Promise<HideoutModule[]> {
     return appwriteService.getHideoutModules(limit);
   }
 
-  async getAppwriteEnemyTypes(limit = 100): Promise<EnemyType[]> {
+  async getAppwriteEnemyTypes(limit?: number): Promise<EnemyType[]> {
     return appwriteService.getEnemyTypes(limit);
   }
 
-  async getAppwriteAlerts(limit = 100): Promise<Alert[]> {
+  async getAppwriteAlerts(limit?: number): Promise<Alert[]> {
     return appwriteService.getAlerts(limit);
   }
 
@@ -1013,7 +1043,19 @@ class APIClient {
   }
 
   // Data Export (CSV) - Admin only
-  async exportData(type: 'quests' | 'items' | 'skillNodes' | 'hideoutModules' | 'enemyTypes' | 'alerts'): Promise<string> {
+  async exportData(
+    type:
+      | 'quests'
+      | 'items'
+      | 'skillNodes'
+      | 'hideoutModules'
+      | 'enemyTypes'
+      | 'alerts'
+      | 'bots'
+      | 'maps'
+      | 'repoTraders'
+      | 'projects',
+  ): Promise<string> {
     const endpointMap: Record<string, string> = {
       quests: '/admin/export/quests',
       items: '/admin/export/items',
@@ -1021,6 +1063,10 @@ class APIClient {
       hideoutModules: '/admin/export/hideout-modules',
       enemyTypes: '/admin/export/enemy-types',
       alerts: '/admin/export/alerts',
+      bots: '/admin/export/bots',
+      maps: '/admin/export/maps',
+      repoTraders: '/admin/export/traders',
+      projects: '/admin/export/projects',
     };
 
     const endpoint = endpointMap[type];

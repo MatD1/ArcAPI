@@ -65,7 +65,10 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		&models.UserBlueprintProgress{},
 		&models.AuthorizationCode{},
 		&models.RefreshToken{},
-
+		&models.Bot{},
+		&models.Map{},
+		&models.Trader{},
+		&models.Project{},
 	)
 	if err != nil {
 		return nil, err

@@ -62,6 +62,10 @@ func main() {
 	hideoutModuleProgressRepo := repository.NewUserHideoutModuleProgressRepository(db)
 	skillNodeProgressRepo := repository.NewUserSkillNodeProgressRepository(db)
 	blueprintProgressRepo := repository.NewUserBlueprintProgressRepository(db)
+	botRepo := repository.NewBotRepository(db)
+	mapRepo := repository.NewMapRepository(db)
+	traderRepo := repository.NewTraderRepository(db)
+	projectRepo := repository.NewProjectRepository(db)
 
 	// Initialize services
 	authCodeRepo := repository.NewAuthorizationCodeRepository(db)
@@ -85,6 +89,10 @@ func main() {
 			itemRepo,
 			skillNodeRepo,
 			hideoutModuleRepo,
+			botRepo,
+			mapRepo,
+			traderRepo,
+			projectRepo,
 			dataCacheService,
 			cfg,
 		)
@@ -94,6 +102,10 @@ func main() {
 			itemRepo,
 			skillNodeRepo,
 			hideoutModuleRepo,
+			botRepo,
+			mapRepo,
+			traderRepo,
+			projectRepo,
 			cfg,
 		)
 	}
@@ -111,6 +123,7 @@ func main() {
 		tradersService.Start()
 		log.Println("Traders service started - will refresh every 15 minutes")
 	}
+
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
@@ -134,6 +147,10 @@ func main() {
 	hideoutModuleHandler := handlers.NewHideoutModuleHandler(hideoutModuleRepo)
 	enemyTypeHandler := handlers.NewEnemyTypeHandler(enemyTypeRepo)
 	alertHandler := handlers.NewAlertHandler(alertRepo)
+	botHandler := handlers.NewBotHandler(botRepo)
+	mapHandler := handlers.NewMapHandler(mapRepo)
+	traderHandler := handlers.NewTraderHandler(traderRepo)
+	projectHandler := handlers.NewProjectHandler(projectRepo)
 	var tradersHandler *handlers.TradersHandler
 	if tradersService != nil {
 		tradersHandler = handlers.NewTradersHandler(tradersService)
@@ -165,6 +182,10 @@ func main() {
 		hideoutModuleRepo,
 		enemyTypeRepo,
 		alertRepo,
+		botRepo,
+		mapRepo,
+		traderRepo,
+		projectRepo,
 	)
 
 	// Setup router
@@ -241,6 +262,15 @@ func main() {
 			if tradersHandler != nil {
 				readOnly.GET("/traders", tradersHandler.GetTraders)
 			}
+			// Bots, Maps, Traders (repo), Projects - Read from database
+			readOnly.GET("/bots", botHandler.List)
+			readOnly.GET("/bots/:id", botHandler.Get)
+			readOnly.GET("/maps", mapHandler.List)
+			readOnly.GET("/maps/:id", mapHandler.Get)
+			readOnly.GET("/repo-traders", traderHandler.List)
+			readOnly.GET("/repo-traders/:id", traderHandler.Get)
+			readOnly.GET("/projects", projectHandler.List)
+			readOnly.GET("/projects/:id", projectHandler.Get)
 		}
 
 		// Progress routes (basic users can read and update their own progress)
@@ -327,6 +357,10 @@ func main() {
 				admin.GET("/export/hideout-modules", exportHandler.ExportHideoutModules)
 				admin.GET("/export/enemy-types", exportHandler.ExportEnemyTypes)
 				admin.GET("/export/alerts", exportHandler.ExportAlerts)
+				admin.GET("/export/bots", exportHandler.ExportBots)
+				admin.GET("/export/maps", exportHandler.ExportMaps)
+				admin.GET("/export/traders", exportHandler.ExportTraders)
+				admin.GET("/export/projects", exportHandler.ExportProjects)
 
 				// Admin Progress Management - View/Edit any user's progress
 				admin.GET("/users/:id/progress", progressHandler.GetAllUserProgress)

@@ -12,9 +12,9 @@ import type {
 let runtimeConfig: AppwriteConfigShape | null = null;
 let configLoadPromise: Promise<void> | null = null;
 
-type AppwriteConfigShape = { endpoint: string; projectId: string; enabled: boolean; databaseId?: string };
+type AppwriteConfigShape = { endpoint: string; projectId: string; enabled: boolean; databaseId?: string; graphqlEnabled?: boolean };
 
-const defaultConfig: AppwriteConfigShape = { endpoint: '', projectId: '', enabled: false, databaseId: 'arcapi' };
+const defaultConfig: AppwriteConfigShape = { endpoint: '', projectId: '', enabled: false, databaseId: '' };
 
 const loadStaticAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
   try {
@@ -25,7 +25,8 @@ const loadStaticAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
         enabled: data.enabled === true,
         endpoint: data.endpoint || '',
         projectId: data.projectId || '',
-        databaseId: data.databaseId || 'arcapi',
+        databaseId: data.databaseId || '',
+        graphqlEnabled: data.graphqlEnabled !== false, // Default to true
       };
     }
   } catch (error) {
@@ -58,7 +59,8 @@ const loadRuntimeConfig = async (): Promise<AppwriteConfigShape> => {
           enabled: data.appwrite?.enabled === true,
           endpoint: data.appwrite?.endpoint || '',
           projectId: data.appwrite?.projectId || '',
-          databaseId: data.appwrite?.databaseId || 'arcapi',
+          databaseId: data.appwrite?.databaseId || '',
+          graphqlEnabled: data.appwrite?.graphqlEnabled !== false, // Default to true if not specified
         };
       } else {
         runtimeConfig = await loadStaticAppwriteConfig();
@@ -72,7 +74,7 @@ const loadRuntimeConfig = async (): Promise<AppwriteConfigShape> => {
         enabled: process.env.NEXT_PUBLIC_APPWRITE_ENABLED === 'true',
         endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '',
         projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '',
-        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'arcapi',
+        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
       };
     }
   })();
@@ -89,11 +91,13 @@ const getAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
   }
   
   // Server-side or fallback: use build-time env vars
+  const graphqlEnabledEnv = process.env.NEXT_PUBLIC_APPWRITE_GRAPHQL_ENABLED;
   return {
     endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '',
     projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '',
     enabled: process.env.NEXT_PUBLIC_APPWRITE_ENABLED === 'true',
-    databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'arcapi',
+    databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
+    graphqlEnabled: graphqlEnabledEnv === undefined || graphqlEnabledEnv === 'true', // Default to true
   };
 };
 
@@ -102,7 +106,9 @@ let appwriteClient: Client | null = null;
 let databases: Databases | null = null;
 let account: Account | null = null;
 let graphql: Graphql | null = null;
+let graphql: Graphql | null = null;
 
+export const getAppwriteClient = async (): Promise<{ client: Client; databases: Databases; account: Account; graphql: Graphql } | null> => {
 export const getAppwriteClient = async (): Promise<{ client: Client; databases: Databases; account: Account; graphql: Graphql } | null> => {
   const { endpoint, projectId, enabled } = await getAppwriteConfig();
 
@@ -124,8 +130,10 @@ export const getAppwriteClient = async (): Promise<{ client: Client; databases: 
     databases = new Databases(appwriteClient);
     account = new Account(appwriteClient);
     graphql = new Graphql(appwriteClient);
+    graphql = new Graphql(appwriteClient);
   }
 
+  return { client: appwriteClient, databases: databases!, account: account!, graphql: graphql! };
   return { client: appwriteClient, databases: databases!, account: account!, graphql: graphql! };
 };
 
@@ -155,23 +163,87 @@ export const signOutOfAppwrite = async (): Promise<void> => {
   }
   try {
     await appwrite.account.deleteSession('current');
+    // Clear session cache after logout
+    clearAppwriteSessionCache();
   } catch (error) {
     // Ignore errors if not logged in
     console.warn('Appwrite sign out error:', error);
+    // Still clear cache even if API call fails
+    clearAppwriteSessionCache();
   }
 };
 
-export const getAppwriteSession = async (): Promise<any | null> => {
+// Cache for session to prevent excessive API calls
+let sessionCache: { session: any | null; timestamp: number } | null = null;
+const SESSION_CACHE_DURATION = 30000; // 30 seconds cache
+
+export const getAppwriteSession = async (forceRefresh = false): Promise<any | null> => {
+  // Return cached session if still valid and not forcing refresh
+  if (!forceRefresh && sessionCache && Date.now() - sessionCache.timestamp < SESSION_CACHE_DURATION) {
+    return sessionCache.session;
+  }
+
   const appwrite = await getAppwriteClient();
   if (!appwrite) {
+    sessionCache = { session: null, timestamp: Date.now() };
     return null;
   }
   try {
     const session = await appwrite.account.get();
+    sessionCache = { session, timestamp: Date.now() };
     return session;
   } catch (error) {
+    // Cache null result to avoid repeated failed requests
+    sessionCache = { session: null, timestamp: Date.now() };
     return null;
   }
+};
+
+// Clear session cache (useful after logout or login)
+export const clearAppwriteSessionCache = (): void => {
+  sessionCache = null;
+};
+
+// OAuth methods for Appwrite
+export const createOAuthSession = async (provider: 'github' | 'discord', successUrl: string, failureUrl: string): Promise<void> => {
+  const appwrite = await getAppwriteClient();
+  if (!appwrite) {
+    throw new Error('Appwrite is not enabled');
+  }
+  
+  try {
+    // createOAuth2Session redirects automatically, but we can also get the URL if needed
+    // For Appwrite SDK, this method will handle the redirect internally
+    // Type assertion needed as Appwrite SDK expects OAuthProvider type but it's not exported
+    await appwrite.account.createOAuth2Session(provider as any, successUrl, failureUrl);
+  } catch (error: any) {
+    console.error(`Appwrite OAuth ${provider} error:`, error);
+    throw new Error(`Failed to initiate ${provider} OAuth: ${error.message || 'Unknown error'}`);
+  }
+};
+
+export const loginWithGitHub = async (): Promise<void> => {
+  const successUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/appwrite?oauth=success`
+    : '/appwrite?oauth=success';
+  const failureUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/appwrite?oauth=failure`
+    : '/appwrite?oauth=failure';
+  
+  await createOAuthSession('github', successUrl, failureUrl);
+  // createOAuthSession will redirect automatically
+};
+
+export const loginWithDiscord = async (): Promise<void> => {
+  const successUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/appwrite?oauth=success`
+    : '/appwrite?oauth=success';
+  const failureUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/appwrite?oauth=failure`
+    : '/appwrite?oauth=failure';
+  
+  await createOAuthSession('discord', successUrl, failureUrl);
+  // createOAuthSession will redirect automatically
 };
 
 // Appwrite service for syncing data
@@ -549,11 +621,19 @@ class AppwriteService {
   // Can be set via runtime config from API or build-time env var
   private getDatabaseId(): string {
     // Try runtime config first (from API)
+    // Note: This should be the actual Appwrite database ID (not the name)
+    // The database ID is a unique identifier found in the Appwrite console
     if (runtimeConfig?.databaseId) {
       return runtimeConfig.databaseId;
     }
     // Fallback to build-time env var
-    return process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'arcapi';
+    // IMPORTANT: This should be the database ID, not the database name
+    // You can find the database ID in the Appwrite console under Database settings
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+    if (!dbId) {
+      console.warn('Appwrite database ID not configured. Please set NEXT_PUBLIC_APPWRITE_DATABASE_ID to the actual database ID from Appwrite console.');
+    }
+    return dbId || '';
   }
 
   // Quest operations
@@ -566,6 +646,10 @@ class AppwriteService {
     }
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping quest sync');
+      return;
+    }
     const collectionId = 'quests';
 
     try {
@@ -607,6 +691,10 @@ class AppwriteService {
     }
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping item sync');
+      return;
+    }
     const collectionId = 'items';
 
     const payload =
@@ -657,6 +745,10 @@ class AppwriteService {
     const payload = this.buildSkillNodePayload(skillNode);
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping skill node sync');
+      return;
+    }
     const collectionId = 'skill_nodes';
 
     try {
@@ -694,6 +786,10 @@ class AppwriteService {
     const payload = this.buildHideoutModulePayload(module);
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping hideout module sync');
+      return;
+    }
     const collectionId = 'hideout_modules';
 
     try {
@@ -730,6 +826,10 @@ class AppwriteService {
     }
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping enemy type sync');
+      return;
+    }
     const collectionId = 'enemy_types';
 
     const payload =
@@ -776,6 +876,10 @@ class AppwriteService {
     if (!databases) return;
 
     const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping alert sync');
+      return;
+    }
     const collectionId = 'alerts';
 
     try {
