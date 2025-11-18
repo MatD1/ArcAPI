@@ -1013,7 +1013,19 @@ class APIClient {
   }
 
   // Data Export (CSV) - Admin only
-  async exportData(type: 'quests' | 'items' | 'skillNodes' | 'hideoutModules' | 'enemyTypes' | 'alerts'): Promise<string> {
+  async exportData(
+    type:
+      | 'quests'
+      | 'items'
+      | 'skillNodes'
+      | 'hideoutModules'
+      | 'enemyTypes'
+      | 'alerts'
+      | 'bots'
+      | 'maps'
+      | 'repoTraders'
+      | 'projects',
+  ): Promise<string> {
     const endpointMap: Record<string, string> = {
       quests: '/admin/export/quests',
       items: '/admin/export/items',
@@ -1021,6 +1033,10 @@ class APIClient {
       hideoutModules: '/admin/export/hideout-modules',
       enemyTypes: '/admin/export/enemy-types',
       alerts: '/admin/export/alerts',
+      bots: '/admin/export/bots',
+      maps: '/admin/export/maps',
+      repoTraders: '/admin/export/traders',
+      projects: '/admin/export/projects',
     };
 
     const endpoint = endpointMap[type];

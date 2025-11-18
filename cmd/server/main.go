@@ -112,6 +112,10 @@ func main() {
 		log.Println("Traders service started - will refresh every 15 minutes")
 	}
 
+	// Initialize GitHub data service (for bots/maps/traders/projects)
+	githubDataService := services.NewGitHubDataService(cacheService)
+	githubDataHandler := handlers.NewGitHubDataHandler(githubDataService)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
 
@@ -165,6 +169,7 @@ func main() {
 		hideoutModuleRepo,
 		enemyTypeRepo,
 		alertRepo,
+		githubDataService,
 	)
 
 	// Setup router
@@ -240,6 +245,13 @@ func main() {
 			// Traders - Read (cached from external API)
 			if tradersHandler != nil {
 				readOnly.GET("/traders", tradersHandler.GetTraders)
+			}
+			dataGroup := readOnly.Group("/data")
+			{
+				dataGroup.GET("/bots", githubDataHandler.GetBots)
+				dataGroup.GET("/maps", githubDataHandler.GetMaps)
+				dataGroup.GET("/traders", githubDataHandler.GetTraders)
+				dataGroup.GET("/projects", githubDataHandler.GetProjects)
 			}
 		}
 
@@ -327,6 +339,10 @@ func main() {
 				admin.GET("/export/hideout-modules", exportHandler.ExportHideoutModules)
 				admin.GET("/export/enemy-types", exportHandler.ExportEnemyTypes)
 				admin.GET("/export/alerts", exportHandler.ExportAlerts)
+				admin.GET("/export/bots", exportHandler.ExportBots)
+				admin.GET("/export/maps", exportHandler.ExportMaps)
+				admin.GET("/export/traders", exportHandler.ExportTraders)
+				admin.GET("/export/projects", exportHandler.ExportProjects)
 
 				// Admin Progress Management - View/Edit any user's progress
 				admin.GET("/users/:id/progress", progressHandler.GetAllUserProgress)

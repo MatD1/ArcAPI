@@ -202,30 +202,62 @@ func (s *SyncService) fetchJSONFile(ctx context.Context, owner, repo, path strin
 	return decoded, nil
 }
 
-func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error {
-	// Fetch quests.json (in root of repo)
-	paths := []string{"quests.json"}
-
-	var data []byte
-	var err error
-	for _, path := range paths {
-		data, err = s.fetchJSONFile(ctx, owner, repo, path)
-		if err == nil {
-			break
-		}
+func (s *SyncService) loadJSONCollection(ctx context.Context, owner, repo, dir, fallback string) ([]map[string]interface{}, error) {
+	data, err := s.fetchDirectoryJSONs(ctx, owner, repo, dir)
+	if err == nil && len(data) > 0 {
+		return data, nil
 	}
-
+	if fallback == "" {
+		return nil, fmt.Errorf("no data found for %s", dir)
+	}
+	raw, err := s.fetchJSONFile(ctx, owner, repo, fallback)
 	if err != nil {
-		log.Printf("Warning: Could not fetch quests.json: %v", err)
-		return nil // Non-fatal
+		return nil, err
+	}
+	var arr []map[string]interface{}
+	if err := json.Unmarshal(raw, &arr); err != nil {
+		return nil, err
+	}
+	return arr, nil
+}
+
+func (s *SyncService) fetchDirectoryJSONs(ctx context.Context, owner, repo, dir string) ([]map[string]interface{}, error) {
+	contents, _, _, err := s.githubClient.Repositories.GetContents(ctx, owner, repo, dir, nil)
+	if err != nil {
+		return nil, err
+	}
+	var result []map[string]interface{}
+	for _, content := range contents {
+		if content.GetType() != "file" {
+			continue
+		}
+		path := fmt.Sprintf("%s/%s", dir, content.GetName())
+		raw, err := s.fetchJSONFile(ctx, owner, repo, path)
+		if err != nil {
+			log.Printf("Warning: Failed to load %s: %v", path, err)
+			continue
+		}
+		var decoded map[string]interface{}
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			log.Printf("Warning: Failed to parse %s: %v", path, err)
+			continue
+		}
+		result = append(result, decoded)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no files found in %s", dir)
+	}
+	return result, nil
+}
+
+func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error {
+	questsData, err := s.loadJSONCollection(ctx, owner, repo, "quests", "quests.json")
+	if err != nil {
+		log.Printf("Warning: Could not load quests data: %v", err)
+		return nil
 	}
 
-	var quests []map[string]interface{}
-	if err := json.Unmarshal(data, &quests); err != nil {
-		return err
-	}
-
-	for _, q := range quests {
+	for _, q := range questsData {
 		quest := &models.Quest{
 			SyncedAt: time.Now(),
 		}
@@ -265,7 +297,7 @@ func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error 
 		}
 	}
 
-	log.Printf("Synced %d quests from quests.json", len(quests))
+	log.Printf("Synced %d quests", len(questsData))
 
 	// Invalidate quests cache after sync
 	if s.dataCacheService != nil {
@@ -285,25 +317,10 @@ func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) erro
 }
 
 func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
-	paths := []string{"items.json"}
-
-	var data []byte
-	var err error
-	for _, path := range paths {
-		data, err = s.fetchJSONFile(ctx, owner, repo, path)
-		if err == nil {
-			break
-		}
-	}
-
+	itemsData, err := s.loadJSONCollection(ctx, owner, repo, "items", "items.json")
 	if err != nil {
-		log.Printf("Warning: Could not fetch items.json: %v", err)
+		log.Printf("Warning: Could not load items data: %v", err)
 		return nil
-	}
-
-	var items []map[string]interface{}
-	if err := json.Unmarshal(data, &items); err != nil {
-		return err
 	}
 
 	// Get the default branch - try to get repo info, fallback to "main"
@@ -316,7 +333,7 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 	// Base URL for GitHub raw content (free CDN via GitHub raw)
 	baseImageURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/images/items", owner, repo, branch)
 
-	for _, i := range items {
+	for _, i := range itemsData {
 		item := &models.Item{
 			SyncedAt: time.Now(),
 		}
@@ -373,7 +390,7 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 		}
 	}
 
-	log.Printf("Synced %d items", len(items))
+	log.Printf("Synced %d items", len(itemsData))
 
 	// Invalidate items cache after sync
 	if s.dataCacheService != nil {
@@ -463,28 +480,13 @@ func (s *SyncService) syncSkillNodes(ctx context.Context, owner, repo string) er
 }
 
 func (s *SyncService) syncHideoutModules(ctx context.Context, owner, repo string) error {
-	paths := []string{"hideoutModules.json"}
-
-	var data []byte
-	var err error
-	for _, path := range paths {
-		data, err = s.fetchJSONFile(ctx, owner, repo, path)
-		if err == nil {
-			break
-		}
-	}
-
+	hideoutData, err := s.loadJSONCollection(ctx, owner, repo, "hideout", "hideoutModules.json")
 	if err != nil {
-		log.Printf("Warning: Could not fetch hideoutModules.json: %v", err)
+		log.Printf("Warning: Could not load hideout modules data: %v", err)
 		return nil
 	}
 
-	var hideoutModules []map[string]interface{}
-	if err := json.Unmarshal(data, &hideoutModules); err != nil {
-		return err
-	}
-
-	for _, hm := range hideoutModules {
+	for _, hm := range hideoutData {
 		hideoutModule := &models.HideoutModule{
 			SyncedAt: time.Now(),
 		}
@@ -515,6 +517,6 @@ func (s *SyncService) syncHideoutModules(ctx context.Context, owner, repo string
 		}
 	}
 
-	log.Printf("Synced %d hideout modules", len(hideoutModules))
+	log.Printf("Synced %d hideout modules", len(hideoutData))
 	return nil
 }

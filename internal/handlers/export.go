@@ -11,15 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/repository"
+	"github.com/mat/arcapi/internal/services"
 )
 
 type ExportHandler struct {
-	questRepo           *repository.QuestRepository
-	itemRepo            *repository.ItemRepository
-	skillNodeRepo       *repository.SkillNodeRepository
-	hideoutModuleRepo   *repository.HideoutModuleRepository
-	enemyTypeRepo       *repository.EnemyTypeRepository
-	alertRepo           *repository.AlertRepository
+	questRepo         *repository.QuestRepository
+	itemRepo          *repository.ItemRepository
+	skillNodeRepo     *repository.SkillNodeRepository
+	hideoutModuleRepo *repository.HideoutModuleRepository
+	enemyTypeRepo     *repository.EnemyTypeRepository
+	alertRepo         *repository.AlertRepository
+	githubDataService *services.GitHubDataService
 }
 
 func NewExportHandler(
@@ -29,6 +31,7 @@ func NewExportHandler(
 	hideoutModuleRepo *repository.HideoutModuleRepository,
 	enemyTypeRepo *repository.EnemyTypeRepository,
 	alertRepo *repository.AlertRepository,
+	githubDataService *services.GitHubDataService,
 ) *ExportHandler {
 	return &ExportHandler{
 		questRepo:         questRepo,
@@ -38,6 +41,66 @@ func NewExportHandler(
 		enemyTypeRepo:     enemyTypeRepo,
 		alertRepo:         alertRepo,
 	}
+}
+
+func (h *ExportHandler) ExportBots(c *gin.Context) {
+	if h.githubDataService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub data service unavailable"})
+		return
+	}
+	data, err := h.githubDataService.GetBots(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch bots data"})
+		return
+	}
+
+	csvData := h.genericDataToCSV(data)
+	h.sendCSV(c, csvData, "bots")
+}
+
+func (h *ExportHandler) ExportMaps(c *gin.Context) {
+	if h.githubDataService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub data service unavailable"})
+		return
+	}
+	data, err := h.githubDataService.GetMaps(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch maps data"})
+		return
+	}
+
+	csvData := h.genericDataToCSV(data)
+	h.sendCSV(c, csvData, "maps")
+}
+
+func (h *ExportHandler) ExportTraders(c *gin.Context) {
+	if h.githubDataService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub data service unavailable"})
+		return
+	}
+	data, err := h.githubDataService.GetTraders(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch traders data"})
+		return
+	}
+
+	csvData := h.genericDataToCSV(data)
+	h.sendCSV(c, csvData, "traders")
+}
+
+func (h *ExportHandler) ExportProjects(c *gin.Context) {
+	if h.githubDataService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub data service unavailable"})
+		return
+	}
+	data, err := h.githubDataService.GetProjects(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch projects data"})
+		return
+	}
+
+	csvData := h.genericDataToCSV(data)
+	h.sendCSV(c, csvData, "projects")
 }
 
 // ExportQuests exports all quests as CSV
@@ -116,10 +179,10 @@ func (h *ExportHandler) ExportAlerts(c *gin.Context) {
 func (h *ExportHandler) sendCSV(c *gin.Context, csvData [][]string, filename string) {
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s.csv", filename, time.Now().Format("20060102-150405")))
-	
+
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
-	
+
 	for _, record := range csvData {
 		if err := writer.Write(record); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write CSV"})
@@ -143,7 +206,7 @@ func (h *ExportHandler) extractEnglishValue(directValue string, data models.JSON
 		// If it's not JSON or doesn't have "en", return as-is
 		return directValue
 	}
-	
+
 	// If direct value is empty, check Data field
 	if data != nil {
 		if dataValue, ok := data[dataKey]; ok {
@@ -165,8 +228,34 @@ func (h *ExportHandler) extractEnglishValue(directValue string, data models.JSON
 			}
 		}
 	}
-	
+
 	return ""
+}
+
+func (h *ExportHandler) genericDataToCSV(data interface{}) [][]string {
+	headers := []string{"index", "data"}
+	rows := [][]string{headers}
+
+	switch list := data.(type) {
+	case []interface{}:
+		for idx, item := range list {
+			rows = append(rows, []string{fmt.Sprintf("%d", idx), h.marshalValueToString(item)})
+		}
+	case map[string]interface{}:
+		rows = append(rows, []string{"0", h.marshalValueToString(list)})
+	default:
+		rows = append(rows, []string{"0", h.jsonToString(list)})
+	}
+
+	return rows
+}
+
+func (h *ExportHandler) marshalValueToString(value interface{}) string {
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	return string(bytes)
 }
 
 // Convert quests to CSV format
@@ -175,20 +264,20 @@ func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 		"system_id", "external_id", "name", "description", "trader", "xp",
 		"objectives", "reward_item_ids", "data",
 	}
-	
+
 	rows := [][]string{headers}
-	
+
 	for _, quest := range quests {
 		objectives := h.jsonToStringArray(quest.Objectives)
 		rewardItemIds := h.jsonToStringArray(quest.RewardItemIds)
 		data := h.jsonToStringArray(quest.Data)
-		
+
 		// Extract name, preferring "en" from JSON objects
 		name := h.extractEnglishValue(quest.Name, quest.Data, "name")
-		
+
 		// Extract description, preferring "en" from JSON objects
 		description := h.extractEnglishValue(quest.Description, quest.Data, "description")
-		
+
 		row := []string{
 			strconv.Itoa(int(quest.ID)),
 			quest.ExternalID,
@@ -202,7 +291,7 @@ func (h *ExportHandler) questsToCSV(quests []models.Quest) [][]string {
 		}
 		rows = append(rows, row)
 	}
-	
+
 	return rows
 }
 
@@ -212,16 +301,16 @@ func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
 		"system_id", "external_id", "name", "description", "type",
 		"image_url", "image_filename", "data",
 	}
-	
+
 	rows := [][]string{headers}
-	
+
 	for _, item := range items {
 		data := h.jsonToStringArray(item.Data)
-		
+
 		// Extract name and description, preferring "en" from JSON objects
 		name := h.extractEnglishValue(item.Name, item.Data, "name")
 		description := h.extractEnglishValue(item.Description, item.Data, "description")
-		
+
 		row := []string{
 			strconv.Itoa(int(item.ID)),
 			item.ExternalID,
@@ -234,7 +323,7 @@ func (h *ExportHandler) itemsToCSV(items []models.Item) [][]string {
 		}
 		rows = append(rows, row)
 	}
-	
+
 	return rows
 }
 
@@ -245,19 +334,19 @@ func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]strin
 		"max_points", "icon_name", "is_major", "position", "known_value",
 		"prerequisite_node_ids", "data",
 	}
-	
+
 	rows := [][]string{headers}
-	
+
 	for _, node := range skillNodes {
 		position := h.jsonToStringArray(node.Position)
 		knownValue := h.jsonToStringArray(node.KnownValue)
 		prerequisiteNodeIds := h.jsonToStringArray(node.PrerequisiteNodeIds)
 		data := h.jsonToStringArray(node.Data)
-		
+
 		// Extract name and description, preferring "en" from JSON objects
 		name := h.extractEnglishValue(node.Name, node.Data, "name")
 		description := h.extractEnglishValue(node.Description, node.Data, "description")
-		
+
 		row := []string{
 			strconv.Itoa(int(node.ID)),
 			node.ExternalID,
@@ -275,7 +364,7 @@ func (h *ExportHandler) skillNodesToCSV(skillNodes []models.SkillNode) [][]strin
 		}
 		rows = append(rows, row)
 	}
-	
+
 	return rows
 }
 
@@ -285,17 +374,17 @@ func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]
 		"system_id", "external_id", "name", "description", "max_level",
 		"levels", "data",
 	}
-	
+
 	rows := [][]string{headers}
-	
+
 	for _, module := range modules {
 		levels := h.jsonToStringArray(module.Levels)
 		data := h.jsonToStringArray(module.Data)
-		
+
 		// Extract name and description, preferring "en" from JSON objects
 		name := h.extractEnglishValue(module.Name, module.Data, "name")
 		description := h.extractEnglishValue(module.Description, module.Data, "description")
-		
+
 		row := []string{
 			strconv.Itoa(int(module.ID)),
 			module.ExternalID,
@@ -307,7 +396,7 @@ func (h *ExportHandler) hideoutModulesToCSV(modules []models.HideoutModule) [][]
 		}
 		rows = append(rows, row)
 	}
-	
+
 	return rows
 }
 
@@ -317,17 +406,17 @@ func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]strin
 		"system_id", "external_id", "name", "description", "type",
 		"image_url", "image_filename", "weakpoints", "data",
 	}
-	
+
 	rows := [][]string{headers}
-	
+
 	for _, enemyType := range enemyTypes {
 		weakpoints := h.jsonToStringArray(enemyType.Weakpoints)
 		data := h.jsonToStringArray(enemyType.Data)
-		
+
 		// Extract name and description, preferring "en" from JSON objects
 		name := h.extractEnglishValue(enemyType.Name, enemyType.Data, "name")
 		description := h.extractEnglishValue(enemyType.Description, enemyType.Data, "description")
-		
+
 		row := []string{
 			strconv.Itoa(int(enemyType.ID)),
 			enemyType.ExternalID,
@@ -341,7 +430,7 @@ func (h *ExportHandler) enemyTypesToCSV(enemyTypes []models.EnemyType) [][]strin
 		}
 		rows = append(rows, row)
 	}
-	
+
 	return rows
 }
 
@@ -351,12 +440,12 @@ func (h *ExportHandler) alertsToCSV(alerts []models.Alert) [][]string {
 		"system_id", "name", "description", "severity", "is_active",
 		"data",
 	}
-	
+
 	rows := [][]string{headers}
-	
+
 	for _, alert := range alerts {
 		data := h.jsonToStringArray(alert.Data)
-		
+
 		row := []string{
 			strconv.Itoa(int(alert.ID)),
 			alert.Name,
@@ -367,7 +456,7 @@ func (h *ExportHandler) alertsToCSV(alerts []models.Alert) [][]string {
 		}
 		rows = append(rows, row)
 	}
-	
+
 	return rows
 }
 
@@ -376,14 +465,14 @@ func (h *ExportHandler) jsonToStringArray(jsonb models.JSONB) string {
 	if jsonb == nil {
 		return ""
 	}
-	
+
 	// JSONB is map[string]interface{}, so we need to check the underlying value
 	// First, marshal to see what we have
 	data, err := json.Marshal(jsonb)
 	if err != nil {
 		return ""
 	}
-	
+
 	// Try to unmarshal as array to check if it's an array
 	var arr []interface{}
 	if err := json.Unmarshal(data, &arr); err == nil {
@@ -402,7 +491,7 @@ func (h *ExportHandler) jsonToStringArray(jsonb models.JSONB) string {
 		}
 		return string(resultData)
 	}
-	
+
 	// It's an object or other type, convert to single-element array
 	result := []string{string(data)}
 	resultData, err := json.Marshal(result)
@@ -416,4 +505,3 @@ func (h *ExportHandler) jsonToStringArray(jsonb models.JSONB) string {
 func (h *ExportHandler) jsonToString(jsonb models.JSONB) string {
 	return h.jsonToStringArray(jsonb)
 }
-
