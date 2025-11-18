@@ -1,4 +1,4 @@
-import { Client, Databases, Account, ID, Query } from 'appwrite';
+import { Client, Databases, Account, ID, Query, Graphql } from 'appwrite';
 import type {
   Quest,
   Item,
@@ -101,8 +101,9 @@ const getAppwriteConfig = async (): Promise<AppwriteConfigShape> => {
 let appwriteClient: Client | null = null;
 let databases: Databases | null = null;
 let account: Account | null = null;
+let graphql: Graphql | null = null;
 
-export const getAppwriteClient = async (): Promise<{ client: Client; databases: Databases; account: Account } | null> => {
+export const getAppwriteClient = async (): Promise<{ client: Client; databases: Databases; account: Account; graphql: Graphql } | null> => {
   const { endpoint, projectId, enabled } = await getAppwriteConfig();
 
   if (!enabled || !endpoint || !projectId) {
@@ -122,9 +123,10 @@ export const getAppwriteClient = async (): Promise<{ client: Client; databases: 
     
     databases = new Databases(appwriteClient);
     account = new Account(appwriteClient);
+    graphql = new Graphql(appwriteClient);
   }
 
-  return { client: appwriteClient, databases: databases!, account: account! };
+  return { client: appwriteClient, databases: databases!, account: account!, graphql: graphql! };
 };
 
 // Check if Appwrite is enabled (async version)
@@ -175,28 +177,50 @@ export const getAppwriteSession = async (): Promise<any | null> => {
 // Appwrite service for syncing data
 class AppwriteService {
   private databases: Databases | null = null;
-  private databasesPromise: Promise<Databases | null> | null = null;
+  private graphql: Graphql | null = null;
 
   constructor() {
-    // Initialize databases asynchronously
-    this.databasesPromise = getAppwriteClient().then((appwrite) => {
-      this.databases = appwrite?.databases || null;
-      return this.databases;
-    });
+    // Attempt to initialize clients eagerly but ignore failures (lazy fallback below)
+    getAppwriteClient()
+      .then((appwrite) => {
+        this.databases = appwrite?.databases || null;
+        this.graphql = appwrite?.graphql || null;
+      })
+      .catch(() => {
+        // Swallow errors and allow lazy initialization later
+      });
+  }
+
+  private async ensureClients() {
+    if (this.databases && this.graphql) {
+      return;
+    }
+    const appwrite = await getAppwriteClient();
+    if (!appwrite) {
+      this.databases = null;
+      this.graphql = null;
+      return;
+    }
+    if (!this.databases) {
+      this.databases = appwrite.databases;
+    }
+    if (!this.graphql) {
+      this.graphql = appwrite.graphql;
+    }
   }
 
   private async ensureDatabases(): Promise<Databases | null> {
-    if (this.databases) {
-      return this.databases;
+    if (!this.databases) {
+      await this.ensureClients();
     }
-    if (this.databasesPromise) {
-      return await this.databasesPromise;
+    return this.databases;
+  }
+
+  private async ensureGraphql(): Promise<Graphql | null> {
+    if (!this.graphql) {
+      await this.ensureClients();
     }
-    this.databasesPromise = getAppwriteClient().then((appwrite) => {
-      this.databases = appwrite?.databases || null;
-      return this.databases;
-    });
-    return await this.databasesPromise;
+    return this.graphql;
   }
 
   // Helper to log errors silently
@@ -205,6 +229,66 @@ class AppwriteService {
     if (error?.message) {
       console.error(`Error message:`, error.message);
     }
+  }
+
+  private async listDocumentsViaGraphql(collectionId: string, limit = 100, orderBy?: string) {
+    const graphql = await this.ensureGraphql();
+    if (!graphql) {
+      return { documents: [], total: 0 };
+    }
+
+    const databaseId = this.getDatabaseId();
+    const queryStrings: string[] = [];
+    if (limit > 0) {
+      queryStrings.push(Query.limit(limit));
+    }
+    if (orderBy) {
+      queryStrings.push(Query.orderDesc(orderBy));
+    }
+
+    const LIST_DOCUMENTS_QUERY = `
+      query ListDocuments($databaseId: String!, $collectionId: String!, $queries: [String!]) {
+        databasesListDocuments(databaseId: $databaseId, collectionId: $collectionId, queries: $queries) {
+          total
+          documents {
+            $id
+            $createdAt
+            $updatedAt
+            data
+          }
+        }
+      }
+    `;
+
+    try {
+      const response: any = await graphql.query({
+        query: LIST_DOCUMENTS_QUERY,
+        variables: {
+          databaseId,
+          collectionId,
+          queries: queryStrings,
+        },
+      });
+      const result = response?.data?.databasesListDocuments;
+      return {
+        documents: result?.documents ?? [],
+        total: result?.total ?? 0,
+      };
+    } catch (error) {
+      this.logError(`graphql listDocuments ${collectionId}`, error);
+      return { documents: [], total: 0 };
+    }
+  }
+
+  private getDocField(doc: any, key: string) {
+    if (!doc) return undefined;
+    if (doc[key] !== undefined) {
+      return doc[key];
+    }
+    if (doc?.data && doc.data[key] !== undefined) {
+      return doc.data[key];
+    }
+    return undefined;
   }
 
   // Convert JSON value to string array for Appwrite compatibility
@@ -760,229 +844,262 @@ class AppwriteService {
 
   // Helper to convert Appwrite document to Quest
   private documentToQuest(doc: any): Quest {
+    const externalId =
+      (this.getDocField(doc, 'external_id') ??
+        this.getDocField(doc, 'externalId') ??
+        '') as string;
+    const objectives = this.stringArrayToJson(this.getDocField(doc, 'objectives'));
+    const rewardItems = this.stringArrayToJson(this.getDocField(doc, 'reward_item_ids') ?? this.getDocField(doc, 'rewardItemIds'));
+    const dataValue = this.stringArrayToJson(this.getDocField(doc, 'data'));
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+    const xpValue = this.getDocField(doc, 'xp');
+
     return {
-      id: parseInt(doc.api_id || doc.id || '0', 10),
-      external_id: doc.external_id || '',
-      name: doc.name || '',
-      description: doc.description || '',
-      trader: doc.trader || '',
-      xp: parseInt(doc.xp || '0', 10),
-      objectives: this.stringArrayToJson(doc.objectives),
-      reward_item_ids: this.stringArrayToJson(doc.reward_item_ids),
-      data: this.stringArrayToJson(doc.data),
-      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
-      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
-      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: externalId,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      description: (this.getDocField(doc, 'description') ?? '') as string,
+      trader: (this.getDocField(doc, 'trader') ?? '') as string,
+      xp: xpValue === undefined || xpValue === null ? 0 : parseInt(String(xpValue), 10),
+      objectives,
+      reward_item_ids: rewardItems,
+      data: dataValue,
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
     };
   }
 
   // Helper to convert Appwrite document to Item
   private documentToItem(doc: any): Item {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+
     return {
-      id: parseInt(doc.api_id || doc.id || '0', 10),
-      external_id: doc.external_id || '',
-      name: doc.name || '',
-      description: doc.description || '',
-      type: doc.type || '',
-      image_url: doc.image_url || '',
-      image_filename: doc.image_filename || '',
-      data: this.stringArrayToJson(doc.data),
-      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
-      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
-      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: (this.getDocField(doc, 'external_id') ?? this.getDocField(doc, 'externalId') ?? '') as string,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      description: (this.getDocField(doc, 'description') ?? '') as string,
+      type: (this.getDocField(doc, 'type') ?? '') as string,
+      image_url: (this.getDocField(doc, 'image_url') ?? this.getDocField(doc, 'imageURL') ?? '') as string,
+      image_filename: (this.getDocField(doc, 'image_filename') ?? '') as string,
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
     };
   }
 
   // Helper to convert Appwrite document to SkillNode
   private documentToSkillNode(doc: any): SkillNode {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+    const maxPoints = this.getDocField(doc, 'max_points');
+
     return {
-      id: parseInt(doc.api_id || doc.id || '0', 10),
-      external_id: doc.external_id || '',
-      name: doc.name || '',
-      description: doc.description || '',
-      impacted_skill: doc.impacted_skill || '',
-      category: doc.category || '',
-      max_points: parseInt(doc.max_points || '0', 10),
-      icon_name: doc.icon_name || '',
-      is_major: doc.is_major === true || doc.is_major === 'true',
-      position: this.stringArrayToJson(doc.position),
-      known_value: this.stringArrayToJson(doc.known_value),
-      prerequisite_node_ids: this.stringArrayToJson(doc.prerequisite_node_ids),
-      data: this.stringArrayToJson(doc.data),
-      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
-      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
-      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: (this.getDocField(doc, 'external_id') ?? this.getDocField(doc, 'externalId') ?? '') as string,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      description: (this.getDocField(doc, 'description') ?? '') as string,
+      impacted_skill: (this.getDocField(doc, 'impacted_skill') ?? this.getDocField(doc, 'impactedSkill') ?? '') as string,
+      category: (this.getDocField(doc, 'category') ?? '') as string,
+      max_points: maxPoints === undefined || maxPoints === null ? 0 : parseInt(String(maxPoints), 10),
+      icon_name: (this.getDocField(doc, 'icon_name') ?? this.getDocField(doc, 'iconName') ?? '') as string,
+      is_major: this.normalizeBooleanValue(this.getDocField(doc, 'is_major') ?? this.getDocField(doc, 'isMajor')) ?? false,
+      position: this.stringArrayToJson(this.getDocField(doc, 'position')),
+      known_value: this.stringArrayToJson(this.getDocField(doc, 'known_value') ?? this.getDocField(doc, 'knownValue')),
+      prerequisite_node_ids: this.stringArrayToJson(
+        this.getDocField(doc, 'prerequisite_node_ids') ?? this.getDocField(doc, 'prerequisiteNodeIds')
+      ),
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
     };
   }
 
   // Helper to convert Appwrite document to HideoutModule
   private documentToHideoutModule(doc: any): HideoutModule {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+    const maxLevel = this.getDocField(doc, 'max_level');
+
     return {
-      id: parseInt(doc.api_id || doc.id || '0', 10),
-      external_id: doc.external_id || '',
-      name: doc.name || '',
-      description: doc.description || '',
-      max_level: parseInt(doc.max_level || '0', 10),
-      levels: this.stringArrayToJson(doc.levels),
-      data: this.stringArrayToJson(doc.data),
-      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
-      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
-      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: (this.getDocField(doc, 'external_id') ?? this.getDocField(doc, 'externalId') ?? '') as string,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      description: (this.getDocField(doc, 'description') ?? '') as string,
+      max_level: maxLevel === undefined || maxLevel === null ? 0 : parseInt(String(maxLevel), 10),
+      levels: this.stringArrayToJson(this.getDocField(doc, 'levels')),
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
     };
   }
 
   // Helper to convert Appwrite document to EnemyType
   private documentToEnemyType(doc: any): EnemyType {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+
     return {
-      id: parseInt(doc.api_id || doc.id || '0', 10),
-      external_id: doc.external_id || '',
-      name: doc.name || '',
-      description: doc.description || '',
-      type: doc.type || '',
-      image_url: doc.image_url || '',
-      image_filename: doc.image_filename || '',
-      weakpoints: this.stringArrayToJson(doc.weakpoints),
-      data: this.stringArrayToJson(doc.data),
-      synced_at: doc.synced_at ? new Date(doc.synced_at).toISOString() : new Date().toISOString(),
-      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
-      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: (this.getDocField(doc, 'external_id') ?? this.getDocField(doc, 'externalId') ?? '') as string,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      description: (this.getDocField(doc, 'description') ?? '') as string,
+      type: (this.getDocField(doc, 'type') ?? '') as string,
+      image_url: (this.getDocField(doc, 'image_url') ?? '') as string,
+      image_filename: (this.getDocField(doc, 'image_filename') ?? '') as string,
+      weakpoints: this.stringArrayToJson(this.getDocField(doc, 'weakpoints')),
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
     };
   }
 
   // Helper to convert Appwrite document to Alert
   private documentToAlert(doc: any): Alert {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const severity = (this.getDocField(doc, 'severity') ?? 'info') as Alert['severity'];
+
     return {
-      id: parseInt(doc.api_id || doc.id || '0', 10),
-      name: doc.name || '',
-      description: doc.description || '',
-      severity: doc.severity || 'info',
-      is_active: doc.is_active === true || doc.is_active === 'true',
-      data: this.stringArrayToJson(doc.data),
-      created_at: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
-      updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : new Date().toISOString(),
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      description: (this.getDocField(doc, 'description') ?? '') as string,
+      severity,
+      is_active: this.normalizeBooleanValue(this.getDocField(doc, 'is_active')) ?? false,
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
     };
   }
 
-  // Read operations - fetch data from Appwrite
+  // Read operations - fetch data from Appwrite via GraphQL
   async getQuests(limit = 100): Promise<Quest[]> {
-    const databases = await this.ensureDatabases();
-    if (!databases) return [];
-    try {
-      const databaseId = this.getDatabaseId();
-      const { documents } = await databases.listDocuments(databaseId, 'quests', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToQuest(doc));
-    } catch (error) {
-      this.logError('getQuests', error);
-      return [];
-    }
+    const { documents } = await this.listDocumentsViaGraphql('quests', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToQuest(doc));
   }
 
   async getItems(limit = 100): Promise<Item[]> {
-    const databases = await this.ensureDatabases();
-    if (!databases) return [];
-    try {
-      const databaseId = this.getDatabaseId();
-      const { documents } = await databases.listDocuments(databaseId, 'items', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToItem(doc));
-    } catch (error) {
-      this.logError('getItems', error);
-      return [];
-    }
+    const { documents } = await this.listDocumentsViaGraphql('items', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToItem(doc));
   }
 
   async getSkillNodes(limit = 100): Promise<SkillNode[]> {
-    const databases = await this.ensureDatabases();
-    if (!databases) return [];
-    try {
-      const databaseId = this.getDatabaseId();
-      const { documents } = await databases.listDocuments(databaseId, 'skill_nodes', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToSkillNode(doc));
-    } catch (error) {
-      this.logError('getSkillNodes', error);
-      return [];
-    }
+    const { documents } = await this.listDocumentsViaGraphql('skill_nodes', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToSkillNode(doc));
   }
 
   async getHideoutModules(limit = 100): Promise<HideoutModule[]> {
-    const databases = await this.ensureDatabases();
-    if (!databases) return [];
-    try {
-      const databaseId = this.getDatabaseId();
-      const { documents } = await databases.listDocuments(databaseId, 'hideout_modules', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToHideoutModule(doc));
-    } catch (error) {
-      this.logError('getHideoutModules', error);
-      return [];
-    }
+    const { documents } = await this.listDocumentsViaGraphql('hideout_modules', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToHideoutModule(doc));
   }
 
   async getEnemyTypes(limit = 100): Promise<EnemyType[]> {
-    const databases = await this.ensureDatabases();
-    if (!databases) return [];
-    try {
-      const databaseId = this.getDatabaseId();
-      const { documents } = await databases.listDocuments(databaseId, 'enemy_types', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToEnemyType(doc));
-    } catch (error) {
-      this.logError('getEnemyTypes', error);
-      return [];
-    }
+    const { documents } = await this.listDocumentsViaGraphql('enemy_types', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToEnemyType(doc));
   }
 
   async getAlerts(limit = 100): Promise<Alert[]> {
-    const databases = await this.ensureDatabases();
-    if (!databases) return [];
-    try {
-      const databaseId = this.getDatabaseId();
-      const { documents } = await databases.listDocuments(databaseId, 'alerts', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToAlert(doc));
-    } catch (error) {
-      this.logError('getAlerts', error);
-      return [];
-    }
+    const { documents } = await this.listDocumentsViaGraphql('alerts', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToAlert(doc));
   }
 
-  // Get counts for each collection
+  // Get counts for each collection via GraphQL
   async getCounts(): Promise<Record<string, number>> {
-    const databases = await this.ensureDatabases();
-    if (!databases) return {};
-    try {
-      const databaseId = this.getDatabaseId();
-      const [quests, items, skillNodes, hideoutModules, enemyTypes, alerts] = await Promise.all([
-        databases.listDocuments(databaseId, 'quests', [Query.limit(1)]),
-        databases.listDocuments(databaseId, 'items', [Query.limit(1)]),
-        databases.listDocuments(databaseId, 'skill_nodes', [Query.limit(1)]),
-        databases.listDocuments(databaseId, 'hideout_modules', [Query.limit(1)]),
-        databases.listDocuments(databaseId, 'enemy_types', [Query.limit(1)]),
-        databases.listDocuments(databaseId, 'alerts', [Query.limit(1)]),
-      ]);
+    const collections: Array<[string, string]> = [
+      ['quests', 'quests'],
+      ['items', 'items'],
+      ['skillNodes', 'skill_nodes'],
+      ['hideoutModules', 'hideout_modules'],
+      ['enemyTypes', 'enemy_types'],
+      ['alerts', 'alerts'],
+    ];
 
-      return {
-        quests: quests.total || 0,
-        items: items.total || 0,
-        skillNodes: skillNodes.total || 0,
-        hideoutModules: hideoutModules.total || 0,
-        enemyTypes: enemyTypes.total || 0,
-        alerts: alerts.total || 0,
-      };
+    try {
+      const totals = await Promise.all(
+        collections.map(async ([key, collectionId]) => {
+          const { total } = await this.listDocumentsViaGraphql(collectionId, 1);
+          return [key, total] as const;
+        })
+      );
+
+      return totals.reduce<Record<string, number>>((acc, [key, total]) => {
+        acc[key] = total;
+        return acc;
+      }, {});
     } catch (error) {
       this.logError('getCounts', error);
       return {};
