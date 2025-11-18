@@ -702,27 +702,28 @@ class APIClient {
   }
 
   // Appwrite Management
-  async getAppwriteQuests(limit = 100): Promise<Quest[]> {
+  // Fetch all Appwrite records (no limit) or specify a limit
+  async getAppwriteQuests(limit?: number): Promise<Quest[]> {
     return appwriteService.getQuests(limit);
   }
 
-  async getAppwriteItems(limit = 100): Promise<Item[]> {
+  async getAppwriteItems(limit?: number): Promise<Item[]> {
     return appwriteService.getItems(limit);
   }
 
-  async getAppwriteSkillNodes(limit = 100): Promise<SkillNode[]> {
+  async getAppwriteSkillNodes(limit?: number): Promise<SkillNode[]> {
     return appwriteService.getSkillNodes(limit);
   }
 
-  async getAppwriteHideoutModules(limit = 100): Promise<HideoutModule[]> {
+  async getAppwriteHideoutModules(limit?: number): Promise<HideoutModule[]> {
     return appwriteService.getHideoutModules(limit);
   }
 
-  async getAppwriteEnemyTypes(limit = 100): Promise<EnemyType[]> {
+  async getAppwriteEnemyTypes(limit?: number): Promise<EnemyType[]> {
     return appwriteService.getEnemyTypes(limit);
   }
 
-  async getAppwriteAlerts(limit = 100): Promise<Alert[]> {
+  async getAppwriteAlerts(limit?: number): Promise<Alert[]> {
     return appwriteService.getAlerts(limit);
   }
 

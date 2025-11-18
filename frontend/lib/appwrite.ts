@@ -249,6 +249,47 @@ class AppwriteService {
     }
   }
 
+  // Helper to fetch all documents using pagination
+  // Appwrite has a maximum limit of 100 documents per request
+  private async fetchAllDocuments<T>(
+    databaseId: string,
+    collectionId: string,
+    mapper: (doc: any) => T
+  ): Promise<T[]> {
+    const databases = await this.ensureDatabases();
+    if (!databases) return [];
+
+    const allDocuments: T[] = [];
+    const limit = 100; // Appwrite maximum per request
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const response = await databases.listDocuments(databaseId, collectionId, [
+          Query.limit(limit),
+          Query.offset(offset),
+          Query.orderDesc('created_at')
+        ]);
+
+        const documents = response.documents || [];
+        allDocuments.push(...documents.map(mapper));
+
+        // If we got fewer documents than the limit, we've reached the end
+        if (documents.length < limit) {
+          hasMore = false;
+        } else {
+          offset += limit;
+        }
+      } catch (error) {
+        this.logError(`fetchAllDocuments(${collectionId})`, error);
+        hasMore = false; // Stop on error
+      }
+    }
+
+    return allDocuments;
+  }
+
   // Convert JSON value to string array for Appwrite compatibility
   private jsonToStringArray(value: any): string[] {
     if (value === undefined || value === null) {
@@ -938,7 +979,8 @@ class AppwriteService {
   }
 
   // Read operations - fetch data from Appwrite
-  async getQuests(limit = 100): Promise<Quest[]> {
+  // Fetches all records using pagination (Appwrite limit is 100 per request)
+  async getQuests(limit?: number): Promise<Quest[]> {
     const databases = await this.ensureDatabases();
     if (!databases) return [];
     try {
@@ -947,18 +989,25 @@ class AppwriteService {
         console.warn('Appwrite database ID not configured, returning empty quests');
         return [];
       }
-      const { documents } = await databases.listDocuments(databaseId, 'quests', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToQuest(doc));
+      
+      // If limit is specified, fetch only that many
+      if (limit !== undefined && limit > 0) {
+        const { documents } = await databases.listDocuments(databaseId, 'quests', [
+          Query.limit(Math.min(limit, 100)), // Appwrite max is 100
+          Query.orderDesc('created_at')
+        ]);
+        return (documents || []).map(doc => this.documentToQuest(doc));
+      }
+      
+      // Otherwise, fetch all records using pagination
+      return await this.fetchAllDocuments(databaseId, 'quests', (doc) => this.documentToQuest(doc));
     } catch (error) {
       this.logError('getQuests', error);
       return [];
     }
   }
 
-  async getItems(limit = 100): Promise<Item[]> {
+  async getItems(limit?: number): Promise<Item[]> {
     const databases = await this.ensureDatabases();
     if (!databases) return [];
     try {
@@ -967,18 +1016,25 @@ class AppwriteService {
         console.warn('Appwrite database ID not configured, returning empty items');
         return [];
       }
-      const { documents } = await databases.listDocuments(databaseId, 'items', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToItem(doc));
+      
+      // If limit is specified, fetch only that many
+      if (limit !== undefined && limit > 0) {
+        const { documents } = await databases.listDocuments(databaseId, 'items', [
+          Query.limit(Math.min(limit, 100)), // Appwrite max is 100
+          Query.orderDesc('created_at')
+        ]);
+        return (documents || []).map(doc => this.documentToItem(doc));
+      }
+      
+      // Otherwise, fetch all records using pagination
+      return await this.fetchAllDocuments(databaseId, 'items', (doc) => this.documentToItem(doc));
     } catch (error) {
       this.logError('getItems', error);
       return [];
     }
   }
 
-  async getSkillNodes(limit = 100): Promise<SkillNode[]> {
+  async getSkillNodes(limit?: number): Promise<SkillNode[]> {
     const databases = await this.ensureDatabases();
     if (!databases) return [];
     try {
@@ -987,18 +1043,25 @@ class AppwriteService {
         console.warn('Appwrite database ID not configured, returning empty skill nodes');
         return [];
       }
-      const { documents } = await databases.listDocuments(databaseId, 'skill_nodes', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToSkillNode(doc));
+      
+      // If limit is specified, fetch only that many
+      if (limit !== undefined && limit > 0) {
+        const { documents } = await databases.listDocuments(databaseId, 'skill_nodes', [
+          Query.limit(Math.min(limit, 100)), // Appwrite max is 100
+          Query.orderDesc('created_at')
+        ]);
+        return (documents || []).map(doc => this.documentToSkillNode(doc));
+      }
+      
+      // Otherwise, fetch all records using pagination
+      return await this.fetchAllDocuments(databaseId, 'skill_nodes', (doc) => this.documentToSkillNode(doc));
     } catch (error) {
       this.logError('getSkillNodes', error);
       return [];
     }
   }
 
-  async getHideoutModules(limit = 100): Promise<HideoutModule[]> {
+  async getHideoutModules(limit?: number): Promise<HideoutModule[]> {
     const databases = await this.ensureDatabases();
     if (!databases) return [];
     try {
@@ -1007,18 +1070,25 @@ class AppwriteService {
         console.warn('Appwrite database ID not configured, returning empty hideout modules');
         return [];
       }
-      const { documents } = await databases.listDocuments(databaseId, 'hideout_modules', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToHideoutModule(doc));
+      
+      // If limit is specified, fetch only that many
+      if (limit !== undefined && limit > 0) {
+        const { documents } = await databases.listDocuments(databaseId, 'hideout_modules', [
+          Query.limit(Math.min(limit, 100)), // Appwrite max is 100
+          Query.orderDesc('created_at')
+        ]);
+        return (documents || []).map(doc => this.documentToHideoutModule(doc));
+      }
+      
+      // Otherwise, fetch all records using pagination
+      return await this.fetchAllDocuments(databaseId, 'hideout_modules', (doc) => this.documentToHideoutModule(doc));
     } catch (error) {
       this.logError('getHideoutModules', error);
       return [];
     }
   }
 
-  async getEnemyTypes(limit = 100): Promise<EnemyType[]> {
+  async getEnemyTypes(limit?: number): Promise<EnemyType[]> {
     const databases = await this.ensureDatabases();
     if (!databases) return [];
     try {
@@ -1027,18 +1097,25 @@ class AppwriteService {
         console.warn('Appwrite database ID not configured, returning empty enemy types');
         return [];
       }
-      const { documents } = await databases.listDocuments(databaseId, 'enemy_types', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToEnemyType(doc));
+      
+      // If limit is specified, fetch only that many
+      if (limit !== undefined && limit > 0) {
+        const { documents } = await databases.listDocuments(databaseId, 'enemy_types', [
+          Query.limit(Math.min(limit, 100)), // Appwrite max is 100
+          Query.orderDesc('created_at')
+        ]);
+        return (documents || []).map(doc => this.documentToEnemyType(doc));
+      }
+      
+      // Otherwise, fetch all records using pagination
+      return await this.fetchAllDocuments(databaseId, 'enemy_types', (doc) => this.documentToEnemyType(doc));
     } catch (error) {
       this.logError('getEnemyTypes', error);
       return [];
     }
   }
 
-  async getAlerts(limit = 100): Promise<Alert[]> {
+  async getAlerts(limit?: number): Promise<Alert[]> {
     const databases = await this.ensureDatabases();
     if (!databases) return [];
     try {
@@ -1047,11 +1124,18 @@ class AppwriteService {
         console.warn('Appwrite database ID not configured, returning empty alerts');
         return [];
       }
-      const { documents } = await databases.listDocuments(databaseId, 'alerts', [
-        Query.limit(limit),
-        Query.orderDesc('created_at')
-      ]);
-      return (documents || []).map(doc => this.documentToAlert(doc));
+      
+      // If limit is specified, fetch only that many
+      if (limit !== undefined && limit > 0) {
+        const { documents } = await databases.listDocuments(databaseId, 'alerts', [
+          Query.limit(Math.min(limit, 100)), // Appwrite max is 100
+          Query.orderDesc('created_at')
+        ]);
+        return (documents || []).map(doc => this.documentToAlert(doc));
+      }
+      
+      // Otherwise, fetch all records using pagination
+      return await this.fetchAllDocuments(databaseId, 'alerts', (doc) => this.documentToAlert(doc));
     } catch (error) {
       this.logError('getAlerts', error);
       return [];

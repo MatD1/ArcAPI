@@ -317,22 +317,22 @@ export default function AppwritePage() {
 
       switch (entity) {
         case "quests":
-          data = await apiClient.getAppwriteQuests(100);
+          data = await apiClient.getAppwriteQuests(); // No limit = fetch all
           break;
         case "items":
-          data = await apiClient.getAppwriteItems(100);
+          data = await apiClient.getAppwriteItems(); // No limit = fetch all
           break;
         case "skillNodes":
-          data = await apiClient.getAppwriteSkillNodes(100);
+          data = await apiClient.getAppwriteSkillNodes(); // No limit = fetch all
           break;
         case "hideoutModules":
-          data = await apiClient.getAppwriteHideoutModules(100);
+          data = await apiClient.getAppwriteHideoutModules(); // No limit = fetch all
           break;
         case "enemyTypes":
-          data = await apiClient.getAppwriteEnemyTypes(100);
+          data = await apiClient.getAppwriteEnemyTypes(); // No limit = fetch all
           break;
         case "alerts":
-          data = await apiClient.getAppwriteAlerts(100);
+          data = await apiClient.getAppwriteAlerts(); // No limit = fetch all
           break;
       }
 
