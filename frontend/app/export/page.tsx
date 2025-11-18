@@ -15,7 +15,7 @@ type ExportType =
   | 'alerts'
   | 'bots'
   | 'maps'
-  | 'traders'
+  | 'repoTraders'
   | 'projects';
 
 export default function ExportPage() {
@@ -45,7 +45,7 @@ export default function ExportPage() {
     alerts: 'Alerts',
     bots: 'Bots',
     maps: 'Maps',
-    traders: 'Traders',
+    repoTraders: 'Traders',
     projects: 'Projects',
   };
 
@@ -74,7 +74,7 @@ export default function ExportPage() {
   };
 
   const handleExportAll = async () => {
-    if (!confirm('This will download 6 CSV files. Continue?')) {
+    if (!confirm('This will download 10 CSV files. Continue?')) {
       return;
     }
 
@@ -87,7 +87,7 @@ export default function ExportPage() {
       'alerts',
       'bots',
       'maps',
-      'traders',
+      'repoTraders',
       'projects',
     ];
     
