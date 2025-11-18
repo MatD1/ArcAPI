@@ -1161,60 +1161,32 @@ class AppwriteService {
 
     // Build GraphQL query - Appwrite GraphQL uses different field names
     // Try to fetch all items in one query if possible, or paginate
-    const query = limit && limit <= 100
-      ? `
-        query GetItems($databaseId: String!, $collectionId: String!, $limit: Int!) {
-          databasesListDocuments(
-            databaseId: $databaseId
-            collectionId: $collectionId
-            limit: $limit
-          ) {
-            total
-            documents {
-              _id
-              _createdAt
-              _updatedAt
-              external_id
-              name
-              description
-              type
-              image_url
-              image_filename
-              data
-              synced_at
-              created_at
-              updated_at
-            }
+    const query = `
+      query GetItems($databaseId: String!, $collectionId: String!, $queries: [String!]) {
+        databasesListDocuments(
+          databaseId: $databaseId
+          collectionId: $collectionId
+          queries: $queries
+        ) {
+          total
+          documents {
+            _id
+            _createdAt
+            _updatedAt
+            external_id
+            name
+            description
+            type
+            image_url
+            image_filename
+            data
+            synced_at
+            created_at
+            updated_at
           }
         }
-      `
-      : `
-        query GetItems($databaseId: String!, $collectionId: String!, $limit: Int!, $offset: Int!) {
-          databasesListDocuments(
-            databaseId: $databaseId
-            collectionId: $collectionId
-            limit: $limit
-            offset: $offset
-          ) {
-            total
-            documents {
-              _id
-              _createdAt
-              _updatedAt
-              external_id
-              name
-              description
-              type
-              image_url
-              image_filename
-              data
-              synced_at
-              created_at
-              updated_at
-            }
-          }
-        }
-      `;
+      }
+    `;
 
     const allItems: Item[] = [];
     const pageLimit = 100; // Appwrite GraphQL still has limits per request
@@ -1224,14 +1196,18 @@ class AppwriteService {
 
     while (hasMore) {
       try {
+        const remaining = limit ? Math.max(limit - allItems.length, 1) : pageLimit;
+        const effectiveLimit = Math.min(pageLimit, remaining);
+        const queries = [
+          Query.limit(effectiveLimit),
+          Query.offset(offset),
+        ];
+
         const variables: any = {
           databaseId,
           collectionId: 'items',
-          limit: pageLimit,
+          queries,
         };
-        
-        // Always include offset for pagination (even if 0, it helps with consistency)
-        variables.offset = offset;
 
         if (process.env.NODE_ENV === 'development') {
           console.log(`GraphQL query: offset=${offset}, limit=${variables.limit}`);
