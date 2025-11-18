@@ -45,13 +45,13 @@ export default function TradersPage() {
         // Load all data at once
         const result = await apiClient.getTraders(0, 10000);
         setTraders(result.data || []);
-        setTotal(result.total || 0);
+        setTotal(result.pagination?.total || 0);
       } else {
         // Load paginated data
         const offset = (page - 1) * pageSize;
         const result = await apiClient.getTraders(offset, pageSize);
         setTraders(result.data || []);
-        setTotal(result.total || 0);
+        setTotal(result.pagination?.total || 0);
       }
     } catch (err) {
       setError(getErrorMessage(err));

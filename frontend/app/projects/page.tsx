@@ -45,13 +45,13 @@ export default function ProjectsPage() {
         // Load all data at once
         const result = await apiClient.getProjects(0, 10000);
         setProjects(result.data || []);
-        setTotal(result.total || 0);
+        setTotal(result.pagination?.total || 0);
       } else {
         // Load paginated data
         const offset = (page - 1) * pageSize;
         const result = await apiClient.getProjects(offset, pageSize);
         setProjects(result.data || []);
-        setTotal(result.total || 0);
+        setTotal(result.pagination?.total || 0);
       }
     } catch (err) {
       setError(getErrorMessage(err));

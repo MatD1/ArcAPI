@@ -45,13 +45,13 @@ export default function BotsPage() {
         // Load all data at once
         const result = await apiClient.getBots(0, 10000);
         setBots(result.data || []);
-        setTotal(result.total || 0);
+        setTotal(result.pagination?.total || 0);
       } else {
         // Load paginated data
         const offset = (page - 1) * pageSize;
         const result = await apiClient.getBots(offset, pageSize);
         setBots(result.data || []);
-        setTotal(result.total || 0);
+        setTotal(result.pagination?.total || 0);
       }
     } catch (err) {
       setError(getErrorMessage(err));
