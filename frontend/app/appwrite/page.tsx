@@ -69,6 +69,11 @@ export default function AppwritePage() {
   const [selectedEntity, setSelectedEntity] = useState<EntityType | null>(null);
   const [entityData, setEntityData] = useState<any[]>([]);
   const [loadingEntity, setLoadingEntity] = useState(false);
+  const [pingingAppwrite, setPingingAppwrite] = useState(false);
+  const [pingStatus, setPingStatus] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   // Check authentication and redirect if needed
   useEffect(() => {
@@ -226,6 +231,26 @@ export default function AppwritePage() {
     } catch (err) {
       setError(getErrorMessage(err));
       setAppwriteAuthLoading(false);
+    }
+  };
+
+  const handlePingAppwrite = async () => {
+    if (!enabled) {
+      setError("Appwrite is not enabled. Please configure environment variables.");
+      return;
+    }
+
+    setPingingAppwrite(true);
+    setPingStatus(null);
+    setError("");
+
+    try {
+      const result = await apiClient.pingAppwrite();
+      setPingStatus(result);
+    } catch (err) {
+      setPingStatus({ success: false, message: getErrorMessage(err) });
+    } finally {
+      setPingingAppwrite(false);
     }
   };
 
@@ -424,18 +449,6 @@ export default function AppwritePage() {
                     ? "Signing out..."
                     : "Sign out of Appwrite"}
                 </button>
-                {process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT && (
-                  <div>
-                    <a
-                      href={process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 inline-block"
-                    >
-                      Open Appwrite Console
-                    </a>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -480,6 +493,37 @@ export default function AppwritePage() {
                       : "Sign in with Discord"}
                   </button>
                 </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                onClick={handlePingAppwrite}
+                disabled={pingingAppwrite}
+                className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pingingAppwrite ? "Pinging Appwrite..." : "Ping Appwrite"}
+              </button>
+              {process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT && (
+                <a
+                  href={process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Open Appwrite Console
+                </a>
+              )}
+            </div>
+            {pingStatus && (
+              <div
+                className={`mt-3 text-sm ${
+                  pingStatus.success
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {pingStatus.message}
               </div>
             )}
           </div>

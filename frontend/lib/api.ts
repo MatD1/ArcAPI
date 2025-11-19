@@ -731,6 +731,13 @@ class APIClient {
     return appwriteService.getCounts();
   }
 
+  async pingAppwrite(): Promise<{ success: boolean; message: string }> {
+    if (!isAppwriteEnabledSync()) {
+      throw new Error('Appwrite is not enabled');
+    }
+    return appwriteService.pingAppwrite();
+  }
+
   // Force sync all data from API to Appwrite
   async forceSyncToAppwrite(): Promise<{ synced: number; errors: number; details: Record<string, { synced: number; errors: number }> }> {
     if (!isAppwriteEnabledSync()) {

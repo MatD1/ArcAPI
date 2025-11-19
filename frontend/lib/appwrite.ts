@@ -360,6 +360,36 @@ class AppwriteService {
     return undefined;
   }
 
+  async pingAppwrite(): Promise<{ success: boolean; message: string }> {
+    const appwrite = await getAppwriteClient();
+    if (!appwrite) {
+      throw new Error('Appwrite client is not configured');
+    }
+
+    const endpoint =
+      (appwrite.client as any)?.config?.endpoint ||
+      runtimeConfig?.endpoint ||
+      (await getAppwriteConfig()).endpoint;
+
+    if (!endpoint) {
+      throw new Error('Appwrite endpoint is not configured');
+    }
+
+    try {
+      const url = new URL(`${endpoint.replace(/\/$/, '')}/ping`);
+      const result = await appwrite.client.call('get', url);
+      const responseMessage =
+        typeof result?.message === 'string' ? result.message : 'pong';
+      return {
+        success: true,
+        message: `Appwrite ping successful: ${responseMessage}`,
+      };
+    } catch (error: any) {
+      this.logError('pingAppwrite', error);
+      throw new Error(error?.message || 'Failed to ping Appwrite');
+    }
+  }
+
   // Convert JSON value to string array for Appwrite compatibility
   private jsonToStringArray(value: any): string[] {
     if (value === undefined || value === null) {
