@@ -128,7 +128,6 @@ export const getAppwriteClient = async (): Promise<{ client: Client; databases: 
     databases = new Databases(appwriteClient);
     account = new Account(appwriteClient);
     graphql = new Graphql(appwriteClient);
-    graphql = new Graphql(appwriteClient);
   }
 
   return { client: appwriteClient, databases: databases!, account: account!, graphql: graphql! };
@@ -246,14 +245,14 @@ export const loginWithDiscord = async (): Promise<void> => {
 // Appwrite service for syncing data
 class AppwriteService {
   private databases: Databases | null = null;
-  private graphql: Graphql | null = null;
+  private client: Client | null = null;
 
   constructor() {
     // Attempt to initialize clients eagerly but ignore failures (lazy fallback below)
     getAppwriteClient()
       .then((appwrite) => {
         this.databases = appwrite?.databases || null;
-        this.graphql = appwrite?.graphql || null;
+        this.client = appwrite?.client || null;
       })
       .catch(() => {
         // Swallow errors and allow lazy initialization later
@@ -261,20 +260,20 @@ class AppwriteService {
   }
 
   private async ensureClients() {
-    if (this.databases && this.graphql) {
+    if (this.databases && this.client) {
       return;
     }
     const appwrite = await getAppwriteClient();
     if (!appwrite) {
       this.databases = null;
-      this.graphql = null;
+      this.client = null;
       return;
     }
     if (!this.databases) {
       this.databases = appwrite.databases;
     }
-    if (!this.graphql) {
-      this.graphql = appwrite.graphql;
+    if (!this.client) {
+      this.client = appwrite.client;
     }
   }
 
@@ -285,11 +284,11 @@ class AppwriteService {
     return this.databases;
   }
 
-  private async ensureGraphql(): Promise<Graphql | null> {
-    if (!this.graphql) {
+  private async ensureClientInstance(): Promise<Client | null> {
+    if (!this.client) {
       await this.ensureClients();
     }
-    return this.graphql;
+    return this.client;
   }
 
   // Helper to log errors silently
@@ -300,13 +299,40 @@ class AppwriteService {
     }
   }
 
+  private async callGraphql(query: string, variables?: Record<string, any>) {
+    const client = await this.ensureClientInstance();
+    if (!client) {
+      return null;
+    }
+
+    const endpoint =
+      (client as any)?.config?.endpoint ||
+      runtimeConfig?.endpoint ||
+      (await getAppwriteConfig()).endpoint;
+
+    if (!endpoint) {
+      throw new Error('Appwrite endpoint is not configured');
+    }
+
+    const payload: Record<string, any> = { query };
+    if (variables && Object.keys(variables).length > 0) {
+      payload.variables = variables;
+    }
+
+    const url = new URL(`${endpoint.replace(/\/$/, '')}/graphql`);
+    return client.call('post', url, {
+      'content-type': 'application/json',
+      'x-sdk-graphql': 'true',
+    }, payload);
+  }
+
   private async listDocumentsViaGraphql(collectionId: string, limit = 100, orderBy?: string) {
-    const graphql = await this.ensureGraphql();
-    if (!graphql) {
+    const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping GraphQL list');
       return { documents: [], total: 0 };
     }
 
-    const databaseId = this.getDatabaseId();
     const queryStrings: string[] = [];
     if (limit > 0) {
       queryStrings.push(Query.limit(limit));
@@ -330,13 +356,10 @@ class AppwriteService {
     `;
 
     try {
-      const response: any = await graphql.query({
-        query: LIST_DOCUMENTS_QUERY,
-        variables: {
-          databaseId,
-          collectionId,
-          queries: queryStrings,
-        },
+      const response: any = await this.callGraphql(LIST_DOCUMENTS_QUERY, {
+        databaseId,
+        collectionId,
+        queries: queryStrings,
       });
       const result = response?.data?.databasesListDocuments;
       return {
