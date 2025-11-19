@@ -326,48 +326,72 @@ class AppwriteService {
     }, payload);
   }
 
-  private async listDocumentsViaGraphql(collectionId: string, limit = 100, orderBy?: string) {
-    const databaseId = this.getDatabaseId();
-    if (!databaseId) {
-      console.warn('Appwrite database ID not configured, skipping GraphQL list');
+  // List documents via REST API (replaces GraphQL)
+  // Each call creates completely fresh query arrays to avoid any state sharing
+  private async listDocumentsViaRest(collectionId: string, limit?: number, orderBy?: string): Promise<{ documents: any[]; total: number }> {
+    const databases = await this.ensureDatabases();
+    if (!databases) {
       return { documents: [], total: 0 };
     }
 
-    const queryStrings: string[] = [];
-    if (limit > 0) {
-      queryStrings.push(Query.limit(limit));
-    }
-    if (orderBy) {
-      queryStrings.push(Query.orderDesc(orderBy));
+    const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping REST list');
+      return { documents: [], total: 0 };
     }
 
-    const LIST_DOCUMENTS_QUERY = `
-      query ListDocuments($databaseId: String!, $collectionId: String!, $queries: [String!]) {
-        databasesListDocuments(databaseId: $databaseId, collectionId: $collectionId, queries: $queries) {
-          total
-          documents {
-            $id
-            $createdAt
-            $updatedAt
-            data
+    try {
+      // Always create a completely fresh queries array for this call
+      // Explicitly set limit to avoid any default behavior or state sharing
+      const firstBatchQueries: string[] = [];
+      
+      // Use a very high limit to fetch all records (Appwrite default is 25, max is typically 100)
+      // Fetch in batches if needed
+      if (limit === undefined || limit === 0) {
+        // Fetch all - use max limit and paginate if needed
+        firstBatchQueries.push(Query.limit(100));
+      } else {
+        // Explicitly set the provided limit
+        firstBatchQueries.push(Query.limit(limit));
+      }
+      
+      if (orderBy) {
+        firstBatchQueries.push(Query.orderDesc(orderBy));
+      }
+
+      // Fetch first batch with fresh query array
+      const response = await databases.listDocuments(databaseId, collectionId, firstBatchQueries);
+      let allDocuments = response.documents || [];
+      const total = response.total || 0;
+
+      // If we need more records and there are more available, fetch them in batches
+      if ((limit === undefined || limit === 0) && total > 100) {
+        const batchesNeeded = Math.ceil(total / 100);
+        for (let i = 2; i <= batchesNeeded; i++) {
+          // Create a completely fresh query array for each batch
+          const batchQueries: string[] = [
+            Query.limit(100),
+            Query.offset((i - 1) * 100),
+          ];
+          if (orderBy) {
+            batchQueries.push(Query.orderDesc(orderBy));
+          }
+          
+          const batchResponse = await databases.listDocuments(databaseId, collectionId, batchQueries);
+          if (batchResponse.documents && batchResponse.documents.length > 0) {
+            allDocuments = allDocuments.concat(batchResponse.documents);
+          } else {
+            break; // No more documents
           }
         }
       }
-    `;
 
-    try {
-      const response: any = await this.callGraphql(LIST_DOCUMENTS_QUERY, {
-        databaseId,
-        collectionId,
-        queries: queryStrings,
-      });
-      const result = response?.data?.databasesListDocuments;
       return {
-        documents: result?.documents ?? [],
-        total: result?.total ?? 0,
+        documents: allDocuments,
+        total,
       };
     } catch (error) {
-      this.logError(`graphql listDocuments ${collectionId}`, error);
+      this.logError(`REST listDocuments ${collectionId}`, error);
       return { documents: [], total: 0 };
     }
   }
@@ -1200,39 +1224,51 @@ class AppwriteService {
     };
   }
 
-  // Read operations - fetch data from Appwrite via GraphQL
-  async getQuests(limit = 100): Promise<Quest[]> {
-    const { documents } = await this.listDocumentsViaGraphql('quests', limit, 'created_at');
+  // Read operations - fetch data from Appwrite via REST API
+  async getQuests(limit?: number): Promise<Quest[]> {
+    const { documents } = await this.listDocumentsViaRest('quests', limit, 'created_at');
     return documents.map((doc: any) => this.documentToQuest(doc));
   }
 
-  async getItems(limit = 100): Promise<Item[]> {
-    const { documents } = await this.listDocumentsViaGraphql('items', limit, 'created_at');
+  async getItems(limit?: number): Promise<Item[]> {
+    const { documents } = await this.listDocumentsViaRest('items', limit, 'created_at');
     return documents.map((doc: any) => this.documentToItem(doc));
   }
 
-  async getSkillNodes(limit = 100): Promise<SkillNode[]> {
-    const { documents } = await this.listDocumentsViaGraphql('skill_nodes', limit, 'created_at');
+  async getSkillNodes(limit?: number): Promise<SkillNode[]> {
+    const { documents } = await this.listDocumentsViaRest('skill_nodes', limit, 'created_at');
     return documents.map((doc: any) => this.documentToSkillNode(doc));
   }
 
-  async getHideoutModules(limit = 100): Promise<HideoutModule[]> {
-    const { documents } = await this.listDocumentsViaGraphql('hideout_modules', limit, 'created_at');
+  async getHideoutModules(limit?: number): Promise<HideoutModule[]> {
+    const { documents } = await this.listDocumentsViaRest('hideout_modules', limit, 'created_at');
     return documents.map((doc: any) => this.documentToHideoutModule(doc));
   }
 
-  async getEnemyTypes(limit = 100): Promise<EnemyType[]> {
-    const { documents } = await this.listDocumentsViaGraphql('enemy_types', limit, 'created_at');
+  async getEnemyTypes(limit?: number): Promise<EnemyType[]> {
+    const { documents } = await this.listDocumentsViaRest('enemy_types', limit, 'created_at');
     return documents.map((doc: any) => this.documentToEnemyType(doc));
   }
 
-  async getAlerts(limit = 100): Promise<Alert[]> {
-    const { documents } = await this.listDocumentsViaGraphql('alerts', limit, 'created_at');
+  async getAlerts(limit?: number): Promise<Alert[]> {
+    const { documents } = await this.listDocumentsViaRest('alerts', limit, 'created_at');
     return documents.map((doc: any) => this.documentToAlert(doc));
   }
 
-  // Get counts for each collection via GraphQL
+  // Get counts for each collection via REST API
+  // Uses a separate isolated method to avoid affecting other queries
   async getCounts(): Promise<Record<string, number>> {
+    const databases = await this.ensureDatabases();
+    if (!databases) {
+      return {};
+    }
+
+    const databaseId = this.getDatabaseId();
+    if (!databaseId) {
+      console.warn('Appwrite database ID not configured, skipping counts');
+      return {};
+    }
+
     const collections: Array<[string, string]> = [
       ['quests', 'quests'],
       ['items', 'items'],
@@ -1245,8 +1281,17 @@ class AppwriteService {
     try {
       const totals = await Promise.all(
         collections.map(async ([key, collectionId]) => {
-          const { total } = await this.listDocumentsViaGraphql(collectionId, 1);
-          return [key, total] as const;
+          try {
+            // Create a completely fresh query array for each collection to avoid any state sharing
+            // Use limit(1) with offset(0) to get just the total count without fetching documents
+            const countQuery = [Query.limit(1), Query.offset(0)];
+            const response = await databases.listDocuments(databaseId, collectionId, countQuery);
+            // Return the total from the response, which is independent of the documents returned
+            return [key, response.total || 0] as const;
+          } catch (error) {
+            this.logError(`getCount ${collectionId}`, error);
+            return [key, 0] as const;
+          }
         })
       );
 
