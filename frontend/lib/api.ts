@@ -727,6 +727,22 @@ class APIClient {
     return appwriteService.getAlerts(limit);
   }
 
+  async getAppwriteBots(limit?: number): Promise<any[]> {
+    return appwriteService.getBots(limit);
+  }
+
+  async getAppwriteMaps(limit?: number): Promise<any[]> {
+    return appwriteService.getMaps(limit);
+  }
+
+  async getAppwriteTraders(limit?: number): Promise<any[]> {
+    return appwriteService.getTraders(limit);
+  }
+
+  async getAppwriteProjects(limit?: number): Promise<any[]> {
+    return appwriteService.getProjects(limit);
+  }
+
   async getAppwriteCounts(): Promise<Record<string, number>> {
     return appwriteService.getCounts();
   }

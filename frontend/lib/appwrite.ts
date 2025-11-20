@@ -823,7 +823,7 @@ class AppwriteService {
       console.warn('Appwrite database ID not configured, skipping skill node sync');
       return;
     }
-    const collectionId = 'skill_nodes';
+    const collectionId = 'skillnodes';
 
     try {
       if (operation === 'delete') {
@@ -1236,7 +1236,7 @@ class AppwriteService {
   }
 
   async getSkillNodes(limit?: number): Promise<SkillNode[]> {
-    const { documents } = await this.listDocumentsViaRest('skill_nodes', limit, 'created_at');
+    const { documents } = await this.listDocumentsViaRest('skillnodes', limit, 'created_at');
     return documents.map((doc: any) => this.documentToSkillNode(doc));
   }
 
@@ -1253,6 +1253,138 @@ class AppwriteService {
   async getAlerts(limit?: number): Promise<Alert[]> {
     const { documents } = await this.listDocumentsViaRest('alerts', limit, 'created_at');
     return documents.map((doc: any) => this.documentToAlert(doc));
+  }
+
+  // Helper to convert Appwrite document to Bot (generic structure)
+  private documentToBot(doc: any): any {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+
+    return {
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: (this.getDocField(doc, 'external_id') ?? this.getDocField(doc, 'externalId') ?? '') as string,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
+    };
+  }
+
+  // Helper to convert Appwrite document to Map (generic structure)
+  private documentToMap(doc: any): any {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+
+    return {
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: (this.getDocField(doc, 'external_id') ?? this.getDocField(doc, 'externalId') ?? '') as string,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
+    };
+  }
+
+  // Helper to convert Appwrite document to Trader (generic structure)
+  private documentToTrader(doc: any): any {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+
+    return {
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: (this.getDocField(doc, 'external_id') ?? this.getDocField(doc, 'externalId') ?? '') as string,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
+    };
+  }
+
+  // Helper to convert Appwrite document to Project (generic structure)
+  private documentToProject(doc: any): any {
+    const createdAt =
+      this.getDocField(doc, 'created_at') ||
+      doc?.created_at ||
+      doc?.$createdAt ||
+      new Date().toISOString();
+    const updatedAt =
+      this.getDocField(doc, 'updated_at') ||
+      doc?.updated_at ||
+      doc?.$updatedAt ||
+      new Date().toISOString();
+    const syncedAt =
+      this.getDocField(doc, 'synced_at') ||
+      doc?.synced_at ||
+      updatedAt;
+
+    return {
+      id: parseInt(String(this.getDocField(doc, 'api_id') ?? doc?.api_id ?? doc?.id ?? doc?.$id ?? '0'), 10),
+      external_id: (this.getDocField(doc, 'external_id') ?? this.getDocField(doc, 'externalId') ?? '') as string,
+      name: (this.getDocField(doc, 'name') ?? '') as string,
+      data: this.stringArrayToJson(this.getDocField(doc, 'data')),
+      synced_at: new Date(syncedAt).toISOString(),
+      created_at: new Date(createdAt).toISOString(),
+      updated_at: new Date(updatedAt).toISOString(),
+    };
+  }
+
+  async getBots(limit?: number): Promise<any[]> {
+    const { documents } = await this.listDocumentsViaRest('bots', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToBot(doc));
+  }
+
+  async getMaps(limit?: number): Promise<any[]> {
+    const { documents } = await this.listDocumentsViaRest('maps', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToMap(doc));
+  }
+
+  async getTraders(limit?: number): Promise<any[]> {
+    const { documents } = await this.listDocumentsViaRest('traders', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToTrader(doc));
+  }
+
+  async getProjects(limit?: number): Promise<any[]> {
+    const { documents } = await this.listDocumentsViaRest('projects', limit, 'created_at');
+    return documents.map((doc: any) => this.documentToProject(doc));
   }
 
   // Get counts for each collection via REST API
@@ -1272,10 +1404,14 @@ class AppwriteService {
     const collections: Array<[string, string]> = [
       ['quests', 'quests'],
       ['items', 'items'],
-      ['skillNodes', 'skill_nodes'],
+      ['skillNodes', 'skillnodes'],
       ['hideoutModules', 'hideout_modules'],
       ['enemyTypes', 'enemy_types'],
       ['alerts', 'alerts'],
+      ['bots', 'bots'],
+      ['maps', 'maps'],
+      ['traders', 'traders'],
+      ['projects', 'projects'],
     ];
 
     try {
