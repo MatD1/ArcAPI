@@ -19,7 +19,11 @@ type EntityType =
   | "skillNodes"
   | "hideoutModules"
   | "enemyTypes"
-  | "alerts";
+  | "alerts"
+  | "bots"
+  | "maps"
+  | "traders"
+  | "projects";
 
 const entityLabels: Record<EntityType, string> = {
   quests: "Quests",
@@ -28,6 +32,10 @@ const entityLabels: Record<EntityType, string> = {
   hideoutModules: "Hideout Modules",
   enemyTypes: "Enemy Types",
   alerts: "Alerts",
+  bots: "Bots",
+  maps: "Maps",
+  traders: "Traders",
+  projects: "Projects",
 };
 
 export default function AppwritePage() {
@@ -63,6 +71,10 @@ export default function AppwritePage() {
     hideoutModules: null,
     enemyTypes: null,
     alerts: null,
+    bots: null,
+    maps: null,
+    traders: null,
+    projects: null,
   });
 
   // Entity view state
@@ -369,6 +381,20 @@ export default function AppwritePage() {
         case "alerts":
           data = await apiClient.getAppwriteAlerts(); // No limit = fetch all
           break;
+        case "bots":
+          data = await apiClient.getAppwriteBots(); // No limit = fetch all
+          break;
+        case "maps":
+          data = await apiClient.getAppwriteMaps(); // No limit = fetch all
+          break;
+        case "traders":
+          data = await apiClient.getAppwriteTraders(); // No limit = fetch all
+          break;
+        case "projects":
+          data = await apiClient.getAppwriteProjects(); // No limit = fetch all
+          break;
+        default:
+          throw new Error("Unknown entity type");
       }
 
       setEntityData(data);
