@@ -382,7 +382,7 @@ func main() {
 
 			// User profile routes (users can update their own profile, admins can update any)
 			userProfile := writeProtected.Group("/users")
-			userProfile.Use(middleware.JWTAuthMiddleware(authService)) // Require JWT (already checked in writeProtected, but explicit)
+			userProfile.Use(middleware.JWTAuthMiddleware(authService, cfg, oidcService)) // Require JWT (already checked in writeProtected, but explicit)
 			{
 				userProfile.PUT("/:id/profile", managementHandler.UpdateUserProfile)
 			}
