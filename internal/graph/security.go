@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/mat/arcapi/internal/config"
+	"github.com/mat/arcapi/internal/middleware"
 	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/services"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -14,10 +16,10 @@ import (
 const (
 	// MaxQueryDepth limits the depth of nested queries to prevent deep recursion attacks
 	MaxQueryDepth = 10
-	
+
 	// MaxQueryComplexity limits the total complexity score of a query
 	MaxQueryComplexity = 1000
-	
+
 	// MaxQueryCost limits the estimated cost of a query
 	MaxQueryCost = 500
 )
@@ -124,14 +126,14 @@ func calculateSelectionSetComplexity(selectionSet ast.SelectionSet, multiplier i
 		case *ast.Field:
 			// Base complexity for each field
 			fieldComplexity := 1
-			
+
 			// Increase complexity for list fields (they can be expensive)
 			if sel.Definition != nil {
 				if strings.HasSuffix(sel.Definition.Type.String(), "!") || strings.Contains(sel.Definition.Type.String(), "[") {
 					fieldComplexity = 10 // Lists are more expensive
 				}
 			}
-			
+
 			// Check for pagination arguments (limit)
 			if sel.Arguments != nil {
 				for _, arg := range sel.Arguments {
@@ -143,9 +145,9 @@ func calculateSelectionSetComplexity(selectionSet ast.SelectionSet, multiplier i
 					}
 				}
 			}
-			
+
 			complexity += fieldComplexity * multiplier
-			
+
 			// Recursively calculate nested fields
 			if sel.SelectionSet != nil {
 				complexity += calculateSelectionSetComplexity(sel.SelectionSet, multiplier*2)
@@ -179,39 +181,38 @@ func ValidateQueryComplexity(ctx context.Context, maxComplexity int) error {
 	return nil
 }
 
-// GraphQLResolverAuthMiddleware validates JWT token and adds user to context for GraphQL resolvers
-func GraphQLResolverAuthMiddleware(authService *services.AuthService) func(ctx context.Context, obj interface{}, next graphql.Resolver) (interface{}, error) {
+// GraphQLResolverAuthMiddleware validates authentication and adds user to context for GraphQL resolvers
+func GraphQLResolverAuthMiddleware(authService *services.AuthService, cfg *config.Config, oidcService *services.OIDCService) func(ctx context.Context, obj interface{}, next graphql.Resolver) (interface{}, error) {
 	return func(ctx context.Context, obj interface{}, next graphql.Resolver) (interface{}, error) {
 		// Get authorization header from request context
 		reqCtx := graphql.GetRequestContext(ctx)
 		if reqCtx == nil {
 			return nil, fmt.Errorf("request context not found")
 		}
-		
+
 		// Get headers from request
 		headers := reqCtx.Headers
 		authHeader := headers.Get("Authorization")
 		if authHeader == "" {
 			return nil, fmt.Errorf("authorization header required")
 		}
-		
+
 		// Extract token from "Bearer <token>"
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			return nil, fmt.Errorf("invalid authorization header format")
 		}
-		
+
 		tokenString := parts[1]
-		
-		// Validate JWT
-		user, err := authService.ValidateJWT(tokenString)
+
+		user, err := middleware.ValidateTokenString(tokenString, authService, oidcService, cfg)
 		if err != nil {
-			return nil, fmt.Errorf("invalid or expired JWT token: %w", err)
+			return nil, fmt.Errorf("invalid or expired token: %w", err)
 		}
-		
+
 		// Add user to context
 		ctx = context.WithValue(ctx, UserContextKey, user)
-		
+
 		return next(ctx)
 	}
 }
@@ -232,17 +233,16 @@ func ValidateOperation(ctx context.Context) error {
 	if opCtx == nil {
 		return fmt.Errorf("operation context not found")
 	}
-	
+
 	// Validate query depth
 	if err := ValidateQueryDepth(ctx, MaxQueryDepth); err != nil {
 		return err
 	}
-	
+
 	// Validate query complexity
 	if err := ValidateQueryComplexity(ctx, MaxQueryComplexity); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
-

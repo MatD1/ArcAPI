@@ -2,6 +2,7 @@ package graph
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/mat/arcapi/internal/config"
 	"github.com/mat/arcapi/internal/repository"
 	"github.com/mat/arcapi/internal/services"
 )
@@ -23,6 +24,8 @@ func SetupGraphQLRoutes(
 	blueprintProgressRepo *repository.UserBlueprintProgressRepository,
 	authService *services.AuthService,
 	dataCacheService *services.DataCacheService,
+	cfg *config.Config,
+	oidcService *services.OIDCService,
 ) {
 	// Create resolver
 	resolver := NewResolver(
@@ -40,27 +43,26 @@ func SetupGraphQLRoutes(
 		authService,
 		dataCacheService,
 	)
-	
+
 	// Try to create GraphQL handler (will fail if code not generated)
 	graphqlHandler := NewGraphQLHandler(resolver, authService)
-	
+
 	// If handler creation failed, use simple handler
 	if graphqlHandler == nil {
 		simpleHandler := NewGraphQLHandlerSimple(resolver, authService)
-		
+
 		// GraphQL endpoint (POST only for security)
-		r.POST("/graphql", GraphQLAuthMiddleware(authService), simpleHandler.GraphQLHandler)
-		
+		r.POST("/graphql", GraphQLAuthMiddleware(authService, cfg, oidcService), simpleHandler.GraphQLHandler)
+
 		// GraphQL Playground (development only - consider protecting with admin auth)
 		r.GET("/graphql/playground", simpleHandler.PlaygroundHandler)
-		
+
 		return
 	}
-	
+
 	// GraphQL endpoint (POST only for security)
-	r.POST("/graphql", GraphQLAuthMiddleware(authService), graphqlHandler.GraphQLHandler)
-	
+	r.POST("/graphql", GraphQLAuthMiddleware(authService, cfg, oidcService), graphqlHandler.GraphQLHandler)
+
 	// GraphQL Playground (development only - consider protecting with admin auth)
 	r.GET("/graphql/playground", graphqlHandler.PlaygroundHandler)
 }
-

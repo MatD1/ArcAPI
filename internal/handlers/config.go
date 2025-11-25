@@ -52,5 +52,16 @@ func (h *ConfigHandler) GetFrontendConfig(c *gin.Context) {
 		},
 	}
 
+	authentikEnabled := os.Getenv("AUTHENTIK_ENABLED") == "true"
+	authentikConfig := gin.H{
+		"enabled":   authentikEnabled,
+		"issuer":    os.Getenv("AUTHENTIK_ISSUER"),
+		"authorize": os.Getenv("AUTHENTIK_AUTH_URL"),
+		"token":     os.Getenv("AUTHENTIK_TOKEN_URL"),
+		"logout":    os.Getenv("AUTHENTIK_LOGOUT_URL"),
+		"clientId":  os.Getenv("AUTHENTIK_CLIENT_ID"),
+	}
+	config["authentik"] = authentikConfig
+
 	c.JSON(http.StatusOK, config)
 }

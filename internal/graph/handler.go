@@ -8,6 +8,8 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
+	"github.com/mat/arcapi/internal/config"
+	"github.com/mat/arcapi/internal/middleware"
 	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/services"
 )
@@ -25,17 +27,18 @@ type GraphQLHandler struct {
 // to use the generated NewExecutableSchema function.
 //
 // Example after generation:
-//   cfg := Config{Resolvers: resolver}
-//   srv := handler.NewDefaultServer(NewExecutableSchema(cfg))
-//   setupSecurityMiddleware(srv, authService)
-//   return &GraphQLHandler{srv: srv, authService: authService}
+//
+//	cfg := Config{Resolvers: resolver}
+//	srv := handler.NewDefaultServer(NewExecutableSchema(cfg))
+//	setupSecurityMiddleware(srv, authService)
+//	return &GraphQLHandler{srv: srv, authService: authService}
 func NewGraphQLHandler(resolver *Resolver, authService *services.AuthService) *GraphQLHandler {
 	// TODO: After code generation, uncomment and update:
 	// cfg := Config{Resolvers: resolver}
 	// srv := handler.NewDefaultServer(NewExecutableSchema(cfg))
 	// setupSecurityMiddleware(srv, authService)
 	// return &GraphQLHandler{srv: srv, authService: authService}
-	
+
 	// Temporary: return nil until code is generated
 	// Use NewGraphQLHandlerSimple for a placeholder implementation
 	return nil
@@ -57,39 +60,21 @@ func (h *GraphQLHandler) PlaygroundHandler(c *gin.Context) {
 	playground.Handler("GraphQL Playground", "/api/v1/graphql").ServeHTTP(c.Writer, c.Request)
 }
 
-// GraphQLAuthMiddleware is a Gin middleware that validates JWT and adds user to context
-func GraphQLAuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
+// GraphQLAuthMiddleware validates API requests before hitting the GraphQL handler
+func GraphQLAuthMiddleware(authService *services.AuthService, cfg *config.Config, oidcService *services.OIDCService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get JWT token from Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header required"})
-			c.Abort()
-			return
-		}
-		
-		// Extract token from "Bearer <token>"
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
-			c.Abort()
-			return
-		}
-		
-		tokenString := parts[1]
-		
-		// Validate JWT
-		user, err := authService.ValidateJWT(tokenString)
+		user, token, err := middleware.AuthenticateRequest(c, authService, oidcService, cfg)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired JWT token"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			c.Abort()
 			return
 		}
-		
+
 		// Add user to Gin context (will be accessible in GraphQL resolvers via request context)
 		c.Set("user", user)
 		c.Set("user_id", user.ID)
-		
+		c.Set("token", token)
+
 		c.Next()
 	}
 }
@@ -102,4 +87,3 @@ func RequireAuthFromContext(ctx context.Context) (*models.User, error) {
 	}
 	return user, nil
 }
-

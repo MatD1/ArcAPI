@@ -1,11 +1,14 @@
 package services
 
 import (
-	"crypto/rand"
+	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -13,17 +16,18 @@ import (
 	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/repository"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AuthService struct {
-	userRepo        *repository.UserRepository
-	apiKeyRepo      *repository.APIKeyRepository
-	jwtTokenRepo    *repository.JWTTokenRepository
-	authCodeRepo    *repository.AuthorizationCodeRepository
+	userRepo         *repository.UserRepository
+	apiKeyRepo       *repository.APIKeyRepository
+	jwtTokenRepo     *repository.JWTTokenRepository
+	authCodeRepo     *repository.AuthorizationCodeRepository
 	refreshTokenRepo *repository.RefreshTokenRepository
-	cacheService    *CacheService
-	cfg             *config.Config
-	jwtSecret       []byte
+	cacheService     *CacheService
+	cfg              *config.Config
+	jwtSecret        []byte
 }
 
 func NewAuthService(
@@ -50,38 +54,60 @@ func NewAuthService(
 // CreateAuthorizationCode creates a short-lived authorization code (plain string returned)
 func (s *AuthService) CreateAuthorizationCode(userID uint, codeChallenge, method string) (string, error) {
 	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil { return "", err }
+	if _, err := crand.Read(b); err != nil {
+		return "", err
+	}
 	plain := base64.URLEncoding.EncodeToString(b)
 	// TTL 60s
-	if err := s.authCodeRepo.Create(userID, plain, codeChallenge, method, 60*time.Second); err != nil { return "", err }
+	if err := s.authCodeRepo.Create(userID, plain, codeChallenge, method, 60*time.Second); err != nil {
+		return "", err
+	}
 	return plain, nil
 }
 
 // ExchangeAuthorizationCode verifies code + PKCE and returns JWT + refresh token
 func (s *AuthService) ExchangeAuthorizationCode(code, codeVerifier string) (string, string, *models.User, error) {
 	ac, err := s.authCodeRepo.FindByPlain(code)
-	if err != nil { return "", "", nil, fmt.Errorf("invalid code") }
-	if ac.IsExpired() { return "", "", nil, fmt.Errorf("code expired") }
-	if ac.IsConsumed() { return "", "", nil, fmt.Errorf("code already used") }
+	if err != nil {
+		return "", "", nil, fmt.Errorf("invalid code")
+	}
+	if ac.IsExpired() {
+		return "", "", nil, fmt.Errorf("code expired")
+	}
+	if ac.IsConsumed() {
+		return "", "", nil, fmt.Errorf("code already used")
+	}
 	// Verify PKCE
 	if ac.CodeChallengeMethod == "S256" {
 		h := sha256.Sum256([]byte(codeVerifier))
 		calc := base64.RawURLEncoding.EncodeToString(h[:])
-		if calc != ac.CodeChallenge { return "", "", nil, fmt.Errorf("invalid code_verifier") }
+		if calc != ac.CodeChallenge {
+			return "", "", nil, fmt.Errorf("invalid code_verifier")
+		}
 	} else {
-		if codeVerifier != ac.CodeChallenge { return "", "", nil, fmt.Errorf("invalid code_verifier") }
+		if codeVerifier != ac.CodeChallenge {
+			return "", "", nil, fmt.Errorf("invalid code_verifier")
+		}
 	}
 	// Load user
 	user, err := s.userRepo.FindByID(ac.UserID)
-	if err != nil { return "", "", nil, fmt.Errorf("user not found") }
+	if err != nil {
+		return "", "", nil, fmt.Errorf("user not found")
+	}
 	jwt, err := s.GenerateJWT(user)
-	if err != nil { return "", "", nil, fmt.Errorf("failed to generate jwt") }
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to generate jwt")
+	}
 	// Create refresh token
 	rtBytes := make([]byte, 32)
-	if _, err := rand.Read(rtBytes); err != nil { return "", "", nil, fmt.Errorf("failed to generate refresh token") }
+	if _, err := crand.Read(rtBytes); err != nil {
+		return "", "", nil, fmt.Errorf("failed to generate refresh token")
+	}
 	refreshPlain := base64.URLEncoding.EncodeToString(rtBytes)
 	expiry := time.Now().Add(time.Duration(s.cfg.RefreshTokenExpiryDays) * 24 * time.Hour)
-	if err := s.refreshTokenRepo.Create(user.ID, refreshPlain, expiry); err != nil { return "", "", nil, fmt.Errorf("failed to store refresh token") }
+	if err := s.refreshTokenRepo.Create(user.ID, refreshPlain, expiry); err != nil {
+		return "", "", nil, fmt.Errorf("failed to store refresh token")
+	}
 	// Consume code
 	_ = s.authCodeRepo.Consume(ac)
 	return jwt, refreshPlain, user, nil
@@ -90,18 +116,30 @@ func (s *AuthService) ExchangeAuthorizationCode(code, codeVerifier string) (stri
 // RefreshJWT exchanges a refresh token for a new JWT (rotates refresh token)
 func (s *AuthService) RefreshJWT(refreshToken string) (string, string, *models.User, error) {
 	rt, err := s.refreshTokenRepo.FindByPlain(refreshToken)
-	if err != nil { return "", "", nil, fmt.Errorf("invalid refresh token") }
-	if rt.IsRevoked() || rt.IsExpired() { return "", "", nil, fmt.Errorf("refresh token invalid") }
+	if err != nil {
+		return "", "", nil, fmt.Errorf("invalid refresh token")
+	}
+	if rt.IsRevoked() || rt.IsExpired() {
+		return "", "", nil, fmt.Errorf("refresh token invalid")
+	}
 	user, err := s.userRepo.FindByID(rt.UserID)
-	if err != nil { return "", "", nil, fmt.Errorf("user not found") }
+	if err != nil {
+		return "", "", nil, fmt.Errorf("user not found")
+	}
 	jwt, err := s.GenerateJWT(user)
-	if err != nil { return "", "", nil, fmt.Errorf("failed to generate jwt") }
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to generate jwt")
+	}
 	// rotate refresh token
 	newBytes := make([]byte, 32)
-	if _, err := rand.Read(newBytes); err != nil { return "", "", nil, fmt.Errorf("failed to rotate refresh token") }
+	if _, err := crand.Read(newBytes); err != nil {
+		return "", "", nil, fmt.Errorf("failed to rotate refresh token")
+	}
 	plain := base64.URLEncoding.EncodeToString(newBytes)
 	expiry := time.Now().Add(time.Duration(s.cfg.RefreshTokenExpiryDays) * 24 * time.Hour)
-	if err := s.refreshTokenRepo.Create(user.ID, plain, expiry); err != nil { return "", "", nil, fmt.Errorf("failed to store new refresh token") }
+	if err := s.refreshTokenRepo.Create(user.ID, plain, expiry); err != nil {
+		return "", "", nil, fmt.Errorf("failed to store new refresh token")
+	}
 	// revoke old
 	_ = s.refreshTokenRepo.Revoke(rt)
 	// touch new old last used
@@ -111,7 +149,7 @@ func (s *AuthService) RefreshJWT(refreshToken string) (string, string, *models.U
 // GenerateAPIKey generates a new API key and returns both the plain key and hashed version
 func (s *AuthService) GenerateAPIKey() (string, string, error) {
 	keyBytes := make([]byte, 32)
-	_, err := rand.Read(keyBytes)
+	_, err := crand.Read(keyBytes)
 	if err != nil {
 		return "", "", err
 	}
@@ -278,6 +316,116 @@ func (s *AuthService) ValidateJWT(tokenString string) (*models.User, error) {
 	}
 
 	return user, nil
+}
+
+// SyncOIDCUser ensures there is a local user matching the OIDC identity and synchronizes role/access
+func (s *AuthService) SyncOIDCUser(claims *OIDCClaims) (*models.User, error) {
+	if claims == nil {
+		return nil, fmt.Errorf("oidc claims missing")
+	}
+
+	email := strings.ToLower(strings.TrimSpace(claims.Email))
+	if email == "" {
+		return nil, fmt.Errorf("email claim missing")
+	}
+
+	user, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			user, err = s.createOIDCUser(claims)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+
+	desiredRole := models.RoleUser
+	if claims.HasGroup(s.cfg.AuthentikAdminGroup) {
+		desiredRole = models.RoleAdmin
+	}
+
+	needsUpdate := false
+	if user.Role != desiredRole {
+		user.Role = desiredRole
+		needsUpdate = true
+	}
+	if !user.CanAccessData {
+		user.CanAccessData = true
+		needsUpdate = true
+	}
+
+	if needsUpdate {
+		if err := s.userRepo.Update(user); err != nil {
+			return nil, err
+		}
+	}
+
+	return user, nil
+}
+
+func (s *AuthService) createOIDCUser(claims *OIDCClaims) (*models.User, error) {
+	baseUsername := claims.PreferredUsername
+	if baseUsername == "" {
+		if idx := strings.Index(claims.Email, "@"); idx > 0 {
+			baseUsername = claims.Email[:idx]
+		} else {
+			baseUsername = "user"
+		}
+	}
+	baseUsername = sanitizeUsername(baseUsername)
+	if baseUsername == "" {
+		baseUsername = "user"
+	}
+
+	for attempt := 0; attempt < 8; attempt++ {
+		username := baseUsername
+		if attempt > 0 {
+			username = fmt.Sprintf("%s-%d", baseUsername, rand.Intn(100000))
+		}
+
+		user := &models.User{
+			Email:         strings.ToLower(claims.Email),
+			Username:      username,
+			Role:          models.RoleUser,
+			CanAccessData: true,
+			CreatedViaApp: true,
+		}
+
+		if err := s.userRepo.Create(user); err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				continue
+			}
+			return nil, err
+		}
+
+		return user, nil
+	}
+
+	return nil, fmt.Errorf("unable to create unique username for %s", claims.Email)
+}
+
+func sanitizeUsername(input string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(input))
+	builder := strings.Builder{}
+	for _, r := range trimmed {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		case r == '-' || r == '_' || r == '.':
+			builder.WriteRune(r)
+		case r == ' ':
+			builder.WriteRune('-')
+		}
+	}
+	result := strings.Trim(builder.String(), "-_.")
+	if result == "" {
+		return "user"
+	}
+	return result
 }
 
 // CreateAPIKey creates a new API key for a user

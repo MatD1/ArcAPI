@@ -54,6 +54,17 @@ type Config struct {
 	RateLimitRequests      int `envconfig:"RATE_LIMIT_REQUESTS" default:"21"`
 	RateLimitWindowSeconds int `envconfig:"RATE_LIMIT_WINDOW_SECONDS" default:"60"`
 	RateLimitBurst         int `envconfig:"RATE_LIMIT_BURST" default:"8"`
+
+	// Authentik OIDC
+	AuthentikEnabled     bool   `envconfig:"AUTHENTIK_ENABLED" default:"false"`
+	AuthentikIssuer      string `envconfig:"AUTHENTIK_ISSUER" default:""`
+	AuthentikClientID    string `envconfig:"AUTHENTIK_CLIENT_ID" default:""`
+	AuthentikClientSecret string `envconfig:"AUTHENTIK_CLIENT_SECRET" default:""`
+	AuthentikJWKSURL     string `envconfig:"AUTHENTIK_JWKS_URL" default:""`
+	AuthentikAuthURL     string `envconfig:"AUTHENTIK_AUTH_URL" default:""`
+	AuthentikTokenURL    string `envconfig:"AUTHENTIK_TOKEN_URL" default:""`
+	AuthentikLogoutURL   string `envconfig:"AUTHENTIK_LOGOUT_URL" default:""`
+	AuthentikAdminGroup  string `envconfig:"AUTHENTIK_ADMIN_GROUP" default:"arcdb-admins"`
 }
 
 func LoadConfig() (*Config, error) {

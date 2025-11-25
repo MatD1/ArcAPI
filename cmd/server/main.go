@@ -71,6 +71,13 @@ func main() {
 	authCodeRepo := repository.NewAuthorizationCodeRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	authService := services.NewAuthService(userRepo, apiKeyRepo, jwtTokenRepo, authCodeRepo, refreshTokenRepo, cacheService, cfg)
+	var oidcService *services.OIDCService
+	if cfg.AuthentikEnabled {
+		oidcService, err = services.NewOIDCService(cfg)
+		if err != nil {
+			log.Fatalf("failed to initialize Authentik OIDC service: %v", err)
+		}
+	}
 	userService := services.NewUserService(userRepo)
 
 	// Initialize data cache service (only if cache is available)
@@ -123,7 +130,6 @@ func main() {
 		tradersService.Start()
 		log.Println("Traders service started - will refresh every 15 minutes")
 	}
-
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
@@ -226,7 +232,7 @@ func main() {
 
 		// Read-only routes (require JWT only)
 		readOnly := api.Group("")
-		readOnly.Use(middleware.JWTAuthMiddleware(authService))
+		readOnly.Use(middleware.JWTAuthMiddleware(authService, cfg, oidcService))
 		{
 			// Quests - Read
 			readOnly.GET("/quests", questHandler.List)
@@ -275,7 +281,7 @@ func main() {
 
 		// Progress routes (basic users can read and update their own progress)
 		progress := api.Group("/progress")
-		progress.Use(middleware.ProgressAuthMiddleware(authService))
+		progress.Use(middleware.ProgressAuthMiddleware(authService, cfg, oidcService))
 		{
 			// Quest Progress
 			progress.GET("/quests", progressHandler.GetMyQuestProgress)
@@ -296,7 +302,7 @@ func main() {
 
 		// Write routes (require API key + JWT for regular users, or JWT only for admins)
 		writeProtected := api.Group("")
-		writeProtected.Use(middleware.WriteAuthMiddleware(authService))
+		writeProtected.Use(middleware.WriteAuthMiddleware(authService, cfg, oidcService))
 		{
 			// Quests - Write
 			writeProtected.POST("/quests", questHandler.Create)
@@ -409,6 +415,8 @@ func main() {
 			blueprintProgressRepo,
 			authService,
 			dataCacheService,
+			cfg,
+			oidcService,
 		)
 
 		// Mobile callback page (public route - redirects to deep link)
