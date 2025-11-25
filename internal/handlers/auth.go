@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/v57/github"
 	"github.com/mat/arcapi/internal/config"
+	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/repository"
 	"github.com/mat/arcapi/internal/services"
 	"golang.org/x/oauth2"
@@ -40,10 +41,10 @@ type OAuthTokenData struct {
 
 // OAuthState represents the state passed through OAuth flow
 type OAuthState struct {
-	Redirect            string    `json:"redirect"`    // Deep link URL for mobile, or web callback
-	Client              string    `json:"client"`      // "mobile" or "web"
-	CSRFToken           string    `json:"csrf_token"`  // CSRF protection token
-	Timestamp           time.Time `json:"timestamp"`   // State creation time
+	Redirect            string    `json:"redirect"`       // Deep link URL for mobile, or web callback
+	Client              string    `json:"client"`         // "mobile" or "web"
+	CSRFToken           string    `json:"csrf_token"`     // CSRF protection token
+	Timestamp           time.Time `json:"timestamp"`      // State creation time
 	Mode                string    `json:"mode,omitempty"` // "pkce" for authorization code flow, else empty for temp token flow
 	CodeChallenge       string    `json:"code_challenge,omitempty"`
 	CodeChallengeMethod string    `json:"code_challenge_method,omitempty"`
@@ -876,7 +877,7 @@ func (h *AuthHandler) DiscordCallback(c *gin.Context) {
 // TokenExchange exchanges authorization code + code_verifier for JWT + refresh token (PKCE flow)
 func (h *AuthHandler) TokenExchange(c *gin.Context) {
 	var req struct {
-		Code        string `json:"code" binding:"required"`
+		Code         string `json:"code" binding:"required"`
 		CodeVerifier string `json:"code_verifier" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -893,7 +894,9 @@ func (h *AuthHandler) TokenExchange(c *gin.Context) {
 
 // RefreshToken endpoint rotates refresh token and returns new JWT + refresh token
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	var req struct { RefreshToken string `json:"refresh_token" binding:"required"` }
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -942,4 +945,21 @@ func (h *AuthHandler) LoginWithAPIKey(c *gin.Context) {
 		"token": jwtToken,
 		"user":  user,
 	})
+}
+
+// GetCurrentUser returns the authenticated user context
+func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
+	val, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+
+	user, ok := val.(*models.User)
+	if !ok || user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": user})
 }

@@ -40,6 +40,10 @@ class APIClient {
   private client: AxiosInstance;
   private apiKey: string | null = null;
   private jwtToken: string | null = null;
+  private refreshToken: string | null = null;
+  private tokenExpiresAt: number | null = null;
+  private isRefreshing = false;
+  private refreshSubscribers: ((token: string) => void)[] = [];
 
   constructor() {
     this.client = axios.create({
@@ -53,13 +57,152 @@ class APIClient {
     if (typeof window !== 'undefined') {
       this.apiKey = localStorage.getItem('api_key');
       this.jwtToken = localStorage.getItem('jwt_token');
+      this.refreshToken = localStorage.getItem('refresh_token');
+      const expiresAt = localStorage.getItem('token_expires_at');
+      this.tokenExpiresAt = expiresAt ? parseInt(expiresAt, 10) : null;
       this.updateHeaders();
+      this.setupInterceptors();
+      this.startTokenRefreshTimer();
     }
   }
 
-  setAuth(apiKey: string | null, jwtToken: string) {
+  private setupInterceptors() {
+    // Request interceptor to check token expiry before each request
+    this.client.interceptors.request.use(
+      async (config) => {
+        // Skip token refresh for auth endpoints
+        if (config.url?.includes('/auth/')) {
+          return config;
+        }
+
+        // Check if token needs refresh (5 minutes before expiry)
+        if (this.tokenExpiresAt && this.refreshToken) {
+          const now = Date.now();
+          const fiveMinutes = 5 * 60 * 1000;
+          if (now >= this.tokenExpiresAt - fiveMinutes) {
+            await this.silentRefresh();
+          }
+        }
+
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor to handle 401 errors
+    this.client.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+
+        // If 401 and we have a refresh token, try to refresh
+        if (error.response?.status === 401 && !originalRequest._retry && this.refreshToken) {
+          originalRequest._retry = true;
+
+          try {
+            await this.silentRefresh();
+            // Update the authorization header with new token
+            originalRequest.headers['Authorization'] = `Bearer ${this.jwtToken}`;
+            return this.client(originalRequest);
+          } catch (refreshError) {
+            // Refresh failed, clear auth and reject
+            this.clearAuth();
+            return Promise.reject(refreshError);
+          }
+        }
+
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  private async silentRefresh(): Promise<void> {
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    // If already refreshing, wait for it to complete
+    if (this.isRefreshing) {
+      return new Promise((resolve) => {
+        this.refreshSubscribers.push((token: string) => {
+          resolve();
+        });
+      });
+    }
+
+    this.isRefreshing = true;
+
+    try {
+      // Try Authentik refresh first if available
+      const { refreshAuthentikToken } = await import('./authentik');
+      const tokens = await refreshAuthentikToken(this.refreshToken);
+      
+      if (tokens.id_token) {
+        const expiresIn = tokens.expires_in || 3600; // Default 1 hour
+        const expiresAt = Date.now() + (expiresIn * 1000);
+        
+        this.setAuth(this.apiKey, tokens.id_token, tokens.refresh_token || this.refreshToken);
+        this.tokenExpiresAt = expiresAt;
+        
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('token_expires_at', expiresAt.toString());
+        }
+
+        // Notify all waiting subscribers
+        this.refreshSubscribers.forEach((callback) => callback(tokens.id_token));
+        this.refreshSubscribers = [];
+      }
+    } catch (error) {
+      console.error('Silent token refresh failed:', error);
+      throw error;
+    } finally {
+      this.isRefreshing = false;
+    }
+  }
+
+  private startTokenRefreshTimer() {
+    // Check token expiry every minute
+    setInterval(() => {
+      if (this.tokenExpiresAt && this.refreshToken) {
+        const now = Date.now();
+        const fiveMinutes = 5 * 60 * 1000;
+        
+        // Refresh if within 5 minutes of expiry
+        if (now >= this.tokenExpiresAt - fiveMinutes && !this.isRefreshing) {
+          this.silentRefresh().catch((error) => {
+            console.error('Background token refresh failed:', error);
+          });
+        }
+      }
+    }, 60000); // Check every minute
+  }
+
+  setAuth(apiKey: string | null, jwtToken: string, refreshToken?: string | null, expiresIn?: number) {
     this.apiKey = apiKey;
     this.jwtToken = jwtToken;
+    if (typeof refreshToken !== 'undefined') {
+      this.refreshToken = refreshToken;
+    }
+    
+    // Calculate token expiry
+    if (expiresIn) {
+      this.tokenExpiresAt = Date.now() + (expiresIn * 1000);
+    } else if (jwtToken) {
+      // Try to extract expiry from JWT if not provided
+      try {
+        const payload = JSON.parse(atob(jwtToken.split('.')[1]));
+        if (payload.exp) {
+          this.tokenExpiresAt = payload.exp * 1000; // Convert to milliseconds
+        } else {
+          // Default to 1 hour
+          this.tokenExpiresAt = Date.now() + (3600 * 1000);
+        }
+      } catch {
+        // Default to 1 hour if parsing fails
+        this.tokenExpiresAt = Date.now() + (3600 * 1000);
+      }
+    }
+    
     if (typeof window !== 'undefined') {
       if (apiKey) {
         localStorage.setItem('api_key', apiKey);
@@ -67,8 +210,30 @@ class APIClient {
         localStorage.removeItem('api_key');
       }
       localStorage.setItem('jwt_token', jwtToken);
+      if (this.tokenExpiresAt) {
+        localStorage.setItem('token_expires_at', this.tokenExpiresAt.toString());
+      }
+      if (typeof refreshToken !== 'undefined') {
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
+        } else {
+          localStorage.removeItem('refresh_token');
+        }
+      }
     }
     this.updateHeaders();
+  }
+
+  setOIDCTokens(idToken: string, refreshToken?: string, expiresIn?: number) {
+    this.setAuth(null, idToken, typeof refreshToken === 'undefined' ? undefined : refreshToken ?? null, expiresIn);
+  }
+
+  getIdToken() {
+    return this.jwtToken;
+  }
+
+  getRefreshToken() {
+    return this.refreshToken;
   }
 
   setJWT(jwtToken: string) {
@@ -82,9 +247,13 @@ class APIClient {
   clearAuth() {
     this.apiKey = null;
     this.jwtToken = null;
+    this.refreshToken = null;
+    this.tokenExpiresAt = null;
     if (typeof window !== 'undefined') {
       localStorage.removeItem('api_key');
       localStorage.removeItem('jwt_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('token_expires_at');
     }
     this.updateHeaders();
   }
@@ -112,6 +281,11 @@ class APIClient {
       this.setAuth(apiKey, response.data.token);
     }
     return response.data;
+  }
+  
+  async getCurrentUser(): Promise<User> {
+    const response = await this.client.get<{ user: User }>('/me');
+    return response.data.user;
   }
 
   // Quests

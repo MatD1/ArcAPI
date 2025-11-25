@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuthStore } from '@/store/authStore';
 import Link from 'next/link';
+import { useAuthStore } from '@/store/authStore';
+import { apiClient } from '@/lib/api';
+import { buildLogoutUrl } from '@/lib/authentik';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard/', icon: '📊' },
@@ -34,12 +36,24 @@ const adminNavigation = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, logout } = useAuthStore();
+  const { user, isLoading, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const idToken = apiClient.getIdToken() || undefined;
     logout();
-    router.push('/login/');
+    if (typeof window !== 'undefined') {
+      try {
+        const logoutUrl = await buildLogoutUrl(`${window.location.origin}/login/`, idToken);
+        if (logoutUrl) {
+          window.location.href = logoutUrl;
+          return;
+        }
+      } catch {
+        // ignore failure and fall back to local redirect
+      }
+      router.push('/login/');
+    }
   };
 
   // Close mobile menu when route changes
@@ -57,6 +71,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="animate-spin h-12 w-12 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-sm text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return null;

@@ -234,6 +234,7 @@ func main() {
 		readOnly := api.Group("")
 		readOnly.Use(middleware.JWTAuthMiddleware(authService, cfg, oidcService))
 		{
+			readOnly.GET("/me", authHandler.GetCurrentUser)
 			// Quests - Read
 			readOnly.GET("/quests", questHandler.List)
 			readOnly.GET("/quests/:id", questHandler.Get)
