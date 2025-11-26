@@ -953,6 +953,7 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 
 	var tokenResp struct {
 		IDToken      string `json:"id_token"`
+		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 		ExpiresIn    int    `json:"expires_in"`
 		TokenType    string `json:"token_type"`
@@ -962,12 +963,33 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 		return
 	}
 
-	if tokenResp.IDToken == "" {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "authentik did not return an ID token"})
+	// Prefer id_token (should be a JWT), fall back to access_token
+	tokenToValidate := tokenResp.IDToken
+	if tokenToValidate == "" {
+		tokenToValidate = tokenResp.AccessToken
+	}
+	if tokenToValidate == "" {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "authentik did not return an ID token or access token"})
 		return
 	}
 
-	claims, err := h.oidcService.ValidateToken(tokenResp.IDToken)
+	// Validate that the token looks like a JWT (has 3 dot-separated segments)
+	segments := strings.Split(tokenToValidate, ".")
+	if len(segments) != 3 {
+		// Log what we received for debugging (first 50 chars only to avoid leaking full token)
+		preview := tokenToValidate
+		if len(preview) > 50 {
+			preview = preview[:50] + "..."
+		}
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":          "authentik returned a malformed token (not a valid JWT)",
+			"id_token_empty": tokenResp.IDToken == "",
+			"token_preview":  preview,
+		})
+		return
+	}
+
+	claims, err := h.oidcService.ValidateToken(tokenToValidate)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": fmt.Sprintf("token validation failed: %v", err)})
 		return
