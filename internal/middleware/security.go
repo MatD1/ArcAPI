@@ -10,6 +10,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// appendCSPDomain parses the provided URL and appends its origin to the given CSP directive value.
+// Falls back to the raw value if parsing fails so configuration values added via env vars still work.
+func appendCSPDomain(directiveValue, rawURL string) string {
+	if rawURL == "" {
+		return directiveValue
+	}
+	parsedURL, err := url.Parse(rawURL)
+	if err == nil && parsedURL.Scheme != "" && parsedURL.Host != "" {
+		return directiveValue + " " + parsedURL.Scheme + "://" + parsedURL.Host
+	}
+	return directiveValue + " " + rawURL
+}
+
 // SecurityMiddleware adds security headers and CORS support
 func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -20,13 +33,13 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 		if appwriteEndpoint == "" {
 			appwriteEndpoint = os.Getenv("NEXT_PUBLIC_APPWRITE_ENDPOINT")
 		}
-		
+
 		// Build CSP policy
 		// Note: frame-ancestors allows embedding (for OAuth redirects), form-action allows form submissions
 		// frame-src allows iframes (for OAuth flows), connect-src allows fetch/XHR requests
 		connectSrc := "'self'"
 		frameSrc := "'self'"
-		
+
 		// Add Supabase to CSP
 		if supabaseURL != "" {
 			// Parse URL to extract scheme and host
@@ -42,7 +55,7 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 				connectSrc += " " + supabaseURL + " https://*.supabase.co https://*.supabase.in"
 			}
 		}
-		
+
 		// Always allow Appwrite cloud instances (for OAuth redirects and API calls)
 		// This ensures it works even if endpoint is loaded dynamically from API config
 		// CSP wildcards only match one level, so we need multiple patterns for different Appwrite regions
@@ -50,7 +63,7 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 		// Pattern: *.cloud.appwrite.io matches any subdomain of cloud.appwrite.io (e.g., syd.cloud.appwrite.io)
 		connectSrc += " https://*.appwrite.io https://*.cloud.appwrite.io https://appwrite.io"
 		frameSrc += " https://*.appwrite.io https://*.cloud.appwrite.io https://appwrite.io"
-		
+
 		// Also allow common Appwrite cloud regions explicitly (as a fallback)
 		// This ensures coverage even if wildcard matching has issues
 		commonRegions := []string{
@@ -59,11 +72,21 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 			"ams.cloud.appwrite.io", "blr.cloud.appwrite.io", "waw.cloud.appwrite.io",
 			"iad.cloud.appwrite.io", "cle.cloud.appwrite.io", "dub.cloud.appwrite.io",
 		}
+
+		// Allow Authentik endpoints defined via env vars so token/authorize calls succeed.
+		authentikEndpoints := []string{
+			os.Getenv("AUTHENTIK_AUTH_URL"),
+			os.Getenv("AUTHENTIK_TOKEN_URL"),
+			os.Getenv("AUTHENTIK_LOGOUT_URL"),
+		}
+		for _, endpoint := range authentikEndpoints {
+			connectSrc = appendCSPDomain(connectSrc, endpoint)
+		}
 		for _, region := range commonRegions {
 			connectSrc += " https://" + region
 			frameSrc += " https://" + region
 		}
-		
+
 		// Add specific Appwrite endpoint if configured (for self-hosted instances)
 		if appwriteEndpoint != "" {
 			// Parse URL to extract scheme and host
@@ -79,9 +102,9 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 				frameSrc += " " + appwriteEndpoint
 			}
 		}
-		
+
 		csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.arctracker.io; connect-src %s; frame-src %s; frame-ancestors 'self'; form-action 'self'", connectSrc, frameSrc)
-		
+
 		csp += ";"
 
 		// Security headers
