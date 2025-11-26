@@ -938,7 +938,10 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to call authentik token endpoint"})
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":   "failed to call authentik token endpoint",
+			"details": err.Error(),
+		})
 		return
 	}
 	defer resp.Body.Close()
