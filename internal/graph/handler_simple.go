@@ -63,20 +63,20 @@ func createGraphQLServer(resolver *Resolver, authService *services.AuthService) 
 func setupSecurityMiddleware(srv *handler.Server, authService *services.AuthService) {
 	// Add query complexity analysis
 	srv.Use(extension.FixedComplexityLimit(MaxQueryComplexity))
-	
+
 	// Add query caching (LRU cache for parsed queries)
 	// Cache stores *ast.QueryDocument objects
 	srv.SetQueryCache(lru.New[*ast.QueryDocument](1000))
-	
+
 	// Configure transports (only POST for security - no GET to prevent CSRF)
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.Websocket{
 		KeepAlivePingInterval: 10,
 	})
-	
+
 	// Add request validation middleware
 	srv.Use(extension.Introspection{})
-	
+
 	// Add custom middleware for authentication and validation
 	srv.AroundOperations(func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
 		// Get user from request headers
@@ -84,7 +84,7 @@ func setupSecurityMiddleware(srv *handler.Server, authService *services.AuthServ
 		if reqCtx != nil {
 			headers := reqCtx.Headers
 			authHeader := headers.Get("Authorization")
-			
+
 			// Health check doesn't require auth
 			opCtx := graphql.GetOperationContext(ctx)
 			if opCtx != nil && opCtx.Operation != nil {
@@ -95,7 +95,7 @@ func setupSecurityMiddleware(srv *handler.Server, authService *services.AuthServ
 					}
 				}
 			}
-			
+
 			if authHeader != "" {
 				// Extract and validate token
 				parts := strings.Split(authHeader, " ")
@@ -108,13 +108,12 @@ func setupSecurityMiddleware(srv *handler.Server, authService *services.AuthServ
 				}
 			}
 		}
-		
+
 		// Validate operation before execution
 		if err := ValidateOperation(ctx); err != nil {
-			return graphql.OneShot(graphql.ErrorResponse(ctx, err.Error()))
+			return graphql.OneShot(graphql.ErrorResponse(ctx, "%s", err.Error()))
 		}
-		
+
 		return next(ctx)
 	})
 }
-

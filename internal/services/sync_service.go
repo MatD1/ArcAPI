@@ -60,8 +60,8 @@ func NewSyncServiceWithCache(
 	dataCacheService *DataCacheService,
 	cfg *config.Config,
 ) *SyncService {
-	// GitHub client without auth for public repo
-	client := github.NewClient(nil)
+	// GitHub client without auth for public repo but route through a rate-limit aware transport.
+	client := github.NewClient(newRateLimitAwareHTTPClient())
 
 	service := &SyncService{
 		questRepo:         questRepo,
@@ -633,7 +633,7 @@ func (s *SyncService) syncMaps(ctx context.Context, owner, repo string) error {
 		} else if id, ok := m["id"].(float64); ok {
 			mapModel.ExternalID = fmt.Sprintf("%.0f", id)
 		}
-		
+
 		// Extract name - can be string or multilingual object
 		if name, ok := m["name"].(string); ok {
 			mapModel.Name = name
@@ -651,7 +651,7 @@ func (s *SyncService) syncMaps(ctx context.Context, owner, repo string) error {
 				}
 			}
 		}
-		
+
 		// Fallback to external_id if no name found
 		if mapModel.Name == "" {
 			mapModel.Name = mapModel.ExternalID
@@ -683,16 +683,16 @@ func (s *SyncService) syncTraders(ctx context.Context, owner, repo string) error
 
 	// Group trades by trader name and create a unique ID for each trader
 	traderMap := make(map[string]*models.Trader)
-	
+
 	for _, t := range trades {
 		traderName, ok := t["trader"].(string)
 		if !ok || traderName == "" {
 			continue
 		}
-		
+
 		// Use trader name as external_id (or create a unique ID)
 		externalID := traderName
-		
+
 		// Check if we've already seen this trader
 		if trader, exists := traderMap[externalID]; exists {
 			// Append this trade to the trader's data
@@ -753,7 +753,7 @@ func (s *SyncService) syncProjects(ctx context.Context, owner, repo string) erro
 		} else if id, ok := p["id"].(float64); ok {
 			project.ExternalID = fmt.Sprintf("%.0f", id)
 		}
-		
+
 		// Extract name - can be string or multilingual object
 		if name, ok := p["name"].(string); ok {
 			project.Name = name
@@ -771,7 +771,7 @@ func (s *SyncService) syncProjects(ctx context.Context, owner, repo string) erro
 				}
 			}
 		}
-		
+
 		// Fallback to external_id if no name found
 		if project.Name == "" {
 			project.Name = project.ExternalID

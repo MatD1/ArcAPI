@@ -94,23 +94,15 @@ func (s *AuthService) ExchangeAuthorizationCode(code, codeVerifier string) (stri
 	if err != nil {
 		return "", "", nil, fmt.Errorf("user not found")
 	}
-	jwt, err := s.GenerateJWT(user)
+
+	jwt, refreshToken, err := s.IssueTokensForUser(user)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to generate jwt")
+		return "", "", nil, err
 	}
-	// Create refresh token
-	rtBytes := make([]byte, 32)
-	if _, err := crand.Read(rtBytes); err != nil {
-		return "", "", nil, fmt.Errorf("failed to generate refresh token")
-	}
-	refreshPlain := base64.URLEncoding.EncodeToString(rtBytes)
-	expiry := time.Now().Add(time.Duration(s.cfg.RefreshTokenExpiryDays) * 24 * time.Hour)
-	if err := s.refreshTokenRepo.Create(user.ID, refreshPlain, expiry); err != nil {
-		return "", "", nil, fmt.Errorf("failed to store refresh token")
-	}
+
 	// Consume code
 	_ = s.authCodeRepo.Consume(ac)
-	return jwt, refreshPlain, user, nil
+	return jwt, refreshToken, user, nil
 }
 
 // RefreshJWT exchanges a refresh token for a new JWT (rotates refresh token)
@@ -144,6 +136,33 @@ func (s *AuthService) RefreshJWT(refreshToken string) (string, string, *models.U
 	_ = s.refreshTokenRepo.Revoke(rt)
 	// touch new old last used
 	return jwt, plain, user, nil
+}
+
+func (s *AuthService) IssueTokensForUser(user *models.User) (string, string, error) {
+	jwt, err := s.GenerateJWT(user)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate jwt: %w", err)
+	}
+
+	refreshToken, err := s.createRefreshToken(user.ID)
+	if err != nil {
+		return "", "", err
+	}
+
+	return jwt, refreshToken, nil
+}
+
+func (s *AuthService) createRefreshToken(userID uint) (string, error) {
+	rtBytes := make([]byte, 32)
+	if _, err := crand.Read(rtBytes); err != nil {
+		return "", fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+	refreshPlain := base64.URLEncoding.EncodeToString(rtBytes)
+	expiry := time.Now().Add(time.Duration(s.cfg.RefreshTokenExpiryDays) * 24 * time.Hour)
+	if err := s.refreshTokenRepo.Create(userID, refreshPlain, expiry); err != nil {
+		return "", fmt.Errorf("failed to store refresh token: %w", err)
+	}
+	return refreshPlain, nil
 }
 
 // GenerateAPIKey generates a new API key and returns both the plain key and hashed version

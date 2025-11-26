@@ -133,25 +133,25 @@ class APIClient {
     this.isRefreshing = true;
 
     try {
-      // Try Authentik refresh first if available
-      const { refreshAuthentikToken } = await import('./authentik');
-      const tokens = await refreshAuthentikToken(this.refreshToken);
-      
-      if (tokens.id_token) {
-        const expiresIn = tokens.expires_in || 3600; // Default 1 hour
-        const expiresAt = Date.now() + (expiresIn * 1000);
-        
-        this.setAuth(this.apiKey, tokens.id_token, tokens.refresh_token || this.refreshToken);
-        this.tokenExpiresAt = expiresAt;
-        
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('token_expires_at', expiresAt.toString());
-        }
+      const response = await this.client.post<{
+        token: string;
+        refresh_token?: string;
+        expires_in?: number;
+      }>('/auth/refresh', {
+        refresh_token: this.refreshToken,
+      });
 
-        // Notify all waiting subscribers
-        this.refreshSubscribers.forEach((callback) => callback(tokens.id_token));
-        this.refreshSubscribers = [];
+      const tokens = response.data;
+      if (!tokens.token) {
+        throw new Error('Refresh response missing token');
       }
+
+      const expiresIn = tokens.expires_in || 3600;
+      const refreshToken = tokens.refresh_token ?? this.refreshToken;
+      this.setAuth(this.apiKey, tokens.token, refreshToken, expiresIn);
+
+      this.refreshSubscribers.forEach((callback) => callback(tokens.token));
+      this.refreshSubscribers = [];
     } catch (error) {
       console.error('Silent token refresh failed:', error);
       throw error;

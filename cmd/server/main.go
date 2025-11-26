@@ -132,7 +132,7 @@ func main() {
 	}
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
+	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo, oidcService)
 
 	// Use cache-enabled handlers if cache is available
 	var questHandler *handlers.QuestHandler
@@ -228,6 +228,7 @@ func main() {
 			auth.POST("/login", authHandler.LoginWithAPIKey)
 			auth.POST("/token", authHandler.TokenExchange)
 			auth.POST("/refresh", authHandler.RefreshToken)
+			auth.POST("/authentik/token", authHandler.AuthentikTokenExchange)
 		}
 
 		// Read-only routes (require JWT only)

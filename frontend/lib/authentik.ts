@@ -120,71 +120,43 @@ export const beginAuthentikLogin = async (redirectUri?: string) => {
 };
 
 export const exchangeCodeForTokens = async (code: string, redirectUri: string, verifier: string) => {
-  const cfg = await getAuthentikConfig();
-  if (!cfg.token || !cfg.clientId) {
-    throw new Error('Authentik token endpoint is not configured');
-  }
-
-  const body = new URLSearchParams();
-  body.set('grant_type', 'authorization_code');
-  body.set('code', code);
-  body.set('redirect_uri', redirectUri);
-  body.set('client_id', cfg.clientId);
-  body.set('code_verifier', verifier);
-
-  const response = await fetch(cfg.token, {
+  const response = await fetch('/api/v1/auth/authentik/token', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',
     },
-    body: body.toString(),
+    body: JSON.stringify({
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: verifier,
+    }),
   });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'Failed to exchange authorization code');
+  const text = await response.text();
+  let payload: any = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { error: text };
+    }
   }
 
-  return response.json() as Promise<{
+  if (!response.ok) {
+    throw new Error(payload.error || 'Failed to exchange authorization code');
+  }
+
+  if (!payload.id_token && payload.token) {
+    payload.id_token = payload.token;
+  }
+
+  return payload as {
     access_token?: string;
     id_token: string;
     refresh_token?: string;
     expires_in?: number;
     token_type?: string;
-  }>;
-};
-
-export const refreshAuthentikToken = async (refreshToken: string): Promise<{
-  access_token?: string;
-  id_token: string;
-  refresh_token?: string;
-  expires_in?: number;
-  token_type?: string;
-}> => {
-  const cfg = await getAuthentikConfig();
-  if (!cfg.token || !cfg.clientId) {
-    throw new Error('Authentik token endpoint is not configured');
-  }
-
-  const body = new URLSearchParams();
-  body.set('grant_type', 'refresh_token');
-  body.set('refresh_token', refreshToken);
-  body.set('client_id', cfg.clientId);
-
-  const response = await fetch(cfg.token, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: body.toString(),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'Failed to refresh token');
-  }
-
-  return response.json();
+  };
 };
 
 export const buildLogoutUrl = async (postLogoutRedirectUri: string, idTokenHint?: string): Promise<string | null> => {

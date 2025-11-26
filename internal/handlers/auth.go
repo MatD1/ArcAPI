@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,6 +28,7 @@ type AuthHandler struct {
 	cfg                *config.Config
 	githubOAuthConfig  *oauth2.Config
 	discordOAuthConfig *oauth2.Config
+	oidcService        *services.OIDCService
 	apiKeyRepo         *repository.APIKeyRepository
 	tempTokens         map[string]OAuthTokenData
 	tempTokensMu       sync.RWMutex
@@ -62,6 +64,7 @@ func NewAuthHandler(
 	userService *services.UserService,
 	cfg *config.Config,
 	apiKeyRepo *repository.APIKeyRepository,
+	oidcService *services.OIDCService,
 ) *AuthHandler {
 	var githubOAuthConfig *oauth2.Config
 	if cfg.IsGitHubOAuthEnabled() {
@@ -94,6 +97,7 @@ func NewAuthHandler(
 		cfg:                cfg,
 		githubOAuthConfig:  githubOAuthConfig,
 		discordOAuthConfig: discordOAuthConfig,
+		oidcService:        oidcService,
 		apiKeyRepo:         apiKeyRepo,
 		tempTokens:         make(map[string]OAuthTokenData),
 	}
@@ -890,6 +894,105 @@ func (h *AuthHandler) TokenExchange(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"token": jwt, "refresh_token": refresh, "user": user})
+}
+
+// AuthentikTokenExchange handles PKCE code exchanges for Authentik
+func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
+	if !h.cfg.AuthentikEnabled || h.oidcService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik is not configured"})
+		return
+	}
+
+	var req struct {
+		Code         string `json:"code" binding:"required"`
+		CodeVerifier string `json:"code_verifier" binding:"required"`
+		RedirectURI  string `json:"redirect_uri" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.cfg.AuthentikTokenURL == "" || h.cfg.AuthentikClientID == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik token endpoint is not configured"})
+		return
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", req.Code)
+	form.Set("redirect_uri", req.RedirectURI)
+	form.Set("client_id", h.cfg.AuthentikClientID)
+	form.Set("code_verifier", req.CodeVerifier)
+	if secret := strings.TrimSpace(h.cfg.AuthentikClientSecret); secret != "" {
+		form.Set("client_secret", secret)
+	}
+
+	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, h.cfg.AuthentikTokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create token request"})
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to call authentik token endpoint"})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error": fmt.Sprintf("authentik token endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
+		})
+		return
+	}
+
+	var tokenResp struct {
+		IDToken      string `json:"id_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int    `json:"expires_in"`
+		TokenType    string `json:"token_type"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to parse authentik token response"})
+		return
+	}
+
+	if tokenResp.IDToken == "" {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "authentik did not return an ID token"})
+		return
+	}
+
+	claims, err := h.oidcService.ValidateToken(tokenResp.IDToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": fmt.Sprintf("token validation failed: %v", err)})
+		return
+	}
+
+	user, err := h.authService.SyncOIDCUser(claims)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to synchronize user"})
+		return
+	}
+
+	jwtToken, refreshToken, err := h.authService.IssueTokensForUser(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to issue tokens"})
+		return
+	}
+
+	expiresIn := h.cfg.JWTExpiryHours * 3600
+	c.JSON(http.StatusOK, gin.H{
+		"token":         jwtToken,
+		"id_token":      jwtToken,
+		"refresh_token": refreshToken,
+		"expires_in":    expiresIn,
+		"user":          user,
+	})
 }
 
 // RefreshToken endpoint rotates refresh token and returns new JWT + refresh token
