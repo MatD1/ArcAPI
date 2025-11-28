@@ -898,8 +898,21 @@ func (h *AuthHandler) TokenExchange(c *gin.Context) {
 
 // AuthentikTokenExchange handles PKCE code exchanges for Authentik
 func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
-	if !h.cfg.AuthentikEnabled || h.oidcService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik is not configured"})
+	// Validate Authentik is configured
+	if !h.cfg.AuthentikEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik is not enabled"})
+		return
+	}
+	if h.oidcService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "OIDC service is not initialized"})
+		return
+	}
+	if h.cfg.AuthentikTokenURL == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik token URL is not configured"})
+		return
+	}
+	if h.cfg.AuthentikClientID == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik client ID is not configured"})
 		return
 	}
 
@@ -910,11 +923,6 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if h.cfg.AuthentikTokenURL == "" || h.cfg.AuthentikClientID == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik token endpoint is not configured"})
 		return
 	}
 
@@ -930,7 +938,10 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 
 	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, h.cfg.AuthentikTokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create token request"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "failed to create token request",
+			"details": err.Error(),
+		})
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -941,6 +952,7 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error":   "failed to call authentik token endpoint",
 			"details": err.Error(),
+			"url":     h.cfg.AuthentikTokenURL,
 		})
 		return
 	}
