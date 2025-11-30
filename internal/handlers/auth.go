@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -896,23 +897,18 @@ func (h *AuthHandler) TokenExchange(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"token": jwt, "refresh_token": refresh, "user": user})
 }
 
-// AuthentikTokenExchange handles PKCE code exchanges for Authentik
+// AuthentikTokenExchange handles PKCE code exchanges for Authentik with robust error handling
 func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
-	// Validate Authentik is configured
-	if !h.cfg.AuthentikEnabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik is not enabled"})
-		return
-	}
-	if h.oidcService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "OIDC service is not initialized"})
-		return
-	}
-	if h.cfg.AuthentikTokenURL == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik token URL is not configured"})
-		return
-	}
-	if h.cfg.AuthentikClientID == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentik client ID is not configured"})
+	// Create a context with timeout for the entire operation (45 seconds total)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+
+	// Update request context
+	c.Request = c.Request.WithContext(ctx)
+
+	// Phase 1: Validate configuration and inputs
+	if err := h.validateAuthentikConfig(); err != nil {
+		h.logAndRespond(c, http.StatusServiceUnavailable, "configuration_error", err.Error(), nil)
 		return
 	}
 
@@ -922,10 +918,100 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 		RedirectURI  string `json:"redirect_uri" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.logAndRespond(c, http.StatusBadRequest, "invalid_request", "Invalid JSON payload", gin.H{"details": err.Error()})
 		return
 	}
 
+	// Validate input lengths and format
+	if err := h.validateTokenExchangeInputs(req); err != nil {
+		h.logAndRespond(c, http.StatusBadRequest, "invalid_input", err.Error(), nil)
+		return
+	}
+
+	// Phase 2: Exchange authorization code for tokens from Authentik
+	tokenResponse, err := h.exchangeAuthentikCode(ctx, req)
+	if err != nil {
+		h.logAndRespond(c, http.StatusBadGateway, "token_exchange_failed", err.Error(), nil)
+		return
+	}
+
+	// Phase 3: Validate the received token
+	claims, err := h.validateAuthentikToken(tokenResponse)
+	if err != nil {
+		h.logAndRespond(c, http.StatusUnauthorized, "token_validation_failed", err.Error(), nil)
+		return
+	}
+
+	// Phase 4: Sync/create user in database
+	user, err := h.syncUserWithRetry(ctx, claims)
+	if err != nil {
+		h.logAndRespond(c, http.StatusInternalServerError, "user_sync_failed", err.Error(), nil)
+		return
+	}
+
+	// Phase 5: Issue application tokens
+	appTokens, err := h.issueApplicationTokens(ctx, user)
+	if err != nil {
+		h.logAndRespond(c, http.StatusInternalServerError, "token_issuance_failed", err.Error(), nil)
+		return
+	}
+
+	// Phase 6: Return successful response
+	expiresIn := h.cfg.JWTExpiryHours * 3600
+	c.JSON(http.StatusOK, gin.H{
+		"token":         appTokens.JWT,
+		"id_token":      appTokens.JWT,
+		"refresh_token": appTokens.RefreshToken,
+		"expires_in":    expiresIn,
+		"user":          user,
+	})
+}
+
+// validateAuthentikConfig validates that Authentik is properly configured
+func (h *AuthHandler) validateAuthentikConfig() error {
+	if !h.cfg.AuthentikEnabled {
+		return fmt.Errorf("authentik authentication is not enabled")
+	}
+	if h.oidcService == nil {
+		return fmt.Errorf("OIDC service not initialized")
+	}
+	if h.cfg.AuthentikTokenURL == "" {
+		return fmt.Errorf("authentik token URL not configured")
+	}
+	if h.cfg.AuthentikClientID == "" {
+		return fmt.Errorf("authentik client ID not configured")
+	}
+	return nil
+}
+
+// validateTokenExchangeInputs validates the input parameters
+func (h *AuthHandler) validateTokenExchangeInputs(req struct {
+	Code         string `json:"code" binding:"required"`
+	CodeVerifier string `json:"code_verifier" binding:"required"`
+	RedirectURI  string `json:"redirect_uri" binding:"required"`
+}) error {
+	if len(req.Code) < 10 {
+		return fmt.Errorf("authorization code too short")
+	}
+	if len(req.CodeVerifier) < 43 {
+		return fmt.Errorf("code verifier too short (minimum 43 characters)")
+	}
+	if len(req.RedirectURI) < 10 {
+		return fmt.Errorf("redirect URI too short")
+	}
+	if !strings.HasPrefix(req.RedirectURI, "https://") {
+		return fmt.Errorf("redirect URI must use HTTPS")
+	}
+	return nil
+}
+
+// exchangeAuthentikCode exchanges the authorization code for tokens
+func (h *AuthHandler) exchangeAuthentikCode(ctx context.Context, req struct {
+	Code         string `json:"code" binding:"required"`
+	CodeVerifier string `json:"code_verifier" binding:"required"`
+	RedirectURI  string `json:"redirect_uri" binding:"required"`
+}) (*authentikTokenResponse, error) {
+	// Create form data
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", req.Code)
@@ -936,134 +1022,191 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 		form.Set("client_secret", secret)
 	}
 
-	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, h.cfg.AuthentikTokenURL, strings.NewReader(form.Encode()))
+	// Create HTTP request with timeout
+	reqBody := strings.NewReader(form.Encode())
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, h.cfg.AuthentikTokenURL, reqBody)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to create token request",
-			"details": err.Error(),
-		})
-		return
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	httpReq.Header.Set("User-Agent", "ArcAPI/1.0")
 
+	// Execute request with 15 second timeout
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{
-			"error":   "failed to call authentik token endpoint",
-			"details": err.Error(),
-			"url":     h.cfg.AuthentikTokenURL,
-		})
-		return
+		return nil, fmt.Errorf("failed to call authentik: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		c.JSON(http.StatusBadGateway, gin.H{
-			"error": fmt.Sprintf("authentik token endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
-		})
-		return
+		return nil, fmt.Errorf("authentik returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
-	var tokenResp struct {
-		IDToken      string `json:"id_token"`
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    int    `json:"expires_in"`
-		TokenType    string `json:"token_type"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to parse authentik token response"})
-		return
+	// Parse response
+	var tokenResp authentikTokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %w", err)
 	}
 
-	// Prefer id_token (should be a JWT), fall back to access_token
+	return &tokenResp, nil
+}
+
+// validateAuthentikToken validates the received token
+func (h *AuthHandler) validateAuthentikToken(tokenResp *authentikTokenResponse) (*services.OIDCClaims, error) {
+	// Prefer id_token, fall back to access_token
 	tokenToValidate := tokenResp.IDToken
 	if tokenToValidate == "" {
 		tokenToValidate = tokenResp.AccessToken
 	}
 	if tokenToValidate == "" {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "authentik did not return an ID token or access token"})
-		return
+		return nil, fmt.Errorf("no valid token received from authentik")
 	}
 
-	// Validate that the token looks like a JWT (has 3 dot-separated segments)
+	// Basic JWT format validation
+	if !strings.Contains(tokenToValidate, ".") {
+		return nil, fmt.Errorf("received token is not a valid JWT format")
+	}
+
 	segments := strings.Split(tokenToValidate, ".")
 	if len(segments) != 3 {
-		// Log what we received for debugging (first 50 chars only to avoid leaking full token)
-		preview := tokenToValidate
-		if len(preview) > 50 {
-			preview = preview[:50] + "..."
-		}
-		c.JSON(http.StatusBadGateway, gin.H{
-			"error":          "authentik returned a malformed token (not a valid JWT)",
-			"id_token_empty": tokenResp.IDToken == "",
-			"token_preview":  preview,
-		})
-		return
+		return nil, fmt.Errorf("received token has invalid JWT structure (%d segments, expected 3)", len(segments))
 	}
 
+	// Validate token with OIDC service
 	claims, err := h.oidcService.ValidateToken(tokenToValidate)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": fmt.Sprintf("token validation failed: %v", err)})
-		return
+		return nil, fmt.Errorf("token validation failed: %w", err)
 	}
 
-	user, err := h.authService.SyncOIDCUser(claims)
-	if err != nil {
-		// Check if it's a database connection error (common during cold starts)
-		errMsg := strings.ToLower(err.Error())
-		if strings.Contains(errMsg, "connection refused") || 
-		   strings.Contains(errMsg, "connection") ||
-		   strings.Contains(errMsg, "timeout") ||
-		   strings.Contains(errMsg, "no connection") ||
-		   strings.Contains(errMsg, "bad connection") {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "database unavailable",
-				"details": "Database connection failed. This may happen during service startup. Please retry in a moment.",
-				"retry_after": 2, // Suggest retrying after 2 seconds
-			})
-			return
+	// Ensure required claims are present
+	if claims.Email == "" {
+		return nil, fmt.Errorf("token missing required email claim")
+	}
+
+	return claims, nil
+}
+
+// syncUserWithRetry syncs the OIDC user with retry logic for database issues
+func (h *AuthHandler) syncUserWithRetry(ctx context.Context, claims *services.OIDCClaims) (*models.User, error) {
+	// Try user sync with retry on database errors
+	maxRetries := 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		user, err := h.authService.SyncOIDCUser(claims)
+		if err == nil {
+			return user, nil
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to synchronize user",
-			"details": err.Error(),
-		})
-		return
-	}
 
-	jwtToken, refreshToken, err := h.authService.IssueTokensForUser(user)
-	if err != nil {
-		// Check if it's a database connection error (common during cold starts)
+		lastErr = err
+
+		// Check if this is a retryable database error
 		errMsg := strings.ToLower(err.Error())
-		if strings.Contains(errMsg, "connection refused") || 
-		   strings.Contains(errMsg, "connection") ||
-		   strings.Contains(errMsg, "timeout") ||
-		   strings.Contains(errMsg, "no connection") ||
-		   strings.Contains(errMsg, "bad connection") {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "database unavailable",
-				"details": "Database connection failed. This may happen during service startup. Please retry in a moment.",
-				"retry_after": 2, // Suggest retrying after 2 seconds
-			})
-			return
+		if !strings.Contains(errMsg, "connection refused") &&
+		   !strings.Contains(errMsg, "connection") &&
+		   !strings.Contains(errMsg, "timeout") &&
+		   !strings.Contains(errMsg, "no connection") &&
+		   !strings.Contains(errMsg, "bad connection") {
+			// Not a database error, don't retry
+			break
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to issue tokens",
-			"details": err.Error(),
-		})
-		return
+
+		// Wait before retry (exponential backoff)
+		if attempt < maxRetries {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(attempt) * time.Second):
+				// Continue to retry
+			}
+		}
 	}
 
-	expiresIn := h.cfg.JWTExpiryHours * 3600
-	c.JSON(http.StatusOK, gin.H{
-		"token":         jwtToken,
-		"id_token":      jwtToken,
-		"refresh_token": refreshToken,
-		"expires_in":    expiresIn,
-		"user":          user,
-	})
+	return nil, fmt.Errorf("user synchronization failed after %d attempts: %w", maxRetries, lastErr)
+}
+
+// issueApplicationTokens issues JWT and refresh tokens for the user
+func (h *AuthHandler) issueApplicationTokens(ctx context.Context, user *models.User) (*applicationTokens, error) {
+	// Try token issuance with retry on database errors
+	maxRetries := 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		jwtToken, refreshToken, err := h.authService.IssueTokensForUser(user)
+		if err == nil {
+			return &applicationTokens{
+				JWT:          jwtToken,
+				RefreshToken: refreshToken,
+			}, nil
+		}
+
+		lastErr = err
+
+		// Check if this is a retryable database error
+		errMsg := strings.ToLower(err.Error())
+		if !strings.Contains(errMsg, "connection refused") &&
+		   !strings.Contains(errMsg, "connection") &&
+		   !strings.Contains(errMsg, "timeout") &&
+		   !strings.Contains(errMsg, "no connection") &&
+		   !strings.Contains(errMsg, "bad connection") {
+			// Not a database error, don't retry
+			break
+		}
+
+		// Wait before retry (exponential backoff)
+		if attempt < maxRetries {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(attempt) * time.Second):
+				// Continue to retry
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("token issuance failed after %d attempts: %w", maxRetries, lastErr)
+}
+
+// logAndRespond logs the error and sends a consistent JSON response
+func (h *AuthHandler) logAndRespond(c *gin.Context, statusCode int, errorCode, message string, extra gin.H) {
+	response := gin.H{
+		"error": errorCode,
+		"message": message,
+	}
+
+	// Add extra fields if provided
+	for k, v := range extra {
+		response[k] = v
+	}
+
+	// Add retry_after for certain error types
+	if statusCode == http.StatusServiceUnavailable {
+		response["retry_after"] = 2
+	}
+
+	c.JSON(statusCode, response)
+}
+
+// Structs for type safety
+type authentikTokenResponse struct {
+	IDToken      string `json:"id_token"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	TokenType    string `json:"token_type"`
+}
+
+type applicationTokens struct {
+	JWT          string
+	RefreshToken string
 }
 
 // RefreshToken endpoint rotates refresh token and returns new JWT + refresh token
