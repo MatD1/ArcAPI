@@ -1012,13 +1012,47 @@ func (h *AuthHandler) AuthentikTokenExchange(c *gin.Context) {
 
 	user, err := h.authService.SyncOIDCUser(claims)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to synchronize user"})
+		// Check if it's a database connection error (common during cold starts)
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "connection refused") || 
+		   strings.Contains(errMsg, "connection") ||
+		   strings.Contains(errMsg, "timeout") ||
+		   strings.Contains(errMsg, "no connection") ||
+		   strings.Contains(errMsg, "bad connection") {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": "database unavailable",
+				"details": "Database connection failed. This may happen during service startup. Please retry in a moment.",
+				"retry_after": 2, // Suggest retrying after 2 seconds
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to synchronize user",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	jwtToken, refreshToken, err := h.authService.IssueTokensForUser(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to issue tokens"})
+		// Check if it's a database connection error (common during cold starts)
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "connection refused") || 
+		   strings.Contains(errMsg, "connection") ||
+		   strings.Contains(errMsg, "timeout") ||
+		   strings.Contains(errMsg, "no connection") ||
+		   strings.Contains(errMsg, "bad connection") {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": "database unavailable",
+				"details": "Database connection failed. This may happen during service startup. Please retry in a moment.",
+				"retry_after": 2, // Suggest retrying after 2 seconds
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to issue tokens",
+			"details": err.Error(),
+		})
 		return
 	}
 

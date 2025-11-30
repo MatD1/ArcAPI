@@ -26,11 +26,13 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Initialize database
+	// Initialize database with retry logic (handles cold starts)
+	log.Println("Connecting to database...")
 	db, err := repository.NewDB(cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	log.Println("Database connection established successfully")
 	defer func() {
 		sqlDB, err := db.DB.DB()
 		if err == nil {

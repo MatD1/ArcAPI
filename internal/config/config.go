@@ -81,7 +81,10 @@ func LoadConfig() (*Config, error) {
 }
 
 func (c *Config) GetDSN() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+	// Add connection timeout (5 seconds) and statement timeout (10 seconds) to prevent hanging
+	// connect_timeout: how long to wait when establishing connection
+	// statement_timeout: how long to wait for a query to complete
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s connect_timeout=5 statement_timeout=10000",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode)
 }
 
