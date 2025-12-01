@@ -357,6 +357,7 @@ func main() {
 				admin.GET("/users", managementHandler.ListUsers)
 				admin.GET("/users/:id", managementHandler.GetUser)
 				admin.PUT("/users/:id/access", managementHandler.UpdateUserAccess)
+				admin.PUT("/users/:id/role", managementHandler.UpdateUserRole)
 				admin.DELETE("/users/:id", managementHandler.DeleteUser)
 				admin.POST("/hideout-modules/cleanup-duplicates", managementHandler.CleanupDuplicateHideoutModules)
 

@@ -757,6 +757,13 @@ class APIClient {
     return response.data;
   }
 
+  async updateUserRole(userId: number, role: string): Promise<{ message: string; user: User }> {
+    const response = await this.client.put<{ message: string; user: User }>(`/admin/users/${userId}/role`, {
+      role,
+    });
+    return response.data;
+  }
+
   async deleteUser(userId: number): Promise<{ message: string }> {
     const response = await this.client.delete<{ message: string }>(`/admin/users/${userId}`);
     return response.data;

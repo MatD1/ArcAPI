@@ -73,6 +73,20 @@ export default function UsersPage() {
     }
   };
 
+  const handleToggleRole = async (userId: number, currentRole: string) => {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    if (!confirm(`Are you sure you want to change this user's role from ${currentRole} to ${newRole}?`)) return;
+    try {
+      await apiClient.updateUserRole(userId, newRole);
+      loadUsers();
+      if (selectedUser && selectedUser.user.id === userId) {
+        loadUserDetails(userId);
+      }
+    } catch (err) {
+      alert(getErrorMessage(err));
+    }
+  };
+
   const handleDeleteUser = async (userId: number, username: string) => {
     if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone and will delete all associated API keys and tokens.`)) return;
     try {
@@ -202,6 +216,18 @@ export default function UsersPage() {
                                 View Progress
                               </button>
                               <button
+                                onClick={() => handleToggleRole(u.id, u.role)}
+                                disabled={u.id === user?.id}
+                                className={`px-3 py-1 text-xs rounded-md mr-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  u.role === 'admin'
+                                    ? 'bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/20 dark:text-orange-200'
+                                    : 'bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-900/20 dark:text-purple-200'
+                                }`}
+                                title={u.id === user?.id ? 'Cannot change your own role' : `Make ${u.role === 'admin' ? 'user' : 'admin'}`}
+                              >
+                                {u.role === 'admin' ? 'Demote' : 'Promote'}
+                              </button>
+                              <button
                                 onClick={() => handleToggleAccess(u.id, u.can_access_data)}
                                 className={`px-3 py-1 text-xs rounded-md mr-2 ${
                                   u.can_access_data
@@ -280,9 +306,25 @@ export default function UsersPage() {
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</dt>
                       <dd className="text-sm text-gray-900 dark:text-white">{selectedUser.user.email}</dd>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Role</dt>
-                      <dd className="text-sm text-gray-900 dark:text-white">{selectedUser.user.role}</dd>
+                      <dd className="text-sm">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-900 dark:text-white">{selectedUser.user.role}</span>
+                          <button
+                            onClick={() => handleToggleRole(selectedUser.user.id, selectedUser.user.role)}
+                            disabled={selectedUser.user.id === user?.id}
+                            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              selectedUser.user.role === 'admin'
+                                ? 'bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/20 dark:text-orange-200'
+                                : 'bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-900/20 dark:text-purple-200'
+                            }`}
+                            title={selectedUser.user.id === user?.id ? 'Cannot change your own role' : `Make ${selectedUser.user.role === 'admin' ? 'user' : 'admin'}`}
+                          >
+                            {selectedUser.user.role === 'admin' ? 'Demote to User' : 'Promote to Admin'}
+                          </button>
+                        </div>
+                      </dd>
                     </div>
                     <div className="flex justify-between items-center">
                       <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Data Access</dt>
