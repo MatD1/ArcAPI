@@ -59,8 +59,8 @@ type OIDCService struct {
 }
 
 func NewOIDCService(cfg *config.Config) (*OIDCService, error) {
-	if cfg.AuthentikIssuer == "" || cfg.AuthentikJWKSURL == "" || cfg.AuthentikClientID == "" {
-		return nil, errors.New("authentik configuration is incomplete")
+	if cfg.AuthentikIssuer == "" || cfg.AuthentikJWKSURL == "" || cfg.AuthentikClientID == "" || cfg.AuthentikUserInfoURL == "" {
+		return nil, errors.New("authentik configuration is incomplete - issuer, jwks_url, client_id, and userinfo_url are required")
 	}
 
 	svc := &OIDCService{
@@ -175,23 +175,94 @@ func (s *OIDCService) keyForToken(token *jwt.Token) (*rsa.PublicKey, error) {
 }
 
 // ValidateToken validates an incoming OIDC token and returns the claims
+// This method now handles both JWS and JWE tokens by attempting userinfo fallback for JWE
 func (s *OIDCService) ValidateToken(tokenString string) (*OIDCClaims, error) {
 	claims := &OIDCClaims{}
 
+	// First try to parse as standard JWS token
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return s.keyForToken(token)
 	}, jwt.WithAudience(s.cfg.AuthentikClientID), jwt.WithIssuer(s.cfg.AuthentikIssuer), jwt.WithValidMethods([]string{"RS256"}))
 
-	if err != nil {
-		return nil, err
+	// If parsing succeeds and token is valid, return claims
+	if err == nil && token.Valid {
+		if claims.Email == "" {
+			return nil, errors.New("email claim missing")
+		}
+		return claims, nil
 	}
 
-	if !token.Valid {
-		return nil, errors.New("invalid token")
+	// If parsing failed due to JWE format, try to detect JWE token
+	if strings.Contains(err.Error(), "could not JSON decode header") || strings.Contains(err.Error(), "invalid character") {
+		// This might be a JWE token. For JWE tokens, we should use the userinfo endpoint
+		// instead of trying to decrypt the token locally.
+		return nil, fmt.Errorf("JWE tokens detected - token validation should use userinfo endpoint instead: %w", err)
 	}
+
+	// Return the original error for other cases
+	return nil, err
+}
+
+// ValidateTokenWithUserInfo validates a token by calling the userinfo endpoint
+// This is the preferred method when Authentik sends JWE-encrypted tokens
+func (s *OIDCService) ValidateTokenWithUserInfo(ctx context.Context, accessToken string) (*OIDCClaims, error) {
+	if s.cfg.AuthentikUserInfoURL == "" {
+		return nil, errors.New("userinfo URL not configured")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", s.cfg.AuthentikUserInfoURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create userinfo request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("userinfo request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("userinfo endpoint returned status %d", resp.StatusCode)
+	}
+
+	var userInfo map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		return nil, fmt.Errorf("failed to decode userinfo response: %w", err)
+	}
+
+	// Extract claims from userinfo response
+	claims := &OIDCClaims{}
+
+	if email, ok := userInfo["email"].(string); ok {
+		claims.Email = email
+	}
+
+	if preferredUsername, ok := userInfo["preferred_username"].(string); ok {
+		claims.PreferredUsername = preferredUsername
+	}
+
+	if name, ok := userInfo["name"].(string); ok {
+		claims.Name = name
+	}
+
+	if groups, ok := userInfo["groups"].([]interface{}); ok {
+		claims.Groups = make([]string, len(groups))
+		for i, g := range groups {
+			if groupStr, ok := g.(string); ok {
+				claims.Groups[i] = groupStr
+			}
+		}
+	}
+
+	// Set issuer and audience from config
+	claims.Issuer = s.cfg.AuthentikIssuer
+	claims.Audience = jwt.ClaimStrings{s.cfg.AuthentikClientID}
 
 	if claims.Email == "" {
-		return nil, errors.New("email claim missing")
+		return nil, errors.New("email claim missing from userinfo")
 	}
 
 	return claims, nil

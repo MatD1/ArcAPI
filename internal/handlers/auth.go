@@ -978,6 +978,9 @@ func (h *AuthHandler) validateAuthentikConfig() error {
 	if h.cfg.AuthentikTokenURL == "" {
 		return fmt.Errorf("authentik token URL not configured")
 	}
+	if h.cfg.AuthentikUserInfoURL == "" {
+		return fmt.Errorf("authentik userinfo URL not configured")
+	}
 	if h.cfg.AuthentikClientID == "" {
 		return fmt.Errorf("authentik client ID not configured")
 	}
@@ -1061,74 +1064,21 @@ func (h *AuthHandler) exchangeAuthentikCode(ctx context.Context, req struct {
 
 // validateAuthentikToken validates the received token
 func (h *AuthHandler) validateAuthentikToken(tokenResp *authentikTokenResponse) (*services.OIDCClaims, error) {
-	// Prefer id_token, fall back to access_token
-	tokenToValidate := tokenResp.IDToken
-	tokenType := "id_token"
-	if tokenToValidate == "" {
-		tokenToValidate = tokenResp.AccessToken
-		tokenType = "access_token"
-	}
-	if tokenToValidate == "" {
-		return nil, fmt.Errorf("no valid token received from authentik")
+	// For Authentik with JWE tokens, we use the userinfo endpoint with the access token
+	// instead of trying to validate the encrypted ID token
+	if tokenResp.AccessToken == "" {
+		return nil, fmt.Errorf("no access token received from authentik")
 	}
 
-	// Basic JWT format validation
-	if !strings.Contains(tokenToValidate, ".") {
-		preview := tokenToValidate
-		if len(preview) > 100 {
-			preview = preview[:100] + "..."
-		}
-		return nil, fmt.Errorf("received %s is not a valid JWT format (no dots found). Preview: %s", tokenType, preview)
-	}
-
-	segments := strings.Split(tokenToValidate, ".")
-
-	// Handle tokens with more than 3 segments (some implementations add extra parts)
-	var jwtToken string
-	if len(segments) == 3 {
-		// Standard JWT: header.payload.signature
-		jwtToken = tokenToValidate
-	} else if len(segments) > 3 {
-		// Token with extra segments - try to reconstruct as JWT
-		// Some tokens might have dots in the payload or additional signature parts
-		// Try the first 3 segments as JWT
-		jwtToken = strings.Join(segments[:3], ".")
-
-		// Also try the last 3 segments in case extra parts are at the beginning
-		if len(segments) > 3 {
-			alternativeToken := strings.Join(segments[len(segments)-3:], ".")
-			// We'll try both below
-			_ = alternativeToken // Keep for potential fallback
-		}
-	} else {
-		return nil, fmt.Errorf("received %s has invalid JWT structure (%d segments, expected at least 3)", tokenType, len(segments))
-	}
-
-	// Try to validate the reconstructed JWT token
-	claims, err := h.oidcService.ValidateToken(jwtToken)
-	if err != nil && len(segments) > 3 {
-		// If standard reconstruction failed and we have extra segments,
-		// try using the last 3 segments (in case extra data is at the beginning)
-		alternativeToken := strings.Join(segments[len(segments)-3:], ".")
-		claims, err = h.oidcService.ValidateToken(alternativeToken)
-		if err == nil {
-			jwtToken = alternativeToken // Use the alternative that worked
-		}
-	}
-
+	// Use userinfo endpoint to get user claims
+	claims, err := h.oidcService.ValidateTokenWithUserInfo(context.Background(), tokenResp.AccessToken)
 	if err != nil {
-		// Provide detailed error context for debugging
-		preview := jwtToken
-		if len(preview) > 100 {
-			preview = preview[:100] + "..."
-		}
-		return nil, fmt.Errorf("OIDC token validation failed for %s (original segments: %d, reconstructed segments: %d): %w. Token preview: %s",
-			tokenType, len(segments), strings.Count(jwtToken, ".")+1, err, preview)
+		return nil, fmt.Errorf("failed to validate token via userinfo: %w", err)
 	}
 
 	// Ensure required claims are present
 	if claims.Email == "" {
-		return nil, fmt.Errorf("token missing required email claim")
+		return nil, fmt.Errorf("userinfo missing required email claim")
 	}
 
 	return claims, nil

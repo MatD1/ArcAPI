@@ -63,6 +63,7 @@ type Config struct {
 	AuthentikJWKSURL     string `envconfig:"AUTHENTIK_JWKS_URL" default:""`
 	AuthentikAuthURL     string `envconfig:"AUTHENTIK_AUTH_URL" default:""`
 	AuthentikTokenURL    string `envconfig:"AUTHENTIK_TOKEN_URL" default:""`
+	AuthentikUserInfoURL string `envconfig:"AUTHENTIK_USERINFO_URL" default:""`
 	AuthentikLogoutURL   string `envconfig:"AUTHENTIK_LOGOUT_URL" default:""`
 	AuthentikAdminGroup  string `envconfig:"AUTHENTIK_ADMIN_GROUP" default:"arcdb-admins"`
 }
