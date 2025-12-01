@@ -498,7 +498,10 @@ func (s *AuthService) InvalidateUserCache(userID uint) {
 	if s.cacheService == nil {
 		return
 	}
-	// Note: Full cache invalidation for a user would require tracking all keys
-	// For now, we rely on short cache times (30s for JWT) to ensure changes take effect quickly
-	// In production, you might want to implement a more sophisticated cache invalidation strategy
+}
+
+// UpdateUserRole updates a user's role in the database
+func (s *AuthService) UpdateUserRole(user *models.User, newRole models.UserRole) error {
+	user.Role = newRole
+	return s.userRepo.Update(user)
 }

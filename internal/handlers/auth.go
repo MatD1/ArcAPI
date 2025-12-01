@@ -1271,3 +1271,70 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
+
+// RefreshUserRole refreshes the user's role from Authentik userinfo endpoint
+func (h *AuthHandler) RefreshUserRole(c *gin.Context) {
+	// Get current user from context
+	val, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+
+	user, ok := val.(*models.User)
+	if !ok || user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Only allow refreshing role if Authentik is enabled
+	if !h.cfg.AuthentikEnabled || h.oidcService == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Authentik authentication is not enabled"})
+		return
+	}
+
+	// Get the Authorization header to extract the access token
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No valid authorization header found"})
+		return
+	}
+
+	accessToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Get fresh claims from userinfo endpoint
+	claims, err := h.oidcService.ValidateTokenWithUserInfo(c.Request.Context(), accessToken)
+	if err != nil {
+		h.logAndRespond(c, http.StatusBadGateway, "userinfo_error", "Failed to get user info from Authentik: "+err.Error(), nil)
+		return
+	}
+
+	// Update the user's role based on fresh group information
+	desiredRole := models.RoleUser
+	if claims.HasGroup(h.cfg.AuthentikAdminGroup) {
+		desiredRole = models.RoleAdmin
+	}
+
+	// Check if role changed
+	roleChanged := user.Role != desiredRole
+	if roleChanged {
+		if err := h.authService.UpdateUserRole(user, desiredRole); err != nil {
+			h.logAndRespond(c, http.StatusInternalServerError, "update_error", "Failed to update user role: "+err.Error(), nil)
+			return
+		}
+
+		// Invalidate cached auth data
+		h.authService.InvalidateUserCache(user.ID)
+	}
+
+	message := "Role is already up to date"
+	if roleChanged {
+		message = "Role updated successfully"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":         user,
+		"role_updated": roleChanged,
+		"message":      message,
+	})
+}

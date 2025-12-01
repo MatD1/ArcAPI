@@ -238,6 +238,7 @@ func main() {
 		readOnly.Use(middleware.JWTAuthMiddleware(authService, cfg, oidcService))
 		{
 			readOnly.GET("/me", authHandler.GetCurrentUser)
+			readOnly.POST("/me/refresh-role", authHandler.RefreshUserRole)
 			// Quests - Read
 			readOnly.GET("/quests", questHandler.List)
 			readOnly.GET("/quests/:id", questHandler.Get)

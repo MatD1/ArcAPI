@@ -288,6 +288,11 @@ class APIClient {
     return response.data.user;
   }
 
+  async refreshUserRole(): Promise<{ user: User; role_updated: boolean; message: string }> {
+    const response = await this.client.post<{ user: User; role_updated: boolean; message: string }>('/me/refresh-role');
+    return response.data;
+  }
+
   // Quests
   async getQuests(page = 1, limit = 20): Promise<PaginatedResponse<Quest>> {
     const response = await this.client.get<PaginatedResponse<Quest>>('/quests', {
