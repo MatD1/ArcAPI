@@ -282,15 +282,20 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
 // ValidateJWT validates a JWT token and returns the user
 // Always fetches fresh user data to ensure CanAccessData is current
 func (s *AuthService) ValidateJWT(tokenString string) (*models.User, error) {
-	// Parse and validate JWT
+	// Parse and validate JWT with explicit method validation
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		// Only accept HS256 for our application tokens
+		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return s.jwtSecret, nil
 	})
 
-	if err != nil || !token.Valid {
+	if err != nil {
+		return nil, fmt.Errorf("token parsing failed: %w", err)
+	}
+
+	if !token.Valid {
 		return nil, fmt.Errorf("invalid JWT token")
 	}
 

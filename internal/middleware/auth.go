@@ -43,18 +43,27 @@ func AuthenticateRequest(c *gin.Context, authService *services.AuthService, oidc
 
 // ValidateTokenString validates a raw token string without relying on a Gin context.
 func ValidateTokenString(tokenString string, authService *services.AuthService, oidcService *services.OIDCService, cfg *config.Config) (*models.User, error) {
-	if cfg != nil && cfg.AuthentikEnabled {
-		if oidcService == nil {
-			return nil, fmt.Errorf("authentik authentication is not configured")
-		}
-		claims, err := oidcService.ValidateToken(tokenString)
-		if err != nil {
-			return nil, err
-		}
-		return authService.SyncOIDCUser(claims)
+	// First try to validate as application JWT token (most common case)
+	user, err := authService.ValidateJWT(tokenString)
+	if err == nil {
+		return user, nil
 	}
 
-	return authService.ValidateJWT(tokenString)
+	// If JWT validation fails and Authentik is enabled, try OIDC validation
+	// This handles cases where an OIDC token is passed directly (e.g., during initial auth)
+	if cfg != nil && cfg.AuthentikEnabled && oidcService != nil {
+		claims, oidcErr := oidcService.ValidateToken(tokenString)
+		if oidcErr == nil {
+			return authService.SyncOIDCUser(claims)
+		}
+		// If both JWT and OIDC validation fail, return the JWT error (more likely to be relevant)
+		// unless the OIDC error suggests it's an OIDC token that failed for other reasons
+		if strings.Contains(oidcErr.Error(), "JWE tokens detected") {
+			return nil, fmt.Errorf("OIDC token validation failed: %w", oidcErr)
+		}
+	}
+
+	return nil, err
 }
 
 // JWTAuthMiddleware validates authentication for read operations
