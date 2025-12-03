@@ -1165,6 +1165,83 @@ func (h *AuthHandler) issueApplicationTokens(ctx context.Context, user *models.U
 	return nil, fmt.Errorf("token issuance failed after %d attempts: %w", maxRetries, lastErr)
 }
 
+// AuthentikTokenRegister accepts Authentik tokens directly from OAuth2 clients (e.g., Flutter OAuth2 package)
+// This endpoint is safe because:
+// 1. OAuth2 package handles PKCE correctly internally
+// 2. Tokens are already validated by Authentik
+// 3. We validate them again via userinfo endpoint
+// 4. No code_verifier needs to be exposed to the client
+func (h *AuthHandler) AuthentikTokenRegister(c *gin.Context) {
+	// Create a context with timeout for the entire operation (30 seconds)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	// Update request context
+	c.Request = c.Request.WithContext(ctx)
+
+	// Phase 1: Validate configuration
+	if err := h.validateAuthentikConfig(); err != nil {
+		h.logAndRespond(c, http.StatusServiceUnavailable, "configuration_error", err.Error(), nil)
+		return
+	}
+
+	// Phase 2: Parse request - accept tokens directly from OAuth2 package
+	var req struct {
+		AccessToken  string `json:"access_token" binding:"required"`
+		IDToken      string `json:"id_token,omitempty"`      // Optional, not always available
+		RefreshToken string `json:"refresh_token,omitempty"` // Optional, for future use
+		ExpiresIn    int    `json:"expires_in,omitempty"`    // Optional, for reference
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logAndRespond(c, http.StatusBadRequest, "invalid_request", "Invalid JSON payload", gin.H{"details": err.Error()})
+		return
+	}
+
+	// Validate access token is not empty
+	if req.AccessToken == "" {
+		h.logAndRespond(c, http.StatusBadRequest, "invalid_request", "access_token is required", nil)
+		return
+	}
+
+	// Phase 3: Validate the Authentik access token via userinfo endpoint
+	// This ensures the token is valid and gets us the user's claims
+	claims, err := h.oidcService.ValidateTokenWithUserInfo(ctx, req.AccessToken)
+	if err != nil {
+		h.logAndRespond(c, http.StatusUnauthorized, "token_validation_failed", fmt.Sprintf("Failed to validate Authentik token: %v", err), nil)
+		return
+	}
+
+	// Ensure required claims are present
+	if claims.Email == "" {
+		h.logAndRespond(c, http.StatusUnauthorized, "token_validation_failed", "Userinfo missing required email claim", nil)
+		return
+	}
+
+	// Phase 4: Sync/create user in database
+	user, err := h.syncUserWithRetry(ctx, claims)
+	if err != nil {
+		h.logAndRespond(c, http.StatusInternalServerError, "user_sync_failed", err.Error(), nil)
+		return
+	}
+
+	// Phase 5: Issue application tokens
+	appTokens, err := h.issueApplicationTokens(ctx, user)
+	if err != nil {
+		h.logAndRespond(c, http.StatusInternalServerError, "token_issuance_failed", err.Error(), nil)
+		return
+	}
+
+	// Phase 6: Return successful response
+	expiresIn := h.cfg.JWTExpiryHours * 3600
+	c.JSON(http.StatusOK, gin.H{
+		"token":         appTokens.JWT,
+		"id_token":      appTokens.JWT,
+		"refresh_token": appTokens.RefreshToken,
+		"expires_in":    expiresIn,
+		"user":          user,
+	})
+}
+
 // logAndRespond logs the error and sends a consistent JSON response
 func (h *AuthHandler) logAndRespond(c *gin.Context, statusCode int, errorCode, message string, extra gin.H) {
 	response := gin.H{

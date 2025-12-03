@@ -231,6 +231,7 @@ func main() {
 			auth.POST("/token", authHandler.TokenExchange)
 			auth.POST("/refresh", authHandler.RefreshToken)
 			auth.POST("/authentik/token", authHandler.AuthentikTokenExchange)
+			auth.POST("/authentik/register", authHandler.AuthentikTokenRegister) // For OAuth2 package clients (Flutter)
 		}
 
 		// Read-only routes (require JWT only)
