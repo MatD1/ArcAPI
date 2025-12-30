@@ -53,9 +53,10 @@ class APIClient {
       },
     });
 
-    // Load from localStorage
+    // Load from localStorage (JWT tokens only - API key no longer persisted for security)
     if (typeof window !== 'undefined') {
-      this.apiKey = localStorage.getItem('api_key');
+      // API key is NOT loaded from localStorage for security reasons
+      // It will only be available in memory during the current session
       this.jwtToken = localStorage.getItem('jwt_token');
       this.refreshToken = localStorage.getItem('refresh_token');
       const expiresAt = localStorage.getItem('token_expires_at');
@@ -204,11 +205,10 @@ class APIClient {
     }
     
     if (typeof window !== 'undefined') {
-      if (apiKey) {
-        localStorage.setItem('api_key', apiKey);
-      } else {
-        localStorage.removeItem('api_key');
-      }
+      // API key is NOT persisted to localStorage for security reasons
+      // It remains in memory only for the current session
+      // Remove any existing API key from localStorage if present
+      localStorage.removeItem('api_key');
       localStorage.setItem('jwt_token', jwtToken);
       if (this.tokenExpiresAt) {
         localStorage.setItem('token_expires_at', this.tokenExpiresAt.toString());
@@ -234,6 +234,11 @@ class APIClient {
 
   getRefreshToken() {
     return this.refreshToken;
+  }
+
+  getApiKey() {
+    // Return API key from memory (not from localStorage for security)
+    return this.apiKey;
   }
 
   setJWT(jwtToken: string) {
