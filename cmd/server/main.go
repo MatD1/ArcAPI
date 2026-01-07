@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -434,111 +436,179 @@ func main() {
 		// Serve frontend static files
 		frontendDir := "./frontend/out"
 		if _, err := os.Stat(frontendDir); err == nil {
+			// Compute absolute paths for security (prevents path traversal)
+			absFrontendDir, err := filepath.Abs(frontendDir)
+			if err != nil {
+				log.Fatalf("Failed to resolve frontend directory: %v", err)
+			}
+			dashboardBase := filepath.Join(absFrontendDir, "dashboard")
+
 			// Serve static assets (CSS, JS, images) from _next directory
-			r.StaticFS("/_next", gin.Dir(frontendDir+"/_next", false))
+			nextDir := filepath.Join(absFrontendDir, "_next")
+			r.StaticFS("/_next", gin.Dir(nextDir, false))
 
 			// Serve dashboard and other frontend routes
 			r.GET("/dashboard", func(c *gin.Context) {
-				c.File(frontendDir + "/dashboard/index.html")
+				c.File(filepath.Join(absFrontendDir, "dashboard", "index.html"))
 			})
 			r.GET("/dashboard/*path", func(c *gin.Context) {
-				path := c.Param("path")
+				pathParam := c.Param("path")
 
-				// Handle OAuth callback routes specially
-				if strings.HasPrefix(path, "/api/auth/github/callback") {
-					c.File(frontendDir + "/api/auth/github/callback/index.html")
-					return
-				}
-				if strings.HasPrefix(path, "/api/auth/discord/callback") {
-					c.File(frontendDir + "/api/auth/discord/callback/index.html")
-					return
+				// Normalize the path parameter first to prevent path traversal
+				normalizedPath := path.Clean(pathParam)
+				if !strings.HasPrefix(normalizedPath, "/") {
+					normalizedPath = "/" + normalizedPath
 				}
 
-				filePath := frontendDir + "/dashboard" + path
-				if strings.HasSuffix(path, "/") || path == "" {
-					filePath += "index.html"
+				// Handle OAuth callback routes specially (validate normalized path)
+				if normalizedPath == "/api/auth/github/callback" || strings.HasPrefix(normalizedPath, "/api/auth/github/callback/") {
+					// Validate the callback path doesn't escape the intended directory
+					callbackBase := filepath.Join(absFrontendDir, "api", "auth", "github", "callback")
+					callbackPath := filepath.Join(callbackBase, "index.html")
+					
+					// Resolve to absolute and verify it's within the callback directory
+					absCallbackPath, err := filepath.Abs(callbackPath)
+					if err != nil {
+						c.File(filepath.Join(dashboardBase, "index.html"))
+						return
+					}
+					callbackBaseWithSep := callbackBase + string(os.PathSeparator)
+					if !strings.HasPrefix(absCallbackPath, callbackBaseWithSep) && absCallbackPath != callbackBase {
+						c.File(filepath.Join(dashboardBase, "index.html"))
+						return
+					}
+					c.File(absCallbackPath)
+					return
 				}
-				if _, err := os.Stat(filePath); err == nil {
-					c.File(filePath)
+				if normalizedPath == "/api/auth/discord/callback" || strings.HasPrefix(normalizedPath, "/api/auth/discord/callback/") {
+					// Validate the callback path doesn't escape the intended directory
+					callbackBase := filepath.Join(absFrontendDir, "api", "auth", "discord", "callback")
+					callbackPath := filepath.Join(callbackBase, "index.html")
+					
+					// Resolve to absolute and verify it's within the callback directory
+					absCallbackPath, err := filepath.Abs(callbackPath)
+					if err != nil {
+						c.File(filepath.Join(dashboardBase, "index.html"))
+						return
+					}
+					callbackBaseWithSep := callbackBase + string(os.PathSeparator)
+					if !strings.HasPrefix(absCallbackPath, callbackBaseWithSep) && absCallbackPath != callbackBase {
+						c.File(filepath.Join(dashboardBase, "index.html"))
+						return
+					}
+					c.File(absCallbackPath)
+					return
+				}
+
+				// Use the already normalized path
+				reqPath := normalizedPath
+
+				// Build candidate path and resolve to absolute
+				candidate := filepath.Join(dashboardBase, reqPath)
+				absCandidate, err := filepath.Abs(candidate)
+				if err != nil {
+					// If we can't resolve the path, serve index.html
+					c.File(filepath.Join(dashboardBase, "index.html"))
+					return
+				}
+
+				// Verify the resolved path is within dashboardBase
+				// Use filepath.Join to ensure proper path separator handling
+				dashboardBaseWithSep := dashboardBase + string(os.PathSeparator)
+				if !strings.HasPrefix(absCandidate, dashboardBaseWithSep) && absCandidate != dashboardBase {
+					// Path escaped the base directory, serve index.html instead
+					c.File(filepath.Join(dashboardBase, "index.html"))
+					return
+				}
+
+				// Add index.html if it's a directory route
+				if strings.HasSuffix(normalizedPath, "/") || normalizedPath == "" {
+					absCandidate = filepath.Join(absCandidate, "index.html")
+				}
+
+				// Check if file exists
+				if _, err := os.Stat(absCandidate); err == nil {
+					c.File(absCandidate)
 				} else {
-					c.File(frontendDir + "/dashboard/index.html")
+					// Fallback to dashboard index.html
+					c.File(filepath.Join(dashboardBase, "index.html"))
 				}
 			})
 
 			// Serve other frontend routes (login, missions, etc.)
 			r.GET("/login", func(c *gin.Context) {
-				c.File(frontendDir + "/login/index.html")
+				c.File(filepath.Join(absFrontendDir, "login", "index.html"))
 			})
 			r.GET("/login/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/login/index.html")
+				c.File(filepath.Join(absFrontendDir, "login", "index.html"))
 			})
 
 			// Serve specific frontend routes
 			r.GET("/api-keys", func(c *gin.Context) {
-				c.File(frontendDir + "/api-keys/index.html")
+				c.File(filepath.Join(absFrontendDir, "api-keys", "index.html"))
 			})
 			r.GET("/api-keys/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/api-keys/index.html")
+				c.File(filepath.Join(absFrontendDir, "api-keys", "index.html"))
 			})
 			r.GET("/quests", func(c *gin.Context) {
-				c.File(frontendDir + "/quests/index.html")
+				c.File(filepath.Join(absFrontendDir, "quests", "index.html"))
 			})
 			r.GET("/quests/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/quests/index.html")
+				c.File(filepath.Join(absFrontendDir, "quests", "index.html"))
 			})
 			r.GET("/items", func(c *gin.Context) {
-				c.File(frontendDir + "/items/index.html")
+				c.File(filepath.Join(absFrontendDir, "items", "index.html"))
 			})
 			r.GET("/items/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/items/index.html")
+				c.File(filepath.Join(absFrontendDir, "items", "index.html"))
 			})
 			r.GET("/required-items", func(c *gin.Context) {
-				c.File(frontendDir + "/required-items/index.html")
+				c.File(filepath.Join(absFrontendDir, "required-items", "index.html"))
 			})
 			r.GET("/required-items/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/required-items/index.html")
+				c.File(filepath.Join(absFrontendDir, "required-items", "index.html"))
 			})
 			r.GET("/skill-nodes", func(c *gin.Context) {
-				c.File(frontendDir + "/skill-nodes/index.html")
+				c.File(filepath.Join(absFrontendDir, "skill-nodes", "index.html"))
 			})
 			r.GET("/skill-nodes/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/skill-nodes/index.html")
+				c.File(filepath.Join(absFrontendDir, "skill-nodes", "index.html"))
 			})
 			r.GET("/hideout-modules", func(c *gin.Context) {
-				c.File(frontendDir + "/hideout-modules/index.html")
+				c.File(filepath.Join(absFrontendDir, "hideout-modules", "index.html"))
 			})
 			r.GET("/hideout-modules/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/hideout-modules/index.html")
+				c.File(filepath.Join(absFrontendDir, "hideout-modules", "index.html"))
 			})
 			r.GET("/enemy-types", func(c *gin.Context) {
-				c.File(frontendDir + "/enemy-types/index.html")
+				c.File(filepath.Join(absFrontendDir, "enemy-types", "index.html"))
 			})
 			r.GET("/enemy-types/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/enemy-types/index.html")
+				c.File(filepath.Join(absFrontendDir, "enemy-types", "index.html"))
 			})
 			r.GET("/alerts", func(c *gin.Context) {
-				c.File(frontendDir + "/alerts/index.html")
+				c.File(filepath.Join(absFrontendDir, "alerts", "index.html"))
 			})
 			r.GET("/alerts/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/alerts/index.html")
+				c.File(filepath.Join(absFrontendDir, "alerts", "index.html"))
 			})
 			r.GET("/users", func(c *gin.Context) {
-				c.File(frontendDir + "/users/index.html")
+				c.File(filepath.Join(absFrontendDir, "users", "index.html"))
 			})
 			r.GET("/users/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/users/index.html")
+				c.File(filepath.Join(absFrontendDir, "users", "index.html"))
 			})
 			r.GET("/appwrite", func(c *gin.Context) {
-				c.File(frontendDir + "/appwrite/index.html")
+				c.File(filepath.Join(absFrontendDir, "appwrite", "index.html"))
 			})
 			r.GET("/appwrite/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/appwrite/index.html")
+				c.File(filepath.Join(absFrontendDir, "appwrite", "index.html"))
 			})
 			r.GET("/export", func(c *gin.Context) {
-				c.File(frontendDir + "/export/index.html")
+				c.File(filepath.Join(absFrontendDir, "export", "index.html"))
 			})
 			r.GET("/export/*path", func(c *gin.Context) {
-				c.File(frontendDir + "/export/index.html")
+				c.File(filepath.Join(absFrontendDir, "export", "index.html"))
 			})
 
 			// Catch-all for other frontend routes
@@ -547,23 +617,57 @@ func main() {
 				if !strings.HasPrefix(c.Request.URL.Path, "/api") &&
 					!strings.HasPrefix(c.Request.URL.Path, "/health") &&
 					!strings.HasPrefix(c.Request.URL.Path, "/_next") {
-					path := c.Request.URL.Path
-					filePath := frontendDir + path
+					reqPath := c.Request.URL.Path
 
-					// Add /index.html if it's a directory route
-					if strings.HasSuffix(path, "/") || path == "" || path == "/" {
-						filePath += "index.html"
-					} else if !strings.Contains(path, ".") {
+					// Normalize the URL path (clean up .. and . segments)
+					cleanPath := path.Clean(reqPath)
+					// Ensure it starts with / for consistency
+					if !strings.HasPrefix(cleanPath, "/") {
+						cleanPath = "/" + cleanPath
+					}
+
+					// Build candidate path and resolve to absolute
+					candidate := filepath.Join(absFrontendDir, cleanPath)
+					absCandidate, err := filepath.Abs(candidate)
+					if err != nil {
+						// If we can't resolve the path, serve root index.html
+						c.File(filepath.Join(absFrontendDir, "index.html"))
+						return
+					}
+
+					// Verify the resolved path is within absFrontendDir
+					frontendBaseWithSep := absFrontendDir + string(os.PathSeparator)
+					if !strings.HasPrefix(absCandidate, frontendBaseWithSep) && absCandidate != absFrontendDir {
+						// Path escaped the base directory, serve root index.html instead
+						c.File(filepath.Join(absFrontendDir, "index.html"))
+						return
+					}
+
+					// Add index.html if it's a directory route
+					if strings.HasSuffix(reqPath, "/") || reqPath == "" || reqPath == "/" {
+						absCandidate = filepath.Join(absCandidate, "index.html")
+					} else if !strings.Contains(reqPath, ".") {
 						// If no extension, it's probably a route that needs index.html
-						filePath += "/index.html"
+						absCandidate = filepath.Join(absCandidate, "index.html")
+					}
+
+					// Re-verify after adding index.html (in case directory traversal happened)
+					absCandidateFinal, err := filepath.Abs(absCandidate)
+					if err != nil {
+						c.File(filepath.Join(absFrontendDir, "index.html"))
+						return
+					}
+					if !strings.HasPrefix(absCandidateFinal, frontendBaseWithSep) && absCandidateFinal != absFrontendDir {
+						c.File(filepath.Join(absFrontendDir, "index.html"))
+						return
 					}
 
 					// Check if file exists
-					if _, err := os.Stat(filePath); err == nil {
-						c.File(filePath)
+					if _, err := os.Stat(absCandidateFinal); err == nil {
+						c.File(absCandidateFinal)
 					} else {
 						// Fallback to root index.html for client-side routing
-						c.File(frontendDir + "/index.html")
+						c.File(filepath.Join(absFrontendDir, "index.html"))
 					}
 				} else {
 					c.JSON(404, gin.H{"error": "Not found"})

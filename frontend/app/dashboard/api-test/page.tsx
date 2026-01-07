@@ -37,9 +37,9 @@ export default function APITestPage() {
   } | null>(null);
 
   useEffect(() => {
-    // Load auth tokens from localStorage
+    // Load auth tokens (JWT from localStorage, API key from memory only)
     const jwtToken = localStorage.getItem('jwt_token');
-    const apiKey = localStorage.getItem('api_key');
+    const apiKey = apiClient.getApiKey(); // Get from memory, not localStorage
 
     setHeaders([
       { key: 'Authorization', value: jwtToken ? `Bearer ${jwtToken}` : '' },
