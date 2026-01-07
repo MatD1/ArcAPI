@@ -230,6 +230,8 @@ func main() {
 			auth.POST("/login", authHandler.LoginWithAPIKey)
 			auth.POST("/token", authHandler.TokenExchange)
 			auth.POST("/refresh", authHandler.RefreshToken)
+			// Allow explicit CORS preflight (some clients/proxies send OPTIONS without Origin header)
+			auth.OPTIONS("/authentik/token", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 			auth.POST("/authentik/token", authHandler.AuthentikTokenExchange)
 			auth.POST("/authentik/register", authHandler.AuthentikTokenRegister) // For OAuth2 package clients (Flutter)
 		}
