@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
@@ -29,17 +31,21 @@ type jwksResponse struct {
 		Kty string `json:"kty"`
 		Kid string `json:"kid"`
 		Use string `json:"use"`
+		Alg string `json:"alg"`
+		Crv string `json:"crv"`
 		N   string `json:"n"`
 		E   string `json:"e"`
+		X   string `json:"x"`
+		Y   string `json:"y"`
 	} `json:"keys"`
 }
 
-// SupabaseAuthService handles validation of Supabase tokens via JWKS (RS256)
+// SupabaseAuthService handles validation of Supabase tokens via JWKS (RS256/ES256)
 type SupabaseAuthService struct {
 	cfg         *config.Config
 	httpClient  *http.Client
 	mu          sync.RWMutex
-	keys        map[string]*rsa.PublicKey
+	keys        map[string]interface{}
 	lastRefresh time.Time
 	jwksURL     string
 }
@@ -59,7 +65,7 @@ func NewSupabaseAuthService(cfg *config.Config) (*SupabaseAuthService, error) {
 	svc := &SupabaseAuthService{
 		cfg:        cfg,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
-		keys:       make(map[string]*rsa.PublicKey),
+		keys:       make(map[string]interface{}),
 		jwksURL:    jwksURL,
 	}
 
@@ -92,12 +98,24 @@ func (s *SupabaseAuthService) refreshKeys(ctx context.Context) error {
 		return err
 	}
 
-	keyMap := make(map[string]*rsa.PublicKey)
+	keyMap := make(map[string]interface{})
 	for _, key := range jwks.Keys {
-		if strings.ToUpper(key.Kty) != "RSA" || key.Kid == "" {
+		if key.Kid == "" {
 			continue
 		}
-		pubKey, err := parseRSAPublicKey(key.N, key.E)
+
+		var pubKey interface{}
+		var err error
+
+		switch strings.ToUpper(key.Kty) {
+		case "RSA":
+			pubKey, err = parseRSAPublicKey(key.N, key.E)
+		case "EC":
+			pubKey, err = parseECPublicKey(key.Crv, key.X, key.Y)
+		default:
+			continue
+		}
+
 		if err != nil {
 			continue
 		}
@@ -105,7 +123,7 @@ func (s *SupabaseAuthService) refreshKeys(ctx context.Context) error {
 	}
 
 	if len(keyMap) == 0 {
-		return errors.New("no valid RSA keys found in Supabase JWKS")
+		return errors.New("no valid RSA or EC keys found in Supabase JWKS")
 	}
 
 	s.mu.Lock()
@@ -140,7 +158,37 @@ func parseRSAPublicKey(nStr, eStr string) (*rsa.PublicKey, error) {
 	return &rsa.PublicKey{N: n, E: e}, nil
 }
 
-func (s *SupabaseAuthService) keyForToken(token *jwt.Token) (*rsa.PublicKey, error) {
+func parseECPublicKey(crvStr, xStr, yStr string) (*ecdsa.PublicKey, error) {
+	var curve elliptic.Curve
+	switch crvStr {
+	case "P-256":
+		curve = elliptic.P256()
+	case "P-384":
+		curve = elliptic.P384()
+	case "P-521":
+		curve = elliptic.P521()
+	default:
+		return nil, fmt.Errorf("unsupported curve: %s", crvStr)
+	}
+
+	xb, err := base64.RawURLEncoding.DecodeString(xStr)
+	if err != nil {
+		return nil, err
+	}
+
+	yb, err := base64.RawURLEncoding.DecodeString(yStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ecdsa.PublicKey{
+		Curve: curve,
+		X:     new(big.Int).SetBytes(xb),
+		Y:     new(big.Int).SetBytes(yb),
+	}, nil
+}
+
+func (s *SupabaseAuthService) keyForToken(token *jwt.Token) (interface{}, error) {
 	kid, _ := token.Header["kid"].(string)
 
 	s.mu.RLock()
@@ -175,7 +223,7 @@ func (s *SupabaseAuthService) ValidateToken(tokenString string) (*SupabaseClaims
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return s.keyForToken(token)
-	}, jwt.WithValidMethods([]string{"RS256"}))
+	}, jwt.WithValidMethods([]string{"RS256", "ES256"}))
 
 	if err != nil {
 		return nil, err
