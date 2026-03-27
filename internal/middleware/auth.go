@@ -41,23 +41,18 @@ func AuthenticateRequest(c *gin.Context, authService *services.AuthService, supa
 	return user, tokenString, nil
 }
 
-// ValidateTokenString validates a raw token string without relying on a Gin context.
+// ValidateTokenString validates a raw token string using Supabase.
 func ValidateTokenString(tokenString string, authService *services.AuthService, supabaseService *services.SupabaseAuthService, cfg *config.Config) (*models.User, error) {
-	// First try to validate as application JWT token (most common case)
-	user, err := authService.ValidateJWT(tokenString)
-	if err == nil {
-		return user, nil
+	if supabaseService == nil {
+		return nil, fmt.Errorf("supabase auth service not available")
 	}
 
-	// If internal JWT validation fails, try Supabase validation
-	if supabaseService != nil {
-		claims, supabaseErr := supabaseService.ValidateToken(tokenString)
-		if supabaseErr == nil {
-			return authService.SyncSupabaseUser(claims)
-		}
+	claims, err := supabaseService.ValidateToken(tokenString)
+	if err != nil {
+		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	return nil, err
+	return authService.SyncSupabaseUser(claims)
 }
 
 // JWTAuthMiddleware validates authentication for read operations

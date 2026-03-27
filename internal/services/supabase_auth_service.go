@@ -51,9 +51,6 @@ func NewSupabaseAuthService(cfg *config.Config) (*SupabaseAuthService, error) {
 			// Derive JWKS URL from Supabase URL (e.g. https://xyz.supabase.co -> https://xyz.supabase.co/auth/v1/jwks)
 			baseUrl := strings.TrimSuffix(cfg.SupabaseURL, "/")
 			jwksURL = fmt.Sprintf("%s/auth/v1/jwks", baseUrl)
-		} else if cfg.SupabaseProjectID != "" {
-			// Legacy fallback for ProjectID
-			jwksURL = fmt.Sprintf("https://%s.supabase.co/auth/v1/jwks", cfg.SupabaseProjectID)
 		} else {
 			return nil, errors.New("supabase configuration is incomplete - SUPABASE_URL or SUPABASE_JWKS_URL is required")
 		}

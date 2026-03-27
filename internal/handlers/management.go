@@ -15,7 +15,6 @@ import (
 type ManagementHandler struct {
 	authService       *services.AuthService
 	apiKeyRepo        *repository.APIKeyRepository
-	jwtTokenRepo      *repository.JWTTokenRepository
 	auditLogRepo      *repository.AuditLogRepository
 	userRepo          *repository.UserRepository
 	hideoutModuleRepo *repository.HideoutModuleRepository
@@ -24,7 +23,6 @@ type ManagementHandler struct {
 func NewManagementHandler(
 	authService *services.AuthService,
 	apiKeyRepo *repository.APIKeyRepository,
-	jwtTokenRepo *repository.JWTTokenRepository,
 	auditLogRepo *repository.AuditLogRepository,
 	userRepo *repository.UserRepository,
 	hideoutModuleRepo *repository.HideoutModuleRepository,
@@ -32,7 +30,6 @@ func NewManagementHandler(
 	return &ManagementHandler{
 		authService:       authService,
 		apiKeyRepo:        apiKeyRepo,
-		jwtTokenRepo:      jwtTokenRepo,
 		auditLogRepo:      auditLogRepo,
 		userRepo:          userRepo,
 		hideoutModuleRepo: hideoutModuleRepo,
@@ -139,76 +136,6 @@ func (h *ManagementHandler) RevokeAPIKey(c *gin.Context) {
 	h.authService.InvalidateCache("", "")
 
 	c.JSON(http.StatusOK, gin.H{"message": "API key revoked"})
-}
-
-// RevokeJWT revokes a JWT token
-func (h *ManagementHandler) RevokeJWT(c *gin.Context) {
-	var req struct {
-		Token string `json:"token" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	authCtx, _ := c.Get(middleware.AuthContextKey)
-	ctx := authCtx.(*middleware.AuthContext)
-	user := ctx.User.(*models.User)
-
-	// Validate token first to get user
-	tokenUser, err := h.authService.ValidateJWT(req.Token)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid token"})
-		return
-	}
-
-	// Verify user owns token or is admin
-	if tokenUser.ID != user.ID && user.Role != models.RoleAdmin {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
-		return
-	}
-
-	// Revoke token by creating a hash and finding matching token
-	// Note: This is a simplified approach. In production, you might want to store
-	// a token identifier or use a different revocation strategy
-	// For now, we'll revoke based on user and expiry matching
-
-	// Get all active tokens for the user
-	tokens, err := h.jwtTokenRepo.FindActiveByUserID(tokenUser.ID)
-	if err == nil {
-		// Try to find matching token (simplified - in production use proper token ID)
-		for _, token := range tokens {
-			// If we can match by some criteria, revoke it
-			// This is a simplified implementation
-			_ = h.jwtTokenRepo.Revoke(token.ID)
-		}
-	}
-
-	// Invalidate cache
-	h.authService.InvalidateCache("", req.Token)
-
-	c.JSON(http.StatusOK, gin.H{"message": "JWT token revoked"})
-}
-
-// ListJWTs lists active JWT tokens for the current user
-func (h *ManagementHandler) ListJWTs(c *gin.Context) {
-	authCtx, _ := c.Get(middleware.AuthContextKey)
-	ctx := authCtx.(*middleware.AuthContext)
-	user := ctx.User.(*models.User)
-
-	tokens, err := h.jwtTokenRepo.FindActiveByUserID(user.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tokens"})
-		return
-	}
-
-	// Remove token hashes from response
-	for i := range tokens {
-		tokens[i].TokenHash = ""
-	}
-
-	c.JSON(http.StatusOK, tokens)
 }
 
 // QueryLogs queries audit logs with filters
@@ -460,27 +387,9 @@ func (h *ManagementHandler) GetUser(c *gin.Context) {
 		apiKeys = []models.APIKey{}
 	}
 
-	// Get user's active JWT tokens
-	jwtTokens, err := h.jwtTokenRepo.FindActiveByUserID(user.ID)
-	if err != nil {
-		// Log but don't fail
-		jwtTokens = []models.JWTToken{}
-	}
-
-	// Remove sensitive data from API keys
-	for i := range apiKeys {
-		apiKeys[i].KeyHash = ""
-	}
-
-	// Remove sensitive data from JWT tokens
-	for i := range jwtTokens {
-		jwtTokens[i].TokenHash = ""
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"user":       user,
-		"api_keys":   apiKeys,
-		"jwt_tokens": jwtTokens,
+		"user":     user,
+		"api_keys": apiKeys,
 	})
 }
 

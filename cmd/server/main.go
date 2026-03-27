@@ -168,7 +168,6 @@ func main() {
 	managementHandler := handlers.NewManagementHandler(
 		authService,
 		apiKeyRepo,
-		jwtTokenRepo,
 		auditLogRepo,
 		userRepo,
 		hideoutModuleRepo,
@@ -221,19 +220,7 @@ func main() {
 	api := r.Group("/api/v1")
 	api.Use(middleware.RateLimitMiddleware(cacheService, cfg.RateLimitRequests, cfg.RateLimitWindowSeconds))
 	{
-		auth := api.Group("/auth")
-		{
-			auth.GET("/github/login", authHandler.GitHubLogin)
-			auth.GET("/github/callback", authHandler.GitHubCallback)
-			auth.GET("/discord/login", authHandler.DiscordLogin)
-			auth.GET("/discord/callback", authHandler.DiscordCallback)
-			auth.GET("/exchange-token", authHandler.ExchangeTempToken)
-			auth.POST("/login", authHandler.LoginWithAPIKey)
-			auth.POST("/token", authHandler.TokenExchange)
-			auth.POST("/refresh", authHandler.RefreshToken)
-		}
-
-		// Read-only routes (require JWT only)
+		// JWTAuthMiddleware handles Supabase JWT validation
 		readOnly := api.Group("")
 		readOnly.Use(middleware.JWTAuthMiddleware(authService, cfg, supabaseAuthService))
 		{
@@ -334,8 +321,6 @@ func main() {
 				admin.POST("/api-keys", managementHandler.CreateAPIKey)
 				admin.GET("/api-keys", managementHandler.ListAPIKeys)
 				admin.DELETE("/api-keys/:id", managementHandler.RevokeAPIKey)
-				admin.POST("/jwts/revoke", managementHandler.RevokeJWT)
-				admin.GET("/jwts", managementHandler.ListJWTs)
 				admin.GET("/logs", managementHandler.QueryLogs)
 				admin.POST("/sync/force", syncHandler.ForceSync)
 				admin.GET("/sync/status", syncHandler.SyncStatus)

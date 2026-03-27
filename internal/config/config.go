@@ -23,24 +23,6 @@ type Config struct {
 	RedisAddr     string `envconfig:"REDIS_ADDR" default:"localhost:6379"` // Fallback if REDIS_URL not set
 	RedisPassword string `envconfig:"REDIS_PASSWORD" default:""`           // Fallback if REDIS_URL not set
 
-	// JWT
-	JWTSecret      string `envconfig:"JWT_SECRET" required:"true"`
-	JWTExpiryHours int    `envconfig:"JWT_EXPIRY_HOURS" default:"72"`
-	RefreshTokenExpiryDays int `envconfig:"REFRESH_TOKEN_EXPIRY_DAYS" default:"14"`
-
-	// OAuth - GitHub
-	GitHubClientID     string `envconfig:"GITHUB_CLIENT_ID" default:""`
-	GitHubClientSecret string `envconfig:"GITHUB_CLIENT_SECRET" default:""`
-
-	// OAuth - Discord
-	DiscordClientID     string `envconfig:"DISCORD_CLIENT_ID" default:""`
-	DiscordClientSecret string `envconfig:"DISCORD_CLIENT_SECRET" default:""`
-
-	OAuthEnabled        bool   `envconfig:"OAUTH_ENABLED" default:"true"`
-	OAuthRedirectURL    string `envconfig:"OAUTH_REDIRECT_URL" default:"http://localhost:8080/api/v1/auth/github/callback"`
-	DiscordRedirectURL  string `envconfig:"DISCORD_REDIRECT_URL" default:"http://localhost:8080/api/v1/auth/discord/callback"`
-	FrontendCallbackURL string `envconfig:"FRONTEND_CALLBACK_URL" default:"http://localhost:8080/dashboard/api/auth/github/callback/"`
-
 	// Sync
 	SyncCron string `envconfig:"SYNC_CRON" default:"*/15 * * * *"`
 
@@ -60,7 +42,6 @@ type Config struct {
 	SupabaseURL            string `envconfig:"SUPABASE_URL" default:""`            // Main project URL (fallback: NEXT_PUBLIC_SUPABASE_URL)
 	SupabaseJWKSURL        string `envconfig:"SUPABASE_JWKS_URL" default:""`        // Use if different from standard auth/v1/jwks
 	SupabasePublishableKey string `envconfig:"SUPABASE_PUBLISHABLE_KEY" default:""` // Modern label (replacing "Anon Key")
-	SupabaseProjectID      string `envconfig:"SUPABASE_PROJECT_ID" default:""`      // Legacy fallback or id-only setups
 }
 
 func LoadConfig() (*Config, error) {
@@ -96,15 +77,15 @@ func (c *Config) GetDSN() string {
 }
 
 func (c *Config) IsOAuthEnabled() bool {
-	return c.OAuthEnabled && (c.GitHubClientID != "" && c.GitHubClientSecret != "" || c.DiscordClientID != "" && c.DiscordClientSecret != "")
+	return false // OAuth is now managed entirely by Supabase
 }
 
 func (c *Config) IsGitHubOAuthEnabled() bool {
-	return c.OAuthEnabled && c.GitHubClientID != "" && c.GitHubClientSecret != ""
+	return false
 }
 
 func (c *Config) IsDiscordOAuthEnabled() bool {
-	return c.OAuthEnabled && c.DiscordClientID != "" && c.DiscordClientSecret != ""
+	return false
 }
 
 func (c *Config) GetAllowedOrigins() []string {

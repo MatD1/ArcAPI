@@ -2,16 +2,13 @@ package services
 
 import (
 	crand "crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/mat/arcapi/internal/config"
 	"github.com/mat/arcapi/internal/models"
 	"github.com/mat/arcapi/internal/repository"
@@ -27,7 +24,6 @@ type AuthService struct {
 	refreshTokenRepo *repository.RefreshTokenRepository
 	cacheService     *CacheService
 	cfg              *config.Config
-	jwtSecret        []byte
 }
 
 func NewAuthService(
@@ -47,123 +43,10 @@ func NewAuthService(
 		refreshTokenRepo: refreshTokenRepo,
 		cacheService:     cacheService,
 		cfg:              cfg,
-		jwtSecret:        []byte(cfg.JWTSecret),
 	}
 }
 
-// CreateAuthorizationCode creates a short-lived authorization code (plain string returned)
-func (s *AuthService) CreateAuthorizationCode(userID uint, codeChallenge, method string) (string, error) {
-	b := make([]byte, 32)
-	if _, err := crand.Read(b); err != nil {
-		return "", err
-	}
-	plain := base64.URLEncoding.EncodeToString(b)
-	// TTL 60s
-	if err := s.authCodeRepo.Create(userID, plain, codeChallenge, method, 60*time.Second); err != nil {
-		return "", err
-	}
-	return plain, nil
-}
-
-// ExchangeAuthorizationCode verifies code + PKCE and returns JWT + refresh token
-func (s *AuthService) ExchangeAuthorizationCode(code, codeVerifier string) (string, string, *models.User, error) {
-	ac, err := s.authCodeRepo.FindByPlain(code)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("invalid code")
-	}
-	if ac.IsExpired() {
-		return "", "", nil, fmt.Errorf("code expired")
-	}
-	if ac.IsConsumed() {
-		return "", "", nil, fmt.Errorf("code already used")
-	}
-	// Verify PKCE
-	if ac.CodeChallengeMethod == "S256" {
-		h := sha256.Sum256([]byte(codeVerifier))
-		calc := base64.RawURLEncoding.EncodeToString(h[:])
-		if calc != ac.CodeChallenge {
-			return "", "", nil, fmt.Errorf("invalid code_verifier")
-		}
-	} else {
-		if codeVerifier != ac.CodeChallenge {
-			return "", "", nil, fmt.Errorf("invalid code_verifier")
-		}
-	}
-	// Load user
-	user, err := s.userRepo.FindByID(ac.UserID)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("user not found")
-	}
-
-	jwt, refreshToken, err := s.IssueTokensForUser(user)
-	if err != nil {
-		return "", "", nil, err
-	}
-
-	// Consume code
-	_ = s.authCodeRepo.Consume(ac)
-	return jwt, refreshToken, user, nil
-}
-
-// RefreshJWT exchanges a refresh token for a new JWT (rotates refresh token)
-func (s *AuthService) RefreshJWT(refreshToken string) (string, string, *models.User, error) {
-	rt, err := s.refreshTokenRepo.FindByPlain(refreshToken)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("invalid refresh token")
-	}
-	if rt.IsRevoked() || rt.IsExpired() {
-		return "", "", nil, fmt.Errorf("refresh token invalid")
-	}
-	user, err := s.userRepo.FindByID(rt.UserID)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("user not found")
-	}
-	jwt, err := s.GenerateJWT(user)
-	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to generate jwt")
-	}
-	// rotate refresh token
-	newBytes := make([]byte, 32)
-	if _, err := crand.Read(newBytes); err != nil {
-		return "", "", nil, fmt.Errorf("failed to rotate refresh token")
-	}
-	plain := base64.URLEncoding.EncodeToString(newBytes)
-	expiry := time.Now().Add(time.Duration(s.cfg.RefreshTokenExpiryDays) * 24 * time.Hour)
-	if err := s.refreshTokenRepo.Create(user.ID, plain, expiry); err != nil {
-		return "", "", nil, fmt.Errorf("failed to store new refresh token")
-	}
-	// revoke old
-	_ = s.refreshTokenRepo.Revoke(rt)
-	// touch new old last used
-	return jwt, plain, user, nil
-}
-
-func (s *AuthService) IssueTokensForUser(user *models.User) (string, string, error) {
-	jwt, err := s.GenerateJWT(user)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to generate jwt: %w", err)
-	}
-
-	refreshToken, err := s.createRefreshToken(user.ID)
-	if err != nil {
-		return "", "", err
-	}
-
-	return jwt, refreshToken, nil
-}
-
-func (s *AuthService) createRefreshToken(userID uint) (string, error) {
-	rtBytes := make([]byte, 32)
-	if _, err := crand.Read(rtBytes); err != nil {
-		return "", fmt.Errorf("failed to generate refresh token: %w", err)
-	}
-	refreshPlain := base64.URLEncoding.EncodeToString(rtBytes)
-	expiry := time.Now().Add(time.Duration(s.cfg.RefreshTokenExpiryDays) * 24 * time.Hour)
-	if err := s.refreshTokenRepo.Create(userID, refreshPlain, expiry); err != nil {
-		return "", fmt.Errorf("failed to store refresh token: %w", err)
-	}
-	return refreshPlain, nil
-}
+// IssueTokensForUser is removed - Use Supabase for tokens
 
 // GenerateAPIKey generates a new API key and returns both the plain key and hashed version
 func (s *AuthService) GenerateAPIKey() (string, string, error) {
@@ -234,113 +117,7 @@ func (s *AuthService) ValidateAPIKey(apiKey string) (*models.APIKey, error) {
 	return nil, fmt.Errorf("invalid API key")
 }
 
-// GenerateJWT generates a JWT token for a user
-func (s *AuthService) GenerateJWT(user *models.User) (string, error) {
-	// Validate user
-	if user == nil || user.ID == 0 {
-		return "", fmt.Errorf("invalid user: user is nil or ID is 0")
-	}
-
-	// Validate JWT secret
-	if len(s.jwtSecret) == 0 {
-		return "", fmt.Errorf("JWT secret is not configured")
-	}
-
-	expiresAt := time.Now().Add(time.Duration(s.cfg.JWTExpiryHours) * time.Hour)
-
-	claims := jwt.MapClaims{
-		"user_id": user.ID,
-		"role":    user.Role,
-		"exp":     expiresAt.Unix(),
-		"iat":     time.Now().Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(s.jwtSecret)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign token: %w", err)
-	}
-
-	// Hash token for storage (use SHA-256 since JWT tokens can exceed bcrypt's 72-byte limit)
-	hash := sha256.Sum256([]byte(tokenString))
-	tokenHash := hex.EncodeToString(hash[:])
-
-	// Store token in database
-	jwtToken := &models.JWTToken{
-		UserID:    user.ID,
-		TokenHash: tokenHash,
-		ExpiresAt: expiresAt,
-	}
-	err = s.jwtTokenRepo.Create(jwtToken)
-	if err != nil {
-		return "", fmt.Errorf("failed to store token in database: %w", err)
-	}
-
-	return tokenString, nil
-}
-
-// ValidateJWT validates a JWT token and returns the user
-// Always fetches fresh user data to ensure CanAccessData is current
-func (s *AuthService) ValidateJWT(tokenString string) (*models.User, error) {
-	// Parse and validate JWT with explicit method validation
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Only accept HS256 for our application tokens
-		if token.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return s.jwtSecret, nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("token parsing failed: %w", err)
-	}
-
-	if !token.Valid {
-		return nil, fmt.Errorf("invalid JWT token")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, fmt.Errorf("invalid token claims")
-	}
-
-	userID, ok := claims["user_id"].(float64)
-	if !ok {
-		return nil, fmt.Errorf("invalid user_id in token")
-	}
-
-	// Always fetch fresh user data to ensure CanAccessData is current
-	// This ensures access changes take effect immediately
-	user, err := s.userRepo.FindByID(uint(userID))
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if token is revoked (validate against database)
-	hash := sha256.Sum256([]byte(tokenString))
-	tokenHash := hex.EncodeToString(hash[:])
-	jwtToken, err := s.jwtTokenRepo.FindByHash(tokenHash)
-	if err != nil {
-		// Token not found in database
-		return nil, fmt.Errorf("token not found")
-	}
-	if jwtToken.RevokedAt != nil {
-		// Token is revoked
-		return nil, fmt.Errorf("token is revoked")
-	}
-	if jwtToken.ExpiresAt.Before(time.Now()) {
-		// Token is expired
-		return nil, fmt.Errorf("token is expired")
-	}
-
-	// Cache for 30 seconds (shorter cache for access control changes to take effect faster)
-	if s.cacheService != nil {
-		cacheKey := JWTCacheKey(tokenString)
-		s.cacheService.SetJSON(cacheKey, user, 30*time.Second)
-	}
-
-	return user, nil
-}
+// JWT validation is now handled via SupabaseAuthService
 
 // SyncSupabaseUser ensures there is a local user matching the Supabase identity
 func (s *AuthService) SyncSupabaseUser(claims *SupabaseClaims) (*models.User, error) {

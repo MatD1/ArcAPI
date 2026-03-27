@@ -9,7 +9,7 @@ import (
 )
 
 func TestGenerateAPIKey(t *testing.T) {
-	cfg := &config.Config{JWTSecret: "test-secret"}
+	cfg := &config.Config{}
 	service := services.NewAuthService(nil, nil, nil, nil, nil, nil, cfg)
 
 	key, hash, err := service.GenerateAPIKey()
@@ -20,14 +20,14 @@ func TestGenerateAPIKey(t *testing.T) {
 	assert.Greater(t, len(key), 32) // Should be base64 encoded 32 bytes
 }
 
+// ValidateJWT is removed as part of Supabase migration
+/*
 func TestValidateJWT_InvalidToken(t *testing.T) {
-	cfg := &config.Config{JWTSecret: "test-secret"}
+	cfg := &config.Config{}
 	service := services.NewAuthService(nil, nil, nil, nil, nil, nil, cfg)
 
 	user, err := service.ValidateJWT("invalid-token")
 	assert.Error(t, err)
 	assert.Nil(t, user)
 }
-
-// Note: More comprehensive integration tests would require setting up actual database/mocks
-// These provide basic unit tests for core functionality
+*/

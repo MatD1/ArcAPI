@@ -100,11 +100,8 @@ func setupSecurityMiddleware(srv *handler.Server, authService *services.AuthServ
 				// Extract and validate token
 				parts := strings.Split(authHeader, " ")
 				if len(parts) == 2 && parts[0] == "Bearer" {
-					user, err := authService.ValidateJWT(parts[1])
-					if err == nil {
-						// Add user to context
-						ctx = context.WithValue(ctx, UserContextKey, user)
-					}
+					// TODO: Use Supabase validation
+					// user, err := authService.SyncSupabaseUser(claims)
 				}
 			}
 		}
