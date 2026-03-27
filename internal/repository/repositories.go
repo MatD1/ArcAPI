@@ -204,6 +204,12 @@ func (r *QuestRepository) FindAll(offset, limit int) ([]models.Quest, int64, err
 	return quests, count, err
 }
 
+func (r *QuestRepository) ListAll() ([]models.Quest, error) {
+	var quests []models.Quest
+	err := r.db.Order("id ASC").Find(&quests).Error
+	return quests, err
+}
+
 func (r *QuestRepository) Update(quest *models.Quest) error {
 	return r.db.Save(quest).Error
 }
@@ -273,6 +279,12 @@ func (r *ItemRepository) FindAll(offset, limit int) ([]models.Item, int64, error
 	return items, count, err
 }
 
+func (r *ItemRepository) ListAll() ([]models.Item, error) {
+	var items []models.Item
+	err := r.db.Order("id ASC").Find(&items).Error
+	return items, err
+}
+
 func (r *ItemRepository) Update(item *models.Item) error {
 	return r.db.Save(item).Error
 }
@@ -333,6 +345,12 @@ func (r *SkillNodeRepository) FindAll(offset, limit int) ([]models.SkillNode, in
 	}
 	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&skillNodes).Error
 	return skillNodes, count, err
+}
+
+func (r *SkillNodeRepository) ListAll() ([]models.SkillNode, error) {
+	var skillNodes []models.SkillNode
+	err := r.db.Order("id ASC").Find(&skillNodes).Error
+	return skillNodes, err
 }
 
 func (r *SkillNodeRepository) Update(skillNode *models.SkillNode) error {
@@ -413,6 +431,17 @@ func (r *HideoutModuleRepository) FindAll(offset, limit int) ([]models.HideoutMo
 	return hideoutModules, count, nil
 }
 
+func (r *HideoutModuleRepository) ListAll() ([]models.HideoutModule, error) {
+	var hideoutModules []models.HideoutModule
+	err := r.db.Raw(`
+		SELECT DISTINCT ON (external_id) 
+			id, external_id, name, description, max_level, levels, data, synced_at, created_at, updated_at
+		FROM hideout_modules
+		ORDER BY external_id, id ASC
+	`).Scan(&hideoutModules).Error
+	return hideoutModules, err
+}
+
 func (r *HideoutModuleRepository) Update(hideoutModule *models.HideoutModule) error {
 	return r.db.Save(hideoutModule).Error
 }
@@ -475,6 +504,12 @@ func (r *EnemyTypeRepository) FindAll(offset, limit int) ([]models.EnemyType, in
 	return enemyTypes, count, err
 }
 
+func (r *EnemyTypeRepository) ListAll() ([]models.EnemyType, error) {
+	var enemyTypes []models.EnemyType
+	err := r.db.Order("id ASC").Find(&enemyTypes).Error
+	return enemyTypes, err
+}
+
 func (r *EnemyTypeRepository) Update(enemyType *models.EnemyType) error {
 	return r.db.Save(enemyType).Error
 }
@@ -513,6 +548,12 @@ func (r *AlertRepository) FindAll(offset, limit int) ([]models.Alert, int64, err
 	}
 	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&alerts).Error
 	return alerts, count, err
+}
+
+func (r *AlertRepository) ListAll() ([]models.Alert, error) {
+	var alerts []models.Alert
+	err := r.db.Order("id ASC").Find(&alerts).Error
+	return alerts, err
 }
 
 func (r *AlertRepository) FindActive() ([]models.Alert, error) {
@@ -824,6 +865,12 @@ func (r *BotRepository) FindAll(offset, limit int) ([]models.Bot, int64, error) 
 	return bots, count, err
 }
 
+func (r *BotRepository) ListAll() ([]models.Bot, error) {
+	var bots []models.Bot
+	err := r.db.Order("id ASC").Find(&bots).Error
+	return bots, err
+}
+
 func (r *BotRepository) UpsertByExternalID(bot *models.Bot) error {
 	var existing models.Bot
 	err := r.db.Where("external_id = ?", bot.ExternalID).First(&existing).Error
@@ -873,6 +920,12 @@ func (r *MapRepository) FindAll(offset, limit int) ([]models.Map, int64, error) 
 	}
 	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&maps).Error
 	return maps, count, err
+}
+
+func (r *MapRepository) ListAll() ([]models.Map, error) {
+	var maps []models.Map
+	err := r.db.Order("id ASC").Find(&maps).Error
+	return maps, err
 }
 
 func (r *MapRepository) UpsertByExternalID(m *models.Map) error {
@@ -926,6 +979,12 @@ func (r *TraderRepository) FindAll(offset, limit int) ([]models.Trader, int64, e
 	return traders, count, err
 }
 
+func (r *TraderRepository) ListAll() ([]models.Trader, error) {
+	var traders []models.Trader
+	err := r.db.Order("id ASC").Find(&traders).Error
+	return traders, err
+}
+
 func (r *TraderRepository) UpsertByExternalID(trader *models.Trader) error {
 	var existing models.Trader
 	err := r.db.Where("external_id = ?", trader.ExternalID).First(&existing).Error
@@ -975,6 +1034,12 @@ func (r *ProjectRepository) FindAll(offset, limit int) ([]models.Project, int64,
 	}
 	err = r.db.Order("id ASC").Offset(offset).Limit(limit).Find(&projects).Error
 	return projects, count, err
+}
+
+func (r *ProjectRepository) ListAll() ([]models.Project, error) {
+	var projects []models.Project
+	err := r.db.Order("id ASC").Find(&projects).Error
+	return projects, err
 }
 
 func (r *ProjectRepository) UpsertByExternalID(project *models.Project) error {

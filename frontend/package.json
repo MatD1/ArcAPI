@@ -9,12 +9,15 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.100.1",
     "@tailwindcss/postcss": "^4.1.17",
     "@tanstack/query-core": "^5.90.10",
     "appwrite": "^21.4.0",
     "axios": "^1.13.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.45.1",
+    "idb-keyval": "^6.2.2",
     "lucide-react": "^0.554.0",
     "next": "16.0.3",
     "next-auth": "^4.24.13",
@@ -22,6 +25,7 @@
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.66.1",
     "tailwind-merge": "^3.4.0",
+    "wa-sqlite": "^1.0.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

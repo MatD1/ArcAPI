@@ -21,6 +21,11 @@ import type {
   AllUserProgress,
 } from '@/types';
 import { appwriteService, isAppwriteEnabled, isAppwriteEnabledSync } from './appwrite';
+import { db } from './sqlite/db';
+import * as sqliteSchema from './sqlite/schema';
+import { checkHydration, addToOutbox } from './sqlite/manager';
+import { startOutboxSync } from './sqlite/sync_manager';
+import { eq } from 'drizzle-orm';
 
 // Use relative URL when embedded, or explicit URL if provided
 const getAPIURL = () => {
@@ -64,7 +69,15 @@ class APIClient {
       this.updateHeaders();
       this.setupInterceptors();
       this.startTokenRefreshTimer();
+      
+      // Initialize Local DB & Sync
+      this.initLocalDB();
     }
+  }
+
+  private async initLocalDB() {
+    await checkHydration(this.client);
+    startOutboxSync(this.client);
   }
 
   private setupInterceptors() {
@@ -300,13 +313,37 @@ class APIClient {
 
   // Quests
   async getQuests(page = 1, limit = 20): Promise<PaginatedResponse<Quest>> {
+    try {
+      // Try local first
+      const localQuests = await db.select().from(sqliteSchema.quests).offset((page - 1) * limit).limit(limit);
+      if (localQuests.length > 0) {
+        return {
+          data: localQuests.map(q => q.data as Quest),
+          pagination: {
+            total: localQuests.length,
+            page,
+            limit
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('Local quest fetch failed, falling back to API', e);
+    }
+
     const response = await this.client.get<PaginatedResponse<Quest>>('/quests', {
       params: { page, limit },
     });
     return response.data;
   }
 
-  async getQuest(id: number): Promise<Quest> {
+  async getQuest(id: number | string): Promise<Quest> {
+    try {
+      const local = await db.select().from(sqliteSchema.quests)
+        .where(eq(typeof id === 'number' ? sqliteSchema.quests.id : sqliteSchema.quests.external_id, id as any))
+        .limit(1);
+      if (local.length > 0) return local[0].data as Quest;
+    } catch (e) {}
+
     const response = await this.client.get<Quest>(`/quests/${id}`);
     return response.data;
   }
@@ -792,6 +829,10 @@ class APIClient {
   }
 
   async updateMyQuestProgress(questExternalId: string, completed: boolean): Promise<UserQuestProgress> {
+    // 1. Update/Add to local outbox for offline sync
+    await addToOutbox('quest_progress', questExternalId, 'upsert', { completed });
+
+    // 2. Optimistic Update (Backend call)
     const response = await this.client.put<UserQuestProgress>(`/progress/quests/${questExternalId}`, {
       completed,
     });

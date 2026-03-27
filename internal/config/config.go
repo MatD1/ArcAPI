@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -55,17 +56,11 @@ type Config struct {
 	RateLimitWindowSeconds int `envconfig:"RATE_LIMIT_WINDOW_SECONDS" default:"60"`
 	RateLimitBurst         int `envconfig:"RATE_LIMIT_BURST" default:"8"`
 
-	// Authentik OIDC
-	AuthentikEnabled     bool   `envconfig:"AUTHENTIK_ENABLED" default:"false"`
-	AuthentikIssuer      string `envconfig:"AUTHENTIK_ISSUER" default:""`
-	AuthentikClientID    string `envconfig:"AUTHENTIK_CLIENT_ID" default:""`
-	AuthentikClientSecret string `envconfig:"AUTHENTIK_CLIENT_SECRET" default:""`
-	AuthentikJWKSURL     string `envconfig:"AUTHENTIK_JWKS_URL" default:""`
-	AuthentikAuthURL     string `envconfig:"AUTHENTIK_AUTH_URL" default:""`
-	AuthentikTokenURL    string `envconfig:"AUTHENTIK_TOKEN_URL" default:""`
-	AuthentikUserInfoURL string `envconfig:"AUTHENTIK_USERINFO_URL" default:""`
-	AuthentikLogoutURL   string `envconfig:"AUTHENTIK_LOGOUT_URL" default:""`
-	AuthentikAdminGroup  string `envconfig:"AUTHENTIK_ADMIN_GROUP" default:"arcdb-admins"`
+	// Supabase Auth
+	SupabaseURL            string `envconfig:"SUPABASE_URL" default:""`            // Main project URL (fallback: NEXT_PUBLIC_SUPABASE_URL)
+	SupabaseJWKSURL        string `envconfig:"SUPABASE_JWKS_URL" default:""`        // Use if different from standard auth/v1/jwks
+	SupabasePublishableKey string `envconfig:"SUPABASE_PUBLISHABLE_KEY" default:""` // Modern label (replacing "Anon Key")
+	SupabaseProjectID      string `envconfig:"SUPABASE_PROJECT_ID" default:""`      // Legacy fallback or id-only setups
 }
 
 func LoadConfig() (*Config, error) {
@@ -76,6 +71,17 @@ func LoadConfig() (*Config, error) {
 	err := envconfig.Process("", &cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	// Manual fallbacks for Supabase terminology/format changes
+	if cfg.SupabaseURL == "" {
+		cfg.SupabaseURL = strings.TrimSpace(os.Getenv("NEXT_PUBLIC_SUPABASE_URL"))
+	}
+	if cfg.SupabasePublishableKey == "" {
+		cfg.SupabasePublishableKey = strings.TrimSpace(os.Getenv("SUPABASE_ANON_KEY"))
+		if cfg.SupabasePublishableKey == "" {
+			cfg.SupabasePublishableKey = strings.TrimSpace(os.Getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY"))
+		}
 	}
 
 	return &cfg, nil

@@ -25,7 +25,7 @@ func SetupGraphQLRoutes(
 	authService *services.AuthService,
 	dataCacheService *services.DataCacheService,
 	cfg *config.Config,
-	oidcService *services.OIDCService,
+	supabaseAuthService *services.SupabaseAuthService,
 ) {
 	// Create resolver
 	resolver := NewResolver(
@@ -52,7 +52,7 @@ func SetupGraphQLRoutes(
 		simpleHandler := NewGraphQLHandlerSimple(resolver, authService)
 
 		// GraphQL endpoint (POST only for security)
-		r.POST("/graphql", GraphQLAuthMiddleware(authService, cfg, oidcService), simpleHandler.GraphQLHandler)
+		r.POST("/graphql", GraphQLAuthMiddleware(authService, dataCacheService, cfg, supabaseAuthService), simpleHandler.GraphQLHandler)
 
 		// GraphQL Playground (development only - consider protecting with admin auth)
 		r.GET("/graphql/playground", simpleHandler.PlaygroundHandler)
@@ -61,7 +61,7 @@ func SetupGraphQLRoutes(
 	}
 
 	// GraphQL endpoint (POST only for security)
-	r.POST("/graphql", GraphQLAuthMiddleware(authService, cfg, oidcService), graphqlHandler.GraphQLHandler)
+	r.POST("/graphql", GraphQLAuthMiddleware(authService, dataCacheService, cfg, supabaseAuthService), graphqlHandler.GraphQLHandler)
 
 	// GraphQL Playground (development only - consider protecting with admin auth)
 	r.GET("/graphql/playground", graphqlHandler.PlaygroundHandler)

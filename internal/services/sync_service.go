@@ -230,6 +230,58 @@ func (s *SyncService) Sync() {
 	log.Println("Data sync completed")
 }
 
+// GetSnapshot returns a full point-in-time snapshot of all static data
+func (s *SyncService) GetSnapshot() (*models.Snapshot, error) {
+	snapshot := &models.Snapshot{
+		Version:  "1.0", // Could be based on GitHub SHA or current timestamp
+		SyncedAt: time.Now(),
+	}
+
+	var err error
+
+	snapshot.Quests, err = s.questRepo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list quests: %w", err)
+	}
+
+	snapshot.Items, err = s.itemRepo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list items: %w", err)
+	}
+
+	snapshot.SkillNodes, err = s.skillNodeRepo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list skill nodes: %w", err)
+	}
+
+	snapshot.HideoutModules, err = s.hideoutModuleRepo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list hideout modules: %w", err)
+	}
+
+	snapshot.Bots, err = s.botRepo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list bots: %w", err)
+	}
+
+	snapshot.Maps, err = s.mapRepo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list maps: %w", err)
+	}
+
+	snapshot.Traders, err = s.traderRepo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list traders: %w", err)
+	}
+
+	snapshot.Projects, err = s.projectRepo.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list projects: %w", err)
+	}
+
+	return snapshot, nil
+}
+
 func (s *SyncService) fetchJSONFile(ctx context.Context, owner, repo, path string) ([]byte, error) {
 	fileContent, _, _, err := s.githubClient.Repositories.GetContents(ctx, owner, repo, path, nil)
 	if err != nil {

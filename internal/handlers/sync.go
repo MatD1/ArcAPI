@@ -47,3 +47,17 @@ func (h *SyncHandler) SyncStatus(c *gin.Context) {
 		"is_running": h.syncService.IsRunning(),
 	})
 }
+
+// GetSnapshot returns a full data snapshot for client hydration
+func (h *SyncHandler) GetSnapshot(c *gin.Context) {
+	snapshot, err := h.syncService.GetSnapshot()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to generate snapshot",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, snapshot)
+}

@@ -60,9 +60,9 @@ func (h *GraphQLHandler) PlaygroundHandler(c *gin.Context) {
 }
 
 // GraphQLAuthMiddleware validates API requests before hitting the GraphQL handler
-func GraphQLAuthMiddleware(authService *services.AuthService, cfg *config.Config, oidcService *services.OIDCService) gin.HandlerFunc {
+func GraphQLAuthMiddleware(authService *services.AuthService, dataCacheService *services.DataCacheService, cfg *config.Config, supabaseAuthService *services.SupabaseAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, token, err := middleware.AuthenticateRequest(c, authService, oidcService, cfg)
+		user, token, err := middleware.AuthenticateRequest(c, authService, supabaseAuthService, cfg)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			c.Abort()

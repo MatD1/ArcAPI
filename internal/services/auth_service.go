@@ -342,10 +342,10 @@ func (s *AuthService) ValidateJWT(tokenString string) (*models.User, error) {
 	return user, nil
 }
 
-// SyncOIDCUser ensures there is a local user matching the OIDC identity and synchronizes role/access
-func (s *AuthService) SyncOIDCUser(claims *OIDCClaims) (*models.User, error) {
+// SyncSupabaseUser ensures there is a local user matching the Supabase identity
+func (s *AuthService) SyncSupabaseUser(claims *SupabaseClaims) (*models.User, error) {
 	if claims == nil {
-		return nil, fmt.Errorf("oidc claims missing")
+		return nil, fmt.Errorf("supabase claims missing")
 	}
 
 	email := strings.ToLower(strings.TrimSpace(claims.Email))
@@ -356,7 +356,7 @@ func (s *AuthService) SyncOIDCUser(claims *OIDCClaims) (*models.User, error) {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			user, err = s.createOIDCUser(claims)
+			user, err = s.createSupabaseUser(claims)
 			if err != nil {
 				return nil, err
 			}
@@ -365,22 +365,9 @@ func (s *AuthService) SyncOIDCUser(claims *OIDCClaims) (*models.User, error) {
 		}
 	}
 
-	desiredRole := models.RoleUser
-	if claims.HasGroup(s.cfg.AuthentikAdminGroup) {
-		desiredRole = models.RoleAdmin
-	}
-
-	needsUpdate := false
-	if user.Role != desiredRole {
-		user.Role = desiredRole
-		needsUpdate = true
-	}
+	// Update CanAccessData if it's currently false (Supabase users are trusted for read access)
 	if !user.CanAccessData {
 		user.CanAccessData = true
-		needsUpdate = true
-	}
-
-	if needsUpdate {
 		if err := s.userRepo.Update(user); err != nil {
 			return nil, err
 		}
@@ -389,15 +376,16 @@ func (s *AuthService) SyncOIDCUser(claims *OIDCClaims) (*models.User, error) {
 	return user, nil
 }
 
-func (s *AuthService) createOIDCUser(claims *OIDCClaims) (*models.User, error) {
-	baseUsername := claims.PreferredUsername
-	if baseUsername == "" {
-		if idx := strings.Index(claims.Email, "@"); idx > 0 {
-			baseUsername = claims.Email[:idx]
-		} else {
-			baseUsername = "user"
-		}
+func (s *AuthService) createSupabaseUser(claims *SupabaseClaims) (*models.User, error) {
+	if idx := strings.Index(claims.Email, "@"); idx > 0 {
 	}
+	baseUsername := ""
+	if idx := strings.Index(claims.Email, "@"); idx > 0 {
+		baseUsername = claims.Email[:idx]
+	} else {
+		baseUsername = "user"
+	}
+
 	baseUsername = sanitizeUsername(baseUsername)
 	if baseUsername == "" {
 		baseUsername = "user"
@@ -412,7 +400,7 @@ func (s *AuthService) createOIDCUser(claims *OIDCClaims) (*models.User, error) {
 		user := &models.User{
 			Email:         strings.ToLower(claims.Email),
 			Username:      username,
-			Role:          models.RoleUser,
+			Role:          models.RoleUser, // Default to user, manual update to admin needed
 			CanAccessData: true,
 			CreatedViaApp: true,
 		}

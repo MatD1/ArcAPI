@@ -75,13 +75,13 @@ func main() {
 	authCodeRepo := repository.NewAuthorizationCodeRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	authService := services.NewAuthService(userRepo, apiKeyRepo, jwtTokenRepo, authCodeRepo, refreshTokenRepo, cacheService, cfg)
-	var oidcService *services.OIDCService
-	if cfg.AuthentikEnabled {
-		oidcService, err = services.NewOIDCService(cfg)
-		if err != nil {
-			log.Fatalf("failed to initialize Authentik OIDC service: %v", err)
-		}
+	
+	// Supabase Authentication Service (Replaces Authentik OIDC)
+	supabaseAuthService, err := services.NewSupabaseAuthService(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize Supabase auth service: %v", err)
 	}
+	
 	userService := services.NewUserService(userRepo)
 
 	// Initialize data cache service (only if cache is available)
@@ -136,7 +136,7 @@ func main() {
 	}
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo, oidcService)
+	authHandler := handlers.NewAuthHandler(authService, userService, cfg, apiKeyRepo)
 
 	// Use cache-enabled handlers if cache is available
 	var questHandler *handlers.QuestHandler
@@ -145,7 +145,7 @@ func main() {
 	} else {
 		questHandler = handlers.NewQuestHandler(questRepo)
 	}
-	missionHandler := questHandler // Backward compatibility - uses questHandler internally
+	missionHandler := questHandler // Backward compatibility
 
 	var itemHandler *handlers.ItemHandler
 	if dataCacheService != nil {
@@ -211,15 +211,14 @@ func main() {
 	// Request size limit (10MB max)
 	r.Use(middleware.RequestSizeLimitMiddleware(10 * 1024 * 1024))
 
-	// Security middleware (CORS, security headers)
+	// Security middleware
 	r.Use(middleware.SecurityMiddleware(cfg.GetAllowedOrigins()))
 
-	// Logger middleware (must be before auth middleware to log all requests)
+	// Logger middleware
 	r.Use(middleware.LoggerMiddleware(auditLogRepo))
 
 	// Public routes
 	api := r.Group("/api/v1")
-	// Rate limiting middleware (applied to all API routes)
 	api.Use(middleware.RateLimitMiddleware(cacheService, cfg.RateLimitRequests, cfg.RateLimitWindowSeconds))
 	{
 		auth := api.Group("/auth")
@@ -228,34 +227,30 @@ func main() {
 			auth.GET("/github/callback", authHandler.GitHubCallback)
 			auth.GET("/discord/login", authHandler.DiscordLogin)
 			auth.GET("/discord/callback", authHandler.DiscordCallback)
-			auth.GET("/exchange-token", authHandler.ExchangeTempToken) // Public endpoint to exchange temp token
+			auth.GET("/exchange-token", authHandler.ExchangeTempToken)
 			auth.POST("/login", authHandler.LoginWithAPIKey)
 			auth.POST("/token", authHandler.TokenExchange)
 			auth.POST("/refresh", authHandler.RefreshToken)
-			// Allow explicit CORS preflight (some clients/proxies send OPTIONS without Origin header)
-			auth.OPTIONS("/authentik/token", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-			auth.POST("/authentik/token", authHandler.AuthentikTokenExchange)
-			auth.POST("/authentik/register", authHandler.AuthentikTokenRegister) // For OAuth2 package clients (Flutter)
 		}
 
 		// Read-only routes (require JWT only)
 		readOnly := api.Group("")
-		readOnly.Use(middleware.JWTAuthMiddleware(authService, cfg, oidcService))
+		readOnly.Use(middleware.JWTAuthMiddleware(authService, cfg, supabaseAuthService))
 		{
 			readOnly.GET("/me", authHandler.GetCurrentUser)
-			readOnly.POST("/me/refresh-role", authHandler.RefreshUserRole)
 			// Quests - Read
 			readOnly.GET("/quests", questHandler.List)
 			readOnly.GET("/quests/:id", questHandler.Get)
 			// Backward compatibility
 			readOnly.GET("/missions", missionHandler.List)
 			readOnly.GET("/missions/:id", missionHandler.Get)
+			readOnly.GET("/sync/snapshot", syncHandler.GetSnapshot)
 
 			// Items - Read
 			readOnly.GET("/items", itemHandler.List)
 			readOnly.GET("/items/:id", itemHandler.Get)
-			readOnly.GET("/items/required", itemHandler.RequiredItems)   // Get all required items for quests and hideout modules
-			readOnly.GET("/items/blueprints", itemHandler.GetBlueprints) // Get all blueprint items
+			readOnly.GET("/items/required", itemHandler.RequiredItems)
+			readOnly.GET("/items/blueprints", itemHandler.GetBlueprints)
 
 			// Skill Nodes - Read
 			readOnly.GET("/skill-nodes", skillNodeHandler.List)
@@ -271,14 +266,13 @@ func main() {
 
 			// Alerts - Read
 			readOnly.GET("/alerts", alertHandler.List)
-			readOnly.GET("/alerts/active", alertHandler.GetActive) // For mobile apps to fetch active alerts
+			readOnly.GET("/alerts/active", alertHandler.GetActive)
 			readOnly.GET("/alerts/:id", alertHandler.Get)
 
-			// Traders - Read (cached from external API)
+			// Traders - Read
 			if tradersHandler != nil {
 				readOnly.GET("/traders", tradersHandler.GetTraders)
 			}
-			// Bots, Maps, Traders (repo), Projects - Read from database
 			readOnly.GET("/bots", botHandler.List)
 			readOnly.GET("/bots/:id", botHandler.Get)
 			readOnly.GET("/maps", mapHandler.List)
@@ -289,66 +283,51 @@ func main() {
 			readOnly.GET("/projects/:id", projectHandler.Get)
 		}
 
-		// Progress routes (basic users can read and update their own progress)
+		// Progress routes
 		progress := api.Group("/progress")
-		progress.Use(middleware.ProgressAuthMiddleware(authService, cfg, oidcService))
+		progress.Use(middleware.ProgressAuthMiddleware(authService, cfg, supabaseAuthService))
 		{
-			// Quest Progress
 			progress.GET("/quests", progressHandler.GetMyQuestProgress)
 			progress.PUT("/quests/:quest_id", progressHandler.UpdateQuestProgress)
-
-			// Hideout Module Progress
 			progress.GET("/hideout-modules", progressHandler.GetMyHideoutModuleProgress)
 			progress.PUT("/hideout-modules/:module_id", progressHandler.UpdateHideoutModuleProgress)
-
-			// Skill Node Progress
 			progress.GET("/skill-nodes", progressHandler.GetMySkillNodeProgress)
 			progress.PUT("/skill-nodes/:skill_node_id", progressHandler.UpdateSkillNodeProgress)
-
-			// Blueprint Progress
 			progress.GET("/blueprints", progressHandler.GetMyBlueprintProgress)
 			progress.PUT("/blueprints/:item_id", progressHandler.UpdateBlueprintProgress)
 		}
 
-		// Write routes (require API key + JWT for regular users, or JWT only for admins)
+		// Write routes
 		writeProtected := api.Group("")
-		writeProtected.Use(middleware.WriteAuthMiddleware(authService, cfg, oidcService))
+		writeProtected.Use(middleware.WriteAuthMiddleware(authService, cfg, supabaseAuthService))
 		{
-			// Quests - Write
 			writeProtected.POST("/quests", questHandler.Create)
 			writeProtected.PUT("/quests/:id", questHandler.Update)
 			writeProtected.DELETE("/quests/:id", questHandler.Delete)
-			// Backward compatibility
 			writeProtected.POST("/missions", missionHandler.Create)
 			writeProtected.PUT("/missions/:id", missionHandler.Update)
 			writeProtected.DELETE("/missions/:id", missionHandler.Delete)
 
-			// Items - Write
 			writeProtected.POST("/items", itemHandler.Create)
 			writeProtected.PUT("/items/:id", itemHandler.Update)
 			writeProtected.DELETE("/items/:id", itemHandler.Delete)
 
-			// Skill Nodes - Write
 			writeProtected.POST("/skill-nodes", skillNodeHandler.Create)
 			writeProtected.PUT("/skill-nodes/:id", skillNodeHandler.Update)
 			writeProtected.DELETE("/skill-nodes/:id", skillNodeHandler.Delete)
 
-			// Hideout Modules - Write
 			writeProtected.POST("/hideout-modules", hideoutModuleHandler.Create)
 			writeProtected.PUT("/hideout-modules/:id", hideoutModuleHandler.Update)
 			writeProtected.DELETE("/hideout-modules/:id", hideoutModuleHandler.Delete)
 
-			// Enemy Types - Write
 			writeProtected.POST("/enemy-types", enemyTypeHandler.Create)
 			writeProtected.PUT("/enemy-types/:id", enemyTypeHandler.Update)
 			writeProtected.DELETE("/enemy-types/:id", enemyTypeHandler.Delete)
 
-			// Alerts - Write (admin only)
 			writeProtected.POST("/alerts", alertHandler.Create)
 			writeProtected.PUT("/alerts/:id", alertHandler.Update)
 			writeProtected.DELETE("/alerts/:id", alertHandler.Delete)
 
-			// Management API (admin only)
 			admin := writeProtected.Group("/admin")
 			admin.Use(middleware.AdminMiddleware())
 			{
@@ -367,7 +346,6 @@ func main() {
 				admin.DELETE("/users/:id", managementHandler.DeleteUser)
 				admin.POST("/hideout-modules/cleanup-duplicates", managementHandler.CleanupDuplicateHideoutModules)
 
-				// Data Export (CSV) - Admin only
 				admin.GET("/export/quests", exportHandler.ExportQuests)
 				admin.GET("/export/items", exportHandler.ExportItems)
 				admin.GET("/export/skill-nodes", exportHandler.ExportSkillNodes)
@@ -379,7 +357,6 @@ func main() {
 				admin.GET("/export/traders", exportHandler.ExportTraders)
 				admin.GET("/export/projects", exportHandler.ExportProjects)
 
-				// Admin Progress Management - View/Edit any user's progress
 				admin.GET("/users/:id/progress", progressHandler.GetAllUserProgress)
 				admin.GET("/users/:id/progress/quests", progressHandler.GetUserQuestProgress)
 				admin.PUT("/users/:id/progress/quests/:quest_id", progressHandler.UpdateUserQuestProgress)
@@ -391,25 +368,24 @@ func main() {
 				admin.PUT("/users/:id/progress/blueprints/:item_id", progressHandler.UpdateUserBlueprintProgress)
 			}
 
-			// User profile routes (users can update their own profile, admins can update any)
 			userProfile := writeProtected.Group("/users")
-			userProfile.Use(middleware.JWTAuthMiddleware(authService, cfg, oidcService)) // Require JWT (already checked in writeProtected, but explicit)
+			userProfile.Use(middleware.JWTAuthMiddleware(authService, cfg, supabaseAuthService))
 			{
 				userProfile.PUT("/:id/profile", managementHandler.UpdateUserProfile)
 			}
 		}
 
-		// Health check endpoints
+		// Health endpoints
 		healthHandler := handlers.NewHealthHandler(db, cacheService)
 		r.GET("/health", healthHandler.HealthCheck)
 		r.GET("/health/ready", healthHandler.ReadinessCheck)
 		r.GET("/health/live", healthHandler.LivenessCheck)
 
-		// Frontend config endpoint (public - returns safe config for frontend)
+		// Config endpoint
 		configHandler := handlers.NewConfigHandler()
 		r.GET("/api/v1/config", configHandler.GetFrontendConfig)
 
-		// GraphQL API endpoint (requires authentication)
+		// GraphQL
 		graphqlGroup := api.Group("")
 		graph.SetupGraphQLRoutes(
 			graphqlGroup,
@@ -427,269 +403,61 @@ func main() {
 			authService,
 			dataCacheService,
 			cfg,
-			oidcService,
+			supabaseAuthService,
 		)
 
-		// Mobile callback page (public route - redirects to deep link)
-		r.GET("/auth/mobile-callback", authHandler.MobileCallbackPage)
-
-		// Serve frontend static files
-		frontendDir := "./frontend/out"
-		if _, err := os.Stat(frontendDir); err == nil {
-			// Compute absolute paths for security (prevents path traversal)
-			absFrontendDir, err := filepath.Abs(frontendDir)
-			if err != nil {
-				log.Fatalf("Failed to resolve frontend directory: %v", err)
-			}
-			dashboardBase := filepath.Join(absFrontendDir, "dashboard")
-
-			// Serve static assets (CSS, JS, images) from _next directory
-			nextDir := filepath.Join(absFrontendDir, "_next")
-			r.StaticFS("/_next", gin.Dir(nextDir, false))
-
-			// Serve dashboard and other frontend routes
-			r.GET("/dashboard", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "dashboard", "index.html"))
-			})
-			r.GET("/dashboard/*path", func(c *gin.Context) {
-				pathParam := c.Param("path")
-
-				// Normalize the path parameter first to prevent path traversal
-				normalizedPath := path.Clean(pathParam)
-				if !strings.HasPrefix(normalizedPath, "/") {
-					normalizedPath = "/" + normalizedPath
-				}
-
-				// Handle OAuth callback routes specially (validate normalized path)
-				if normalizedPath == "/api/auth/github/callback" || strings.HasPrefix(normalizedPath, "/api/auth/github/callback/") {
-					// Validate the callback path doesn't escape the intended directory
-					callbackBase := filepath.Join(absFrontendDir, "api", "auth", "github", "callback")
-					callbackPath := filepath.Join(callbackBase, "index.html")
-					
-					// Resolve to absolute and verify it's within the callback directory
-					absCallbackPath, err := filepath.Abs(callbackPath)
-					if err != nil {
-						c.File(filepath.Join(dashboardBase, "index.html"))
-						return
-					}
-					callbackBaseWithSep := callbackBase + string(os.PathSeparator)
-					if !strings.HasPrefix(absCallbackPath, callbackBaseWithSep) && absCallbackPath != callbackBase {
-						c.File(filepath.Join(dashboardBase, "index.html"))
-						return
-					}
-					c.File(absCallbackPath)
-					return
-				}
-				if normalizedPath == "/api/auth/discord/callback" || strings.HasPrefix(normalizedPath, "/api/auth/discord/callback/") {
-					// Validate the callback path doesn't escape the intended directory
-					callbackBase := filepath.Join(absFrontendDir, "api", "auth", "discord", "callback")
-					callbackPath := filepath.Join(callbackBase, "index.html")
-					
-					// Resolve to absolute and verify it's within the callback directory
-					absCallbackPath, err := filepath.Abs(callbackPath)
-					if err != nil {
-						c.File(filepath.Join(dashboardBase, "index.html"))
-						return
-					}
-					callbackBaseWithSep := callbackBase + string(os.PathSeparator)
-					if !strings.HasPrefix(absCallbackPath, callbackBaseWithSep) && absCallbackPath != callbackBase {
-						c.File(filepath.Join(dashboardBase, "index.html"))
-						return
-					}
-					c.File(absCallbackPath)
-					return
-				}
-
-				// Use the already normalized path
-				reqPath := normalizedPath
-
-				// Build candidate path and resolve to absolute
-				candidate := filepath.Join(dashboardBase, reqPath)
-				absCandidate, err := filepath.Abs(candidate)
-				if err != nil {
-					// If we can't resolve the path, serve index.html
-					c.File(filepath.Join(dashboardBase, "index.html"))
-					return
-				}
-
-				// Verify the resolved path is within dashboardBase
-				// Use filepath.Join to ensure proper path separator handling
-				dashboardBaseWithSep := dashboardBase + string(os.PathSeparator)
-				if !strings.HasPrefix(absCandidate, dashboardBaseWithSep) && absCandidate != dashboardBase {
-					// Path escaped the base directory, serve index.html instead
-					c.File(filepath.Join(dashboardBase, "index.html"))
-					return
-				}
-
-				// Add index.html if it's a directory route
-				if strings.HasSuffix(normalizedPath, "/") || normalizedPath == "" {
-					absCandidate = filepath.Join(absCandidate, "index.html")
-				}
-
-				// Check if file exists
-				if _, err := os.Stat(absCandidate); err == nil {
-					c.File(absCandidate)
-				} else {
-					// Fallback to dashboard index.html
-					c.File(filepath.Join(dashboardBase, "index.html"))
-				}
-			})
-
-			// Serve other frontend routes (login, missions, etc.)
-			r.GET("/login", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "login", "index.html"))
-			})
-			r.GET("/login/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "login", "index.html"))
-			})
-
-			// Serve specific frontend routes
-			r.GET("/api-keys", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "api-keys", "index.html"))
-			})
-			r.GET("/api-keys/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "api-keys", "index.html"))
-			})
-			r.GET("/quests", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "quests", "index.html"))
-			})
-			r.GET("/quests/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "quests", "index.html"))
-			})
-			r.GET("/items", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "items", "index.html"))
-			})
-			r.GET("/items/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "items", "index.html"))
-			})
-			r.GET("/required-items", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "required-items", "index.html"))
-			})
-			r.GET("/required-items/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "required-items", "index.html"))
-			})
-			r.GET("/skill-nodes", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "skill-nodes", "index.html"))
-			})
-			r.GET("/skill-nodes/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "skill-nodes", "index.html"))
-			})
-			r.GET("/hideout-modules", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "hideout-modules", "index.html"))
-			})
-			r.GET("/hideout-modules/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "hideout-modules", "index.html"))
-			})
-			r.GET("/enemy-types", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "enemy-types", "index.html"))
-			})
-			r.GET("/enemy-types/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "enemy-types", "index.html"))
-			})
-			r.GET("/alerts", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "alerts", "index.html"))
-			})
-			r.GET("/alerts/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "alerts", "index.html"))
-			})
-			r.GET("/users", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "users", "index.html"))
-			})
-			r.GET("/users/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "users", "index.html"))
-			})
-			r.GET("/appwrite", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "appwrite", "index.html"))
-			})
-			r.GET("/appwrite/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "appwrite", "index.html"))
-			})
-			r.GET("/export", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "export", "index.html"))
-			})
-			r.GET("/export/*path", func(c *gin.Context) {
-				c.File(filepath.Join(absFrontendDir, "export", "index.html"))
-			})
-
-			// Catch-all for other frontend routes
-			r.NoRoute(func(c *gin.Context) {
-				// If route doesn't start with /api or /health, try to serve frontend
-				if !strings.HasPrefix(c.Request.URL.Path, "/api") &&
-					!strings.HasPrefix(c.Request.URL.Path, "/health") &&
-					!strings.HasPrefix(c.Request.URL.Path, "/_next") {
-					reqPath := c.Request.URL.Path
-
-					// Normalize the URL path (clean up .. and . segments)
-					cleanPath := path.Clean(reqPath)
-					// Ensure it starts with / for consistency
-					if !strings.HasPrefix(cleanPath, "/") {
-						cleanPath = "/" + cleanPath
-					}
-
-					// Build candidate path and resolve to absolute
-					candidate := filepath.Join(absFrontendDir, cleanPath)
-					absCandidate, err := filepath.Abs(candidate)
-					if err != nil {
-						// If we can't resolve the path, serve root index.html
-						c.File(filepath.Join(absFrontendDir, "index.html"))
-						return
-					}
-
-					// Verify the resolved path is within absFrontendDir
-					frontendBaseWithSep := absFrontendDir + string(os.PathSeparator)
-					if !strings.HasPrefix(absCandidate, frontendBaseWithSep) && absCandidate != absFrontendDir {
-						// Path escaped the base directory, serve root index.html instead
-						c.File(filepath.Join(absFrontendDir, "index.html"))
-						return
-					}
-
-					// Add index.html if it's a directory route
-					if strings.HasSuffix(reqPath, "/") || reqPath == "" || reqPath == "/" {
-						absCandidate = filepath.Join(absCandidate, "index.html")
-					} else if !strings.Contains(reqPath, ".") {
-						// If no extension, it's probably a route that needs index.html
-						absCandidate = filepath.Join(absCandidate, "index.html")
-					}
-
-					// Re-verify after adding index.html (in case directory traversal happened)
-					absCandidateFinal, err := filepath.Abs(absCandidate)
-					if err != nil {
-						c.File(filepath.Join(absFrontendDir, "index.html"))
-						return
-					}
-					if !strings.HasPrefix(absCandidateFinal, frontendBaseWithSep) && absCandidateFinal != absFrontendDir {
-						c.File(filepath.Join(absFrontendDir, "index.html"))
-						return
-					}
-
-					// Check if file exists
-					if _, err := os.Stat(absCandidateFinal); err == nil {
-						c.File(absCandidateFinal)
-					} else {
-						// Fallback to root index.html for client-side routing
-						c.File(filepath.Join(absFrontendDir, "index.html"))
-					}
-				} else {
-					c.JSON(404, gin.H{"error": "Not found"})
-				}
-			})
-			log.Println("Frontend dashboard enabled at /dashboard")
-		} else {
-			log.Printf("Warning: Frontend not found at %s. Build frontend with 'make build-frontend'", frontendDir)
-		}
 	}
 
-	// Create HTTP server with timeouts
+	// Serve frontend static files
+	frontendDir := "./frontend/out"
+	if _, err := os.Stat(frontendDir); err == nil {
+		absFrontendDir, _ := filepath.Abs(frontendDir)
+		dashboardBase := filepath.Join(absFrontendDir, "dashboard")
+		nextDir := filepath.Join(absFrontendDir, "_next")
+		
+		r.StaticFS("/_next", gin.Dir(nextDir, false))
+		r.GET("/dashboard", func(c *gin.Context) {
+			c.File(filepath.Join(dashboardBase, "index.html"))
+		})
+		r.GET("/dashboard/*path", func(c *gin.Context) {
+			pathParam := c.Param("path")
+			normalizedPath := path.Clean(pathParam)
+			if !strings.HasPrefix(normalizedPath, "/") {
+				normalizedPath = "/" + normalizedPath
+			}
+			
+			candidate := filepath.Join(dashboardBase, normalizedPath)
+			if strings.HasSuffix(normalizedPath, "/") || normalizedPath == "" {
+				candidate = filepath.Join(candidate, "index.html")
+			}
+			if _, err := os.Stat(candidate); err == nil {
+				c.File(candidate)
+			} else {
+				c.File(filepath.Join(dashboardBase, "index.html"))
+			}
+		})
+		
+		// Catch-all
+		r.NoRoute(func(c *gin.Context) {
+			if !strings.HasPrefix(c.Request.URL.Path, "/api") &&
+				!strings.HasPrefix(c.Request.URL.Path, "/health") &&
+				!strings.HasPrefix(c.Request.URL.Path, "/_next") {
+				c.File(filepath.Join(absFrontendDir, "index.html"))
+			} else {
+				c.JSON(404, gin.H{"error": "Not found"})
+			}
+		})
+	}
+
+	// Server start
 	srv := &http.Server{
 		Addr:           ":" + cfg.APIPort,
 		Handler:        r,
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
-	// Start server in goroutine
 	go func() {
 		log.Printf("Server starting on port %s", cfg.APIPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -697,20 +465,15 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("Shutting down server...")
-
-	// Graceful shutdown with 30 second timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+		log.Fatal("Server forced to shutdown:", err)
 	}
-
 	log.Println("Server exited")
 }

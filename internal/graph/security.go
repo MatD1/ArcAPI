@@ -182,7 +182,7 @@ func ValidateQueryComplexity(ctx context.Context, maxComplexity int) error {
 }
 
 // GraphQLResolverAuthMiddleware validates authentication and adds user to context for GraphQL resolvers
-func GraphQLResolverAuthMiddleware(authService *services.AuthService, cfg *config.Config, oidcService *services.OIDCService) func(ctx context.Context, obj interface{}, next graphql.Resolver) (interface{}, error) {
+func GraphQLResolverAuthMiddleware(authService *services.AuthService, cfg *config.Config, supabaseAuthService *services.SupabaseAuthService) func(ctx context.Context, obj interface{}, next graphql.Resolver) (interface{}, error) {
 	return func(ctx context.Context, obj interface{}, next graphql.Resolver) (interface{}, error) {
 		// Get authorization header from request context
 		reqCtx := graphql.GetRequestContext(ctx)
@@ -205,7 +205,7 @@ func GraphQLResolverAuthMiddleware(authService *services.AuthService, cfg *confi
 
 		tokenString := parts[1]
 
-		user, err := middleware.ValidateTokenString(tokenString, authService, oidcService, cfg)
+		user, err := middleware.ValidateTokenString(tokenString, authService, supabaseAuthService, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("invalid or expired token: %w", err)
 		}
