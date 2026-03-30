@@ -22,6 +22,15 @@ func NewHealthHandler(db *repository.DB, cacheService *services.CacheService) *H
 }
 
 // HealthCheck performs a comprehensive health check
+// HealthCheck performs a comprehensive health check
+// @Summary Comprehensive health check
+// @Description Check the health of database, cache, and other services
+// @Tags health
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "System is healthy"
+// @Failure 503 {object} map[string]interface{} "System is degraded"
+// @Router /health [get]
 func (h *HealthHandler) HealthCheck(c *gin.Context) {
 	status := gin.H{
 		"status":    "ok",
@@ -76,6 +85,15 @@ func (h *HealthHandler) HealthCheck(c *gin.Context) {
 }
 
 // ReadinessCheck performs a lightweight readiness check
+// ReadinessCheck performs a lightweight readiness check
+// @Summary Readiness check
+// @Description Check if the application is ready to handle requests
+// @Tags health
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string "Application is ready"
+// @Failure 503 {object} map[string]string "Application is not ready"
+// @Router /ready [get]
 func (h *HealthHandler) ReadinessCheck(c *gin.Context) {
 	// Quick database check
 	sqlDB, err := h.db.DB.DB()
@@ -91,6 +109,14 @@ func (h *HealthHandler) ReadinessCheck(c *gin.Context) {
 }
 
 // LivenessCheck performs a minimal liveness check
+// LivenessCheck performs a minimal liveness check
+// @Summary Liveness check
+// @Description Basic check to see if the application process is running
+// @Tags health
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string "Application is alive"
+// @Router /live [get]
 func (h *HealthHandler) LivenessCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "alive"})
 }

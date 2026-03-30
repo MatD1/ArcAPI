@@ -26,6 +26,16 @@ func NewQuestHandlerWithCache(repo *repository.QuestRepository, dataCacheService
 	}
 }
 
+// List returns all quests
+// @Summary List all quests
+// @Description Fetch all quests from the database or cache
+// @Tags quests
+// @Accept json
+// @Produce json
+// @Success 200 {object} PaginatedResponse{data=[]models.Quest} "Successfully fetched quests"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /quests [get]
 func (h *QuestHandler) List(c *gin.Context) {
 	// Return all quests without pagination
 	var quests []models.Quest
@@ -51,6 +61,19 @@ func (h *QuestHandler) List(c *gin.Context) {
 	})
 }
 
+// Get returns a single quest by ID
+// @Summary Get a single quest
+// @Description Fetch a quest by its numeric ID
+// @Tags quests
+// @Accept json
+// @Produce json
+// @Param id path int true "Quest ID"
+// @Success 200 {object} models.Quest "Successfully fetched the quest"
+// @Failure 400 {object} ErrorResponse "Invalid quest ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 404 {object} ErrorResponse "Quest not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /quests/{id} [get]
 func (h *QuestHandler) Get(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -68,6 +91,20 @@ func (h *QuestHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, quest)
 }
 
+// Create adds a new quest
+// @Summary Create a quest
+// @Description Add a new quest to the database
+// @Tags quests
+// @Accept json
+// @Produce json
+// @Param quest body models.Quest true "Quest object"
+// @Success 201 {object} models.Quest "Successfully created the quest"
+// @Failure 400 {object} ErrorResponse "Invalid input data"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /quests [post]
 func (h *QuestHandler) Create(c *gin.Context) {
 	var quest models.Quest
 	if err := c.ShouldBindJSON(&quest); err != nil {
@@ -94,6 +131,21 @@ func (h *QuestHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, quest)
 }
 
+// Update modifies an existing quest
+// @Summary Update a quest
+// @Description Update an existing quest by its ID
+// @Tags quests
+// @Accept json
+// @Produce json
+// @Param id path int true "Quest ID"
+// @Param quest body models.Quest true "Updated quest object"
+// @Success 200 {object} models.Quest "Successfully updated the quest"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /quests/{id} [put]
 func (h *QuestHandler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -123,6 +175,20 @@ func (h *QuestHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, quest)
 }
 
+// Delete removes a quest
+// @Summary Delete a quest
+// @Description Delete an existing quest by its ID
+// @Tags quests
+// @Accept json
+// @Produce json
+// @Param id path int true "Quest ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} ErrorResponse "Invalid quest ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /quests/{id} [delete]
 func (h *QuestHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)

@@ -14,54 +14,33 @@ func NewConfigHandler() *ConfigHandler {
 }
 
 // GetFrontendConfig returns frontend configuration (public config only)
+// GetFrontendConfig returns frontend configuration (public config only)
+// @Summary Get frontend configuration
+// @Description Returns public configuration settings for the frontend (e.g. Supabase details)
+// @Tags config
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Successfully fetched frontend configuration"
+// @Router /config [get]
 func (h *ConfigHandler) GetFrontendConfig(c *gin.Context) {
-	// Only return public configuration that's safe to expose to the frontend
-	// Read from APPWRITE_* env vars (Railway) or NEXT_PUBLIC_APPWRITE_* (build-time)
-	appwriteEnabled := os.Getenv("APPWRITE_ENABLED") == "true" || os.Getenv("NEXT_PUBLIC_APPWRITE_ENABLED") == "true"
-	appwriteEndpoint := os.Getenv("APPWRITE_ENDPOINT")
-	if appwriteEndpoint == "" {
-		appwriteEndpoint = os.Getenv("NEXT_PUBLIC_APPWRITE_ENDPOINT")
+	// Supabase Configuration
+	supabaseEnabled := os.Getenv("SUPABASE_ENABLED") == "true" || os.Getenv("NEXT_PUBLIC_SUPABASE_ENABLED") == "true"
+	supabaseURL := os.Getenv("SUPABASE_URL")
+	if supabaseURL == "" {
+		supabaseURL = os.Getenv("NEXT_PUBLIC_SUPABASE_URL")
 	}
-	appwriteProjectID := os.Getenv("APPWRITE_PROJECT_ID")
-	if appwriteProjectID == "" {
-		appwriteProjectID = os.Getenv("NEXT_PUBLIC_APPWRITE_PROJECT_ID")
+	supabaseAnonKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
+	if supabaseAnonKey == "" {
+		supabaseAnonKey = os.Getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY")
 	}
-	appwriteDatabaseID := os.Getenv("APPWRITE_DATABASE_ID")
-	if appwriteDatabaseID == "" {
-		appwriteDatabaseID = os.Getenv("NEXT_PUBLIC_APPWRITE_DATABASE_ID")
-	}
-	// Note: databaseId should be the actual Appwrite database ID (not the name)
-	// The database ID is a unique identifier found in the Appwrite console
-	// No default value - must be explicitly configured
-
-	// GraphQL is enabled by default in Appwrite, but can be disabled via env var
-	appwriteGraphQLEnabled := os.Getenv("APPWRITE_GRAPHQL_ENABLED")
-	if appwriteGraphQLEnabled == "" {
-		appwriteGraphQLEnabled = os.Getenv("NEXT_PUBLIC_APPWRITE_GRAPHQL_ENABLED")
-	}
-	// Default to true if not specified (GraphQL is enabled by default in Appwrite)
-	graphqlEnabled := appwriteGraphQLEnabled == "" || appwriteGraphQLEnabled == "true"
 
 	config := gin.H{
-		"appwrite": gin.H{
-			"enabled":        appwriteEnabled && appwriteEndpoint != "" && appwriteProjectID != "",
-			"endpoint":       appwriteEndpoint,
-			"projectId":      appwriteProjectID,
-			"databaseId":     appwriteDatabaseID,
-			"graphqlEnabled": graphqlEnabled,
+		"supabase": gin.H{
+			"enabled":   supabaseEnabled && supabaseURL != "" && supabaseAnonKey != "",
+			"url":       supabaseURL,
+			"anonKey":   supabaseAnonKey,
 		},
 	}
-
-	authentikEnabled := os.Getenv("AUTHENTIK_ENABLED") == "true"
-	authentikConfig := gin.H{
-		"enabled":   authentikEnabled,
-		"issuer":    os.Getenv("AUTHENTIK_ISSUER"),
-		"authorize": os.Getenv("AUTHENTIK_AUTH_URL"),
-		"token":     os.Getenv("AUTHENTIK_TOKEN_URL"),
-		"logout":    os.Getenv("AUTHENTIK_LOGOUT_URL"),
-		"clientId":  os.Getenv("AUTHENTIK_CLIENT_ID"),
-	}
-	config["authentik"] = authentikConfig
 
 	c.JSON(http.StatusOK, config)
 }

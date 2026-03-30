@@ -1,4 +1,4 @@
-.PHONY: build run test clean docker-up docker-down migrate build-frontend
+.PHONY: build run test clean docker-up docker-down migrate build-frontend seed-db
 
 # Build the application
 build: build-frontend
@@ -59,6 +59,18 @@ lint:
 # Migrate database (if using migrations)
 migrate:
 	@echo "Note: GORM auto-migrates on startup. See migrations/ for SQL reference."
+
+# Seed database with test data
+seed-db:
+	@echo "🌱 Seeding database with test data..."
+	go run ./cmd/seed
+	@echo "Done! You can now run 'make run' to start the server."
+
+# Seed database and reset all data
+seed-db-reset:
+	@echo "🔄 Resetting database and seeding with fresh test data..."
+	go run ./cmd/seed --reset
+	@echo "Done! You can now run 'make run' to start the server."
 
 # Generate GraphQL code
 generate-graphql:

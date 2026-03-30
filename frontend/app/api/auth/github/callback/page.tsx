@@ -5,6 +5,22 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient, getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 
+// Helper to get API URL with proper configuration
+function getAPIURL() {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    console.debug('[GitHub Callback] Using NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  if (typeof window !== 'undefined') {
+    console.debug('[GitHub Callback] Using window.location.origin:', window.location.origin);
+    return window.location.origin;
+  }
+  
+  // Fallback for SSR context (should rarely be used)
+  return 'http://localhost:8080';
+}
+
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -19,24 +35,35 @@ function CallbackContent() {
         const tempToken = searchParams.get('token');
         
         if (!tempToken) {
+          console.error('[GitHub Callback] No token in URL search params');
           setError('No authentication token found. Please try logging in again.');
           setLoading(false);
           return;
         }
 
+        console.debug('[GitHub Callback] Token found, exchanging for auth data...');
+        
         // Exchange temp token for actual auth data
-        const response = await fetch(`${window.location.origin}/api/v1/auth/exchange-token?token=${tempToken}`);
+        const apiURL = getAPIURL();
+        const exchangeURL = `${apiURL}/api/v1/auth/exchange-token?token=${tempToken}`;
+        
+        console.debug('[GitHub Callback] Exchange URL:', exchangeURL);
+        
+        const response = await fetch(exchangeURL);
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Authentication failed' }));
-          throw new Error(errorData.error || 'Authentication failed');
+          console.error('[GitHub Callback] Exchange token failed:', response.status, errorData);
+          throw new Error(errorData.error || `Authentication failed (${response.status})`);
         }
 
         const data = await response.json();
         const { token, user, api_key, api_key_warning } = data;
+        
+        console.debug('[GitHub Callback] Exchange successful, user:', user?.email);
 
         // Set JWT token for authentication (needed for read operations)
-        apiClient.setJWT(token);
+        apiClient.setSupabaseToken(token);
         
         // Set user in store (this marks user as authenticated)
         setUser(user);
@@ -55,10 +82,14 @@ function CallbackContent() {
           apiClient.setAuth(null, token);
         }
         
+        console.debug('[GitHub Callback] Auth setup complete, redirecting to dashboard');
+        
         // Redirect to dashboard (user is already authenticated via setUser above)
         router.push('/dashboard/');
       } catch (err) {
-        setError(getErrorMessage(err));
+        const errorMsg = getErrorMessage(err);
+        console.error('[GitHub Callback] Authentication error:', errorMsg);
+        setError(errorMsg);
         setLoading(false);
       }
     };

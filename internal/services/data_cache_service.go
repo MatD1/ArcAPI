@@ -224,3 +224,9 @@ func (s *DataCacheService) InvalidateAllCache() error {
 	}
 	return s.InvalidateQuestsCache()
 }
+
+// RefreshNow triggers an immediate background refresh of all cached data
+func (s *DataCacheService) RefreshNow() {
+	go s.refreshItems()
+	go s.refreshQuests()
+}

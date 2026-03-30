@@ -20,7 +20,6 @@ import type {
   UserBlueprintProgress,
   AllUserProgress,
 } from '@/types';
-import { appwriteService, isAppwriteEnabled, isAppwriteEnabledSync } from './appwrite';
 import { db } from './sqlite/db';
 import * as sqliteSchema from './sqlite/schema';
 import { checkHydration, addToOutbox } from './sqlite/manager';
@@ -45,10 +44,7 @@ class APIClient {
   private client: AxiosInstance;
   private apiKey: string | null = null;
   private jwtToken: string | null = null;
-  private refreshToken: string | null = null;
-  private tokenExpiresAt: number | null = null;
-  private isRefreshing = false;
-  private refreshSubscribers: ((token: string) => void)[] = [];
+  private syncInProgress: boolean = false;
 
   constructor() {
     this.client = axios.create({
@@ -62,191 +58,76 @@ class APIClient {
     if (typeof window !== 'undefined') {
       // API key is NOT loaded from localStorage for security reasons
       // It will only be available in memory during the current session
-      this.jwtToken = localStorage.getItem('jwt_token');
-      this.refreshToken = localStorage.getItem('refresh_token');
-      const expiresAt = localStorage.getItem('token_expires_at');
-      this.tokenExpiresAt = expiresAt ? parseInt(expiresAt, 10) : null;
+      this.jwtToken = localStorage.getItem('supabase_token');
       this.updateHeaders();
       this.setupInterceptors();
-      this.startTokenRefreshTimer();
-      
+
       // Initialize Local DB & Sync
       this.initLocalDB();
     }
   }
 
   private async initLocalDB() {
-    await checkHydration(this.client);
-    startOutboxSync(this.client);
+    if (this.syncInProgress) {
+      console.log('Sync already in progress, skipping...');
+      return;
+    }
+    this.syncInProgress = true;
+    try {
+      await checkHydration(this.client);
+      startOutboxSync(this.client);
+    } catch (error) {
+      console.error('Failed to initialize local DB:', error);
+    } finally {
+      this.syncInProgress = false;
+    }
   }
 
   private setupInterceptors() {
-    // Request interceptor to check token expiry before each request
-    this.client.interceptors.request.use(
-      async (config) => {
-        // Skip token refresh for auth endpoints
-        if (config.url?.includes('/auth/')) {
-          return config;
-        }
-
-        // Check if token needs refresh (5 minutes before expiry)
-        if (this.tokenExpiresAt && this.refreshToken) {
-          const now = Date.now();
-          const fiveMinutes = 5 * 60 * 1000;
-          if (now >= this.tokenExpiresAt - fiveMinutes) {
-            await this.silentRefresh();
-          }
-        }
-
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-
     // Response interceptor to handle 401 errors
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
-        const originalRequest = error.config;
-
-        // If 401 and we have a refresh token, try to refresh
-        if (error.response?.status === 401 && !originalRequest._retry && this.refreshToken) {
-          originalRequest._retry = true;
-
-          try {
-            await this.silentRefresh();
-            // Update the authorization header with new token
-            originalRequest.headers['Authorization'] = `Bearer ${this.jwtToken}`;
-            return this.client(originalRequest);
-          } catch (refreshError) {
-            // Refresh failed, clear auth and reject
+        // Only clear auth on 401 if it's NOT the snapshot endpoint
+        // (If snapshot 401s, we should just fail hydration quietly)
+        if (error.response?.status === 401) {
+          const isSnapshot = error.config?.url?.includes('/sync/snapshot');
+          if (!isSnapshot) {
+            console.warn('Unauthorized request, clearing auth state');
             this.clearAuth();
-            return Promise.reject(refreshError);
+          } else {
+             console.warn('Unauthorized snapshot request - skipping hydration');
           }
         }
-
         return Promise.reject(error);
       }
     );
   }
 
-  private async silentRefresh(): Promise<void> {
-    if (!this.refreshToken) {
-      throw new Error('No refresh token available');
-    }
 
-    // If already refreshing, wait for it to complete
-    if (this.isRefreshing) {
-      return new Promise((resolve) => {
-        this.refreshSubscribers.push((token: string) => {
-          resolve();
-        });
-      });
-    }
-
-    this.isRefreshing = true;
-
-    try {
-      const response = await this.client.post<{
-        token: string;
-        refresh_token?: string;
-        expires_in?: number;
-      }>('/auth/refresh', {
-        refresh_token: this.refreshToken,
-      });
-
-      const tokens = response.data;
-      if (!tokens.token) {
-        throw new Error('Refresh response missing token');
-      }
-
-      const expiresIn = tokens.expires_in || 3600;
-      const refreshToken = tokens.refresh_token ?? this.refreshToken;
-      this.setAuth(this.apiKey, tokens.token, refreshToken, expiresIn);
-
-      this.refreshSubscribers.forEach((callback) => callback(tokens.token));
-      this.refreshSubscribers = [];
-    } catch (error) {
-      console.error('Silent token refresh failed:', error);
-      throw error;
-    } finally {
-      this.isRefreshing = false;
-    }
-  }
-
-  private startTokenRefreshTimer() {
-    // Check token expiry every minute
-    setInterval(() => {
-      if (this.tokenExpiresAt && this.refreshToken) {
-        const now = Date.now();
-        const fiveMinutes = 5 * 60 * 1000;
-        
-        // Refresh if within 5 minutes of expiry
-        if (now >= this.tokenExpiresAt - fiveMinutes && !this.isRefreshing) {
-          this.silentRefresh().catch((error) => {
-            console.error('Background token refresh failed:', error);
-          });
-        }
-      }
-    }, 60000); // Check every minute
-  }
-
-  setAuth(apiKey: string | null, jwtToken: string, refreshToken?: string | null, expiresIn?: number) {
+  setAuth(apiKey: string | null, jwtToken: string) {
     this.apiKey = apiKey;
     this.jwtToken = jwtToken;
-    if (typeof refreshToken !== 'undefined') {
-      this.refreshToken = refreshToken;
-    }
-    
-    // Calculate token expiry
-    if (expiresIn) {
-      this.tokenExpiresAt = Date.now() + (expiresIn * 1000);
-    } else if (jwtToken) {
-      // Try to extract expiry from JWT if not provided
-      try {
-        const payload = JSON.parse(atob(jwtToken.split('.')[1]));
-        if (payload.exp) {
-          this.tokenExpiresAt = payload.exp * 1000; // Convert to milliseconds
-        } else {
-          // Default to 1 hour
-          this.tokenExpiresAt = Date.now() + (3600 * 1000);
-        }
-      } catch {
-        // Default to 1 hour if parsing fails
-        this.tokenExpiresAt = Date.now() + (3600 * 1000);
-      }
-    }
-    
+
     if (typeof window !== 'undefined') {
-      // API key is NOT persisted to localStorage for security reasons
-      // It remains in memory only for the current session
-      // Remove any existing API key from localStorage if present
-      localStorage.removeItem('api_key');
-      localStorage.setItem('jwt_token', jwtToken);
-      if (this.tokenExpiresAt) {
-        localStorage.setItem('token_expires_at', this.tokenExpiresAt.toString());
-      }
-      if (typeof refreshToken !== 'undefined') {
-        if (refreshToken) {
-          localStorage.setItem('refresh_token', refreshToken);
-        } else {
-          localStorage.removeItem('refresh_token');
-        }
-      }
+      localStorage.setItem('supabase_token', jwtToken);
     }
+
     this.updateHeaders();
   }
 
-  setOIDCTokens(idToken: string, refreshToken?: string, expiresIn?: number) {
-    this.setAuth(null, idToken, typeof refreshToken === 'undefined' ? undefined : refreshToken ?? null, expiresIn);
+  setSupabaseToken(jwtToken: string) {
+    this.jwtToken = jwtToken;
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('supabase_token', jwtToken);
+    }
+
+    this.updateHeaders();
   }
 
   getIdToken() {
     return this.jwtToken;
-  }
-
-  getRefreshToken() {
-    return this.refreshToken;
   }
 
   getApiKey() {
@@ -254,24 +135,12 @@ class APIClient {
     return this.apiKey;
   }
 
-  setJWT(jwtToken: string) {
-    this.jwtToken = jwtToken;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('jwt_token', jwtToken);
-    }
-    this.updateHeaders();
-  }
-
   clearAuth() {
     this.apiKey = null;
     this.jwtToken = null;
-    this.refreshToken = null;
-    this.tokenExpiresAt = null;
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('api_key');
-      localStorage.removeItem('jwt_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('token_expires_at');
+      localStorage.removeItem('supabase_token');
+      localStorage.removeItem('auth-storage');
     }
     this.updateHeaders();
   }
@@ -300,7 +169,7 @@ class APIClient {
     }
     return response.data;
   }
-  
+
   async getCurrentUser(): Promise<User> {
     const response = await this.client.get<{ user: User }>('/me');
     return response.data.user;
@@ -342,7 +211,7 @@ class APIClient {
         .where(eq(typeof id === 'number' ? sqliteSchema.quests.id : sqliteSchema.quests.external_id, id as any))
         .limit(1);
       if (local.length > 0) return local[0].data as Quest;
-    } catch (e) {}
+    } catch (e) { }
 
     const response = await this.client.get<Quest>(`/quests/${id}`);
     return response.data;
@@ -351,44 +220,17 @@ class APIClient {
   async createQuest(data: Partial<Quest>): Promise<Quest> {
     const response = await this.client.post<Quest>('/quests', data);
     const quest = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && quest.external_id) {
-      await appwriteService.syncQuest(quest, 'insert').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return quest;
   }
 
   async updateQuest(id: number, data: Partial<Quest>): Promise<Quest> {
     const response = await this.client.put<Quest>(`/quests/${id}`, data);
     const quest = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && quest.external_id) {
-      await appwriteService.syncQuest(quest, 'update').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return quest;
   }
 
   async deleteQuest(id: number): Promise<void> {
-    // Get quest before deleting to sync to Appwrite
-    let quest: Quest | null = null;
-    if (isAppwriteEnabledSync()) {
-      try {
-        quest = await this.getQuest(id);
-      } catch {
-        // If we can't get the quest, skip Appwrite sync
-      }
-    }
     await this.client.delete(`/quests/${id}`);
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && quest && quest.external_id) {
-      await appwriteService.syncQuest(quest, 'delete').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
   }
 
   // Missions (deprecated - use quests instead)
@@ -428,44 +270,17 @@ class APIClient {
   async createItem(data: Partial<Item>): Promise<Item> {
     const response = await this.client.post<Item>('/items', data);
     const item = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && item.external_id) {
-      await appwriteService.syncItem(item, 'insert').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return item;
   }
 
   async updateItem(id: number, data: Partial<Item>): Promise<Item> {
     const response = await this.client.put<Item>(`/items/${id}`, data);
     const item = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && item.external_id) {
-      await appwriteService.syncItem(item, 'update').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return item;
   }
 
   async deleteItem(id: number): Promise<void> {
-    // Get item before deleting to sync to Appwrite
-    let item: Item | null = null;
-    if (isAppwriteEnabledSync()) {
-      try {
-        item = await this.getItem(id);
-      } catch {
-        // If we can't get the item, skip Appwrite sync
-      }
-    }
     await this.client.delete(`/items/${id}`);
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && item && item.external_id) {
-      await appwriteService.syncItem(item, 'delete').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
   }
 
   async getRequiredItems(): Promise<RequiredItemsResponse> {
@@ -489,44 +304,17 @@ class APIClient {
   async createSkillNode(data: Partial<SkillNode>): Promise<SkillNode> {
     const response = await this.client.post<SkillNode>('/skill-nodes', data);
     const skillNode = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && skillNode.external_id) {
-      await appwriteService.syncSkillNode(skillNode, 'insert').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return skillNode;
   }
 
   async updateSkillNode(id: number, data: Partial<SkillNode>): Promise<SkillNode> {
     const response = await this.client.put<SkillNode>(`/skill-nodes/${id}`, data);
     const skillNode = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && skillNode.external_id) {
-      await appwriteService.syncSkillNode(skillNode, 'update').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return skillNode;
   }
 
   async deleteSkillNode(id: number): Promise<void> {
-    // Get skill node before deleting to sync to Appwrite
-    let skillNode: SkillNode | null = null;
-    if (isAppwriteEnabledSync()) {
-      try {
-        skillNode = await this.getSkillNode(id);
-      } catch {
-        // If we can't get the skill node, skip Appwrite sync
-      }
-    }
     await this.client.delete(`/skill-nodes/${id}`);
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && skillNode && skillNode.external_id) {
-      await appwriteService.syncSkillNode(skillNode, 'delete').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
   }
 
   // Hideout Modules
@@ -545,44 +333,17 @@ class APIClient {
   async createHideoutModule(data: Partial<HideoutModule>): Promise<HideoutModule> {
     const response = await this.client.post<HideoutModule>('/hideout-modules', data);
     const module = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && module.external_id) {
-      await appwriteService.syncHideoutModule(module, 'insert').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return module;
   }
 
   async updateHideoutModule(id: number, data: Partial<HideoutModule>): Promise<HideoutModule> {
     const response = await this.client.put<HideoutModule>(`/hideout-modules/${id}`, data);
     const module = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && module.external_id) {
-      await appwriteService.syncHideoutModule(module, 'update').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return module;
   }
 
   async deleteHideoutModule(id: number): Promise<void> {
-    // Get hideout module before deleting to sync to Appwrite
-    let module: HideoutModule | null = null;
-    if (isAppwriteEnabledSync()) {
-      try {
-        module = await this.getHideoutModule(id);
-      } catch {
-        // If we can't get the module, skip Appwrite sync
-      }
-    }
     await this.client.delete(`/hideout-modules/${id}`);
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && module && module.external_id) {
-      await appwriteService.syncHideoutModule(module, 'delete').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
   }
 
   // Enemy Types
@@ -601,44 +362,17 @@ class APIClient {
   async createEnemyType(data: Partial<EnemyType>): Promise<EnemyType> {
     const response = await this.client.post<EnemyType>('/enemy-types', data);
     const enemyType = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && enemyType.external_id) {
-      await appwriteService.syncEnemyType(enemyType, 'insert').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return enemyType;
   }
 
   async updateEnemyType(id: number, data: Partial<EnemyType>): Promise<EnemyType> {
     const response = await this.client.put<EnemyType>(`/enemy-types/${id}`, data);
     const enemyType = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && enemyType.external_id) {
-      await appwriteService.syncEnemyType(enemyType, 'update').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return enemyType;
   }
 
   async deleteEnemyType(id: number): Promise<void> {
-    // Get enemy type before deleting to sync to Appwrite
-    let enemyType: EnemyType | null = null;
-    if (isAppwriteEnabledSync()) {
-      try {
-        enemyType = await this.getEnemyType(id);
-      } catch {
-        // If we can't get the enemy type, skip Appwrite sync
-      }
-    }
     await this.client.delete(`/enemy-types/${id}`);
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && enemyType && enemyType.external_id) {
-      await appwriteService.syncEnemyType(enemyType, 'delete').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
   }
 
   // Alerts
@@ -691,44 +425,17 @@ class APIClient {
   async createAlert(data: Partial<Alert>): Promise<Alert> {
     const response = await this.client.post<Alert>('/alerts', data);
     const alert = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync()) {
-      await appwriteService.syncAlert(alert, 'insert').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return alert;
   }
 
   async updateAlert(id: number, data: Partial<Alert>): Promise<Alert> {
     const response = await this.client.put<Alert>(`/alerts/${id}`, data);
     const alert = response.data;
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync()) {
-      await appwriteService.syncAlert(alert, 'update').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
     return alert;
   }
 
   async deleteAlert(id: number): Promise<void> {
-    // Get alert before deleting to sync to Appwrite
-    let alert: Alert | null = null;
-    if (isAppwriteEnabledSync()) {
-      try {
-        alert = await this.getAlert(id);
-      } catch {
-        // If we can't get the alert, skip Appwrite sync
-      }
-    }
     await this.client.delete(`/alerts/${id}`);
-    // Sync to Appwrite if enabled
-    if (isAppwriteEnabledSync() && alert) {
-      await appwriteService.syncAlert(alert, 'delete').catch(() => {
-        // Silently fail - Appwrite sync is optional
-      });
-    }
   }
 
   // Management API (Admin only)
@@ -931,370 +638,6 @@ class APIClient {
       consumed,
     });
     return response.data;
-  }
-
-  // Appwrite Management
-  // Fetch all Appwrite records (no limit) or specify a limit
-  async getAppwriteQuests(limit?: number): Promise<Quest[]> {
-    return appwriteService.getQuests(limit);
-  }
-
-  async getAppwriteItems(limit?: number): Promise<Item[]> {
-    return appwriteService.getItems(limit);
-  }
-
-  async getAppwriteSkillNodes(limit?: number): Promise<SkillNode[]> {
-    return appwriteService.getSkillNodes(limit);
-  }
-
-  async getAppwriteHideoutModules(limit?: number): Promise<HideoutModule[]> {
-    return appwriteService.getHideoutModules(limit);
-  }
-
-  async getAppwriteEnemyTypes(limit?: number): Promise<EnemyType[]> {
-    return appwriteService.getEnemyTypes(limit);
-  }
-
-  async getAppwriteAlerts(limit?: number): Promise<Alert[]> {
-    return appwriteService.getAlerts(limit);
-  }
-
-  async getAppwriteBots(limit?: number): Promise<any[]> {
-    return appwriteService.getBots(limit);
-  }
-
-  async getAppwriteMaps(limit?: number): Promise<any[]> {
-    return appwriteService.getMaps(limit);
-  }
-
-  async getAppwriteTraders(limit?: number): Promise<any[]> {
-    return appwriteService.getTraders(limit);
-  }
-
-  async getAppwriteProjects(limit?: number): Promise<any[]> {
-    return appwriteService.getProjects(limit);
-  }
-
-  async getAppwriteCounts(): Promise<Record<string, number>> {
-    return appwriteService.getCounts();
-  }
-
-  async pingAppwrite(): Promise<{ success: boolean; message: string }> {
-    if (!isAppwriteEnabledSync()) {
-      throw new Error('Appwrite is not enabled');
-    }
-    return appwriteService.pingAppwrite();
-  }
-
-  // Force sync all data from API to Appwrite
-  async forceSyncToAppwrite(): Promise<{ synced: number; errors: number; details: Record<string, { synced: number; errors: number }> }> {
-    if (!isAppwriteEnabledSync()) {
-      throw new Error('Appwrite is not enabled');
-    }
-
-    const result = {
-      synced: 0,
-      errors: 0,
-      details: {} as Record<string, { synced: number; errors: number }>,
-    };
-
-    // Helper to sync a batch
-    const syncBatch = async <T extends { external_id?: string; id?: number }>(
-      items: T[],
-      syncFn: (item: T, op: 'insert' | 'update') => Promise<void>,
-      entityName: string
-    ) => {
-      let synced = 0;
-      let errors = 0;
-
-      for (const item of items) {
-        try {
-          // Try update first, if it fails, try insert
-          try {
-            await syncFn(item, 'update');
-          } catch {
-            await syncFn(item, 'insert');
-          }
-          synced++;
-        } catch (error) {
-          errors++;
-          if (process.env.NODE_ENV === 'development') {
-            console.error(`Error syncing ${entityName}:`, error);
-          }
-        }
-      }
-
-      result.details[entityName] = { synced, errors };
-      result.synced += synced;
-      result.errors += errors;
-    };
-
-    try {
-      // Sync all entities - fetch all pages
-      const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
-        const all: T[] = [];
-        let page = 1;
-        let hasMore = true;
-        while (hasMore) {
-          const response = await getFn(page, 100);
-          all.push(...response.data);
-          hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
-          page++;
-        }
-        return all;
-      };
-
-      const [quests, items, skillNodes, hideoutModules, enemyTypes, alerts] = await Promise.all([
-        fetchAll<Quest>((p, l) => this.getQuests(p, l)),
-        fetchAll<Item>((p, l) => this.getItems(p, l)),
-        fetchAll<SkillNode>((p, l) => this.getSkillNodes(p, l)),
-        fetchAll<HideoutModule>((p, l) => this.getHideoutModules(p, l)),
-        fetchAll<EnemyType>((p, l) => this.getEnemyTypes(p, l)),
-        fetchAll<Alert>((p, l) => this.getAlerts(p, l)),
-      ]);
-
-      await Promise.all([
-        syncBatch(quests, (q, op) => appwriteService.syncQuest(q, op), 'quests'),
-        syncBatch(items, (i, op) => appwriteService.syncItem(i, op), 'items'),
-        syncBatch(skillNodes, (s, op) => appwriteService.syncSkillNode(s, op), 'skillNodes'),
-        syncBatch(hideoutModules, (h, op) => appwriteService.syncHideoutModule(h, op), 'hideoutModules'),
-        syncBatch(enemyTypes, (e, op) => appwriteService.syncEnemyType(e, op), 'enemyTypes'),
-        syncBatch(alerts, (a, op) => appwriteService.syncAlert(a, op), 'alerts'),
-      ]);
-    } catch (error) {
-      throw error;
-    }
-
-    return result;
-  }
-
-  // Sync individual categories
-  async syncQuestsToAppwrite(): Promise<{ synced: number; errors: number }> {
-    if (!isAppwriteEnabledSync()) {
-      throw new Error('Appwrite is not enabled');
-    }
-
-    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
-      const all: T[] = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const response = await getFn(page, 100);
-        all.push(...response.data);
-        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
-        page++;
-      }
-      return all;
-    };
-
-    const quests = await fetchAll<Quest>((p, l) => this.getQuests(p, l));
-    let synced = 0;
-    let errors = 0;
-
-    for (const quest of quests) {
-      try {
-        try {
-          await appwriteService.syncQuest(quest, 'update');
-        } catch {
-          await appwriteService.syncQuest(quest, 'insert');
-        }
-        synced++;
-      } catch (error) {
-        errors++;
-      }
-    }
-
-    return { synced, errors };
-  }
-
-  async syncItemsToAppwrite(): Promise<{ synced: number; errors: number }> {
-    if (!isAppwriteEnabledSync()) {
-      throw new Error('Appwrite is not enabled');
-    }
-
-    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
-      const all: T[] = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const response = await getFn(page, 100);
-        all.push(...response.data);
-        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
-        page++;
-      }
-      return all;
-    };
-
-    const items = await fetchAll<Item>((p, l) => this.getItems(p, l));
-    let synced = 0;
-    let errors = 0;
-
-    for (const item of items) {
-      try {
-        try {
-          await appwriteService.syncItem(item, 'update');
-        } catch {
-          await appwriteService.syncItem(item, 'insert');
-        }
-        synced++;
-      } catch (error) {
-        errors++;
-      }
-    }
-
-    return { synced, errors };
-  }
-
-  async syncSkillNodesToAppwrite(): Promise<{ synced: number; errors: number }> {
-    if (!isAppwriteEnabledSync()) {
-      throw new Error('Appwrite is not enabled');
-    }
-
-    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
-      const all: T[] = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const response = await getFn(page, 100);
-        all.push(...response.data);
-        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
-        page++;
-      }
-      return all;
-    };
-
-    const skillNodes = await fetchAll<SkillNode>((p, l) => this.getSkillNodes(p, l));
-    let synced = 0;
-    let errors = 0;
-
-    for (const skillNode of skillNodes) {
-      try {
-        try {
-          await appwriteService.syncSkillNode(skillNode, 'update');
-        } catch {
-          await appwriteService.syncSkillNode(skillNode, 'insert');
-        }
-        synced++;
-      } catch (error) {
-        errors++;
-      }
-    }
-
-    return { synced, errors };
-  }
-
-  async syncHideoutModulesToAppwrite(): Promise<{ synced: number; errors: number }> {
-    if (!isAppwriteEnabledSync()) {
-      throw new Error('Appwrite is not enabled');
-    }
-
-    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
-      const all: T[] = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const response = await getFn(page, 100);
-        all.push(...response.data);
-        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
-        page++;
-      }
-      return all;
-    };
-
-    const hideoutModules = await fetchAll<HideoutModule>((p, l) => this.getHideoutModules(p, l));
-    let synced = 0;
-    let errors = 0;
-
-    for (const module of hideoutModules) {
-      try {
-        try {
-          await appwriteService.syncHideoutModule(module, 'update');
-        } catch {
-          await appwriteService.syncHideoutModule(module, 'insert');
-        }
-        synced++;
-      } catch (error) {
-        errors++;
-      }
-    }
-
-    return { synced, errors };
-  }
-
-  async syncEnemyTypesToAppwrite(): Promise<{ synced: number; errors: number }> {
-    if (!isAppwriteEnabledSync()) {
-      throw new Error('Appwrite is not enabled');
-    }
-
-    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
-      const all: T[] = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const response = await getFn(page, 100);
-        all.push(...response.data);
-        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
-        page++;
-      }
-      return all;
-    };
-
-    const enemyTypes = await fetchAll<EnemyType>((p, l) => this.getEnemyTypes(p, l));
-    let synced = 0;
-    let errors = 0;
-
-    for (const enemyType of enemyTypes) {
-      try {
-        try {
-          await appwriteService.syncEnemyType(enemyType, 'update');
-        } catch {
-          await appwriteService.syncEnemyType(enemyType, 'insert');
-        }
-        synced++;
-      } catch (error) {
-        errors++;
-      }
-    }
-
-    return { synced, errors };
-  }
-
-  async syncAlertsToAppwrite(): Promise<{ synced: number; errors: number }> {
-    if (!isAppwriteEnabledSync()) {
-      throw new Error('Appwrite is not enabled');
-    }
-
-    const fetchAll = async <T>(getFn: (page: number, limit: number) => Promise<PaginatedResponse<T>>): Promise<T[]> => {
-      const all: T[] = [];
-      let page = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const response = await getFn(page, 100);
-        all.push(...response.data);
-        hasMore = response.data.length === 100 && page * 100 < response.pagination.total;
-        page++;
-      }
-      return all;
-    };
-
-    const alerts = await fetchAll<Alert>((p, l) => this.getAlerts(p, l));
-    let synced = 0;
-    let errors = 0;
-
-    for (const alert of alerts) {
-      try {
-        try {
-          await appwriteService.syncAlert(alert, 'update');
-        } catch {
-          await appwriteService.syncAlert(alert, 'insert');
-        }
-        synced++;
-      } catch (error) {
-        errors++;
-      }
-    }
-
-    return { synced, errors };
   }
 
   // Data Export (CSV) - Admin only

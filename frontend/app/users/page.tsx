@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/utils';
 
 export default function UsersPage() {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, refreshUser } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -100,26 +100,6 @@ export default function UsersPage() {
     }
   };
 
-  const handleRefreshRole = async (userId: number) => {
-    try {
-      const result = await apiClient.refreshUserRole();
-      alert(result.message);
-      if (result.role_updated) {
-        // Reload user data if role was updated
-        loadUsers();
-        if (selectedUser && selectedUser.user.id === userId) {
-          loadUserDetails(userId);
-        }
-        // Also update the current user state if it's the current user
-        if (userId === user?.id) {
-          // Force a page reload to update the navigation/menu state
-          window.location.reload();
-        }
-      }
-    } catch (err) {
-      alert(getErrorMessage(err));
-    }
-  };
 
   if (!isAuthenticated || user?.role !== 'admin') return null;
 
@@ -334,9 +314,9 @@ export default function UsersPage() {
                           <span className="text-gray-900 dark:text-white">{selectedUser.user.role}</span>
                           {selectedUser.user.id === user?.id && (
                             <button
-                              onClick={() => handleRefreshRole(selectedUser.user.id)}
+                              onClick={() => refreshUser()}
                               className="px-3 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-200"
-                              title="Refresh role from Authentik"
+                              title="Refresh role from Supabase"
                             >
                               Refresh Role
                             </button>

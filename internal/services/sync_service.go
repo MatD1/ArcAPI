@@ -1,10 +1,14 @@
 package services
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -152,82 +156,182 @@ func (s *SyncService) Sync() {
 		s.mu.Unlock()
 	}()
 
-	log.Println("Starting data sync from GitHub...")
+	log.Println("Starting data sync from GitHub ZIP archive...")
 
 	ctx := context.Background()
 	owner := "MatD1"
 	repo := "arcraiders-data-fork"
+	branch := "main"
 
-	// Fetch files concurrently
-	var wg sync.WaitGroup
-	errorChan := make(chan error, 8)
-
-	wg.Add(8)
-	go func() {
-		defer wg.Done()
-		if err := s.syncQuests(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("quests sync error: %w", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := s.syncItems(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("items sync error: %w", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := s.syncSkillNodes(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("skill nodes sync error: %w", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := s.syncHideoutModules(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("hideout modules sync error: %w", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := s.syncBots(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("bots sync error: %w", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := s.syncMaps(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("maps sync error: %w", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := s.syncTraders(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("traders sync error: %w", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := s.syncProjects(ctx, owner, repo); err != nil {
-			errorChan <- fmt.Errorf("projects sync error: %w", err)
-		}
-	}()
-
-	wg.Wait()
-	close(errorChan)
-
-	// Log any errors
-	for err := range errorChan {
-		log.Printf("Sync error: %v", err)
+	// 1. Get latest SHA to help with identification
+	sha, err := s.getLatestSHA(ctx, owner, repo, branch)
+	if err != nil {
+		log.Printf("Warning: Could not get latest SHA: %v. Proceeding with sync anyway.", err)
+	} else {
+		log.Printf("Latest repository SHA: %s", sha)
 	}
 
-	log.Println("Data sync completed")
+	// 2. Download zipball
+	zipData, err := s.downloadArchive(ctx, owner, repo, branch)
+	if err != nil {
+		log.Printf("Error downloading archive: %v", err)
+		return
+	}
+	log.Printf("Downloaded archive (%d bytes)", len(zipData))
+
+	// 3. Process archive
+	if err := s.processArchive(ctx, zipData); err != nil {
+		log.Printf("Error processing archive: %v", err)
+		return
+	}
+
+	log.Println("Data sync completed successfully.")
+
+	// Update cache if available
+	if s.dataCacheService != nil {
+		log.Println("Triggering cache refresh...")
+		s.dataCacheService.RefreshNow()
+	}
+}
+
+func (s *SyncService) getLatestSHA(ctx context.Context, owner, repo, branch string) (string, error) {
+	ref, _, err := s.githubClient.Git.GetRef(ctx, owner, repo, "heads/"+branch)
+	if err != nil {
+		return "", err
+	}
+	return ref.Object.GetSHA(), nil
+}
+
+func (s *SyncService) downloadArchive(ctx context.Context, owner, repo, ref string) ([]byte, error) {
+	url, _, err := s.githubClient.Repositories.GetArchiveLink(ctx, owner, repo, github.Zipball, &github.RepositoryContentGetOptions{
+		Ref: ref,
+	}, 10)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get archive link: %w", err)
+	}
+
+	resp, err := http.Get(url.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to download archive: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return io.ReadAll(resp.Body)
+}
+
+func (s *SyncService) processArchive(ctx context.Context, zipData []byte) error {
+	r, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+	if err != nil {
+		return fmt.Errorf("failed to create zip reader: %w", err)
+	}
+
+	if err := s.syncQuestsFromZip(ctx, r); err != nil {
+		log.Printf("Error syncing quests from zip: %v", err)
+	}
+	if err := s.syncItemsFromZip(ctx, r); err != nil {
+		log.Printf("Error syncing items from zip: %v", err)
+	}
+	if err := s.syncSkillNodesFromZip(ctx, r); err != nil {
+		log.Printf("Error syncing skill nodes from zip: %v", err)
+	}
+	if err := s.syncHideoutModulesFromZip(ctx, r); err != nil {
+		log.Printf("Error syncing hideout modules from zip: %v", err)
+	}
+	if err := s.syncBotsFromZip(ctx, r); err != nil {
+		log.Printf("Error syncing bots from zip: %v", err)
+	}
+	if err := s.syncMapsFromZip(ctx, r); err != nil {
+		log.Printf("Error syncing maps from zip: %v", err)
+	}
+	if err := s.syncTradersFromZip(ctx, r); err != nil {
+		log.Printf("Error syncing traders from zip: %v", err)
+	}
+	if err := s.syncProjectsFromZip(ctx, r); err != nil {
+		log.Printf("Error syncing projects from zip: %v", err)
+	}
+
+	return nil
+}
+
+func (s *SyncService) getZipFile(r *zip.Reader, path string) ([]byte, error) {
+	// GitHub zipballs have a root directory like "owner-repo-sha/"
+	// We need to find the file regardless of the root directory name
+	for _, f := range r.File {
+		// Skip directories
+		if f.FileInfo().IsDir() {
+			continue
+		}
+
+		// Check if the file path ends with the target path (after the root dir)
+		if strings.HasSuffix(f.Name, "/"+path) || f.Name == path {
+			rc, err := f.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer rc.Close()
+			return io.ReadAll(rc)
+		}
+	}
+	return nil, fmt.Errorf("file not found in archive: %s", path)
+}
+
+func (s *SyncService) getZipDirFiles(r *zip.Reader, dir string) (map[string][]byte, error) {
+	files := make(map[string][]byte)
+	dirToken := "/" + dir + "/"
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+
+		if strings.Contains(f.Name, dirToken) && strings.HasSuffix(f.Name, ".json") {
+			rc, err := f.Open()
+			if err != nil {
+				continue
+			}
+			data, err := io.ReadAll(rc)
+			rc.Close()
+			if err == nil {
+				// Use the filename as key
+				parts := strings.Split(f.Name, "/")
+				name := parts[len(parts)-1]
+				files[name] = data
+			}
+		}
+	}
+	return files, nil
+}
+
+func (s *SyncService) loadZipCollection(r *zip.Reader, dir, fallback string) ([]map[string]interface{}, error) {
+	// Try loading from directory first
+	files, err := s.getZipDirFiles(r, dir)
+	if err == nil && len(files) > 0 {
+		var result []map[string]interface{}
+		for _, data := range files {
+			var decoded map[string]interface{}
+			if err := json.Unmarshal(data, &decoded); err == nil {
+				result = append(result, decoded)
+			}
+		}
+		if len(result) > 0 {
+			return result, nil
+		}
+	}
+
+	// Fallback to single JSON file
+	data, err := s.getZipFile(r, fallback)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // GetSnapshot returns a full point-in-time snapshot of all static data
@@ -282,82 +386,10 @@ func (s *SyncService) GetSnapshot() (*models.Snapshot, error) {
 	return snapshot, nil
 }
 
-func (s *SyncService) fetchJSONFile(ctx context.Context, owner, repo, path string) ([]byte, error) {
-	fileContent, _, _, err := s.githubClient.Repositories.GetContents(ctx, owner, repo, path, nil)
+func (s *SyncService) syncQuestsFromZip(ctx context.Context, r *zip.Reader) error {
+	questsData, err := s.loadZipCollection(r, "quests", "quests.json")
 	if err != nil {
-		return nil, err
-	}
-
-	if fileContent.GetType() != "file" {
-		return nil, fmt.Errorf("path is not a file: %s", path)
-	}
-
-	content, err := fileContent.GetContent()
-	if err != nil {
-		return nil, err
-	}
-
-	// No need to decode base64 manually, content is already decoded as UTF-8.
-	decoded := []byte(content)
-
-	return decoded, nil
-}
-
-func (s *SyncService) loadJSONCollection(ctx context.Context, owner, repo, dir, fallback string) ([]map[string]interface{}, error) {
-	data, err := s.fetchDirectoryJSONs(ctx, owner, repo, dir)
-	if err == nil && len(data) > 0 {
-		return data, nil
-	}
-	if fallback == "" {
-		return nil, fmt.Errorf("no data found for %s", dir)
-	}
-	raw, err := s.fetchJSONFile(ctx, owner, repo, fallback)
-	if err != nil {
-		return nil, err
-	}
-	var arr []map[string]interface{}
-	if err := json.Unmarshal(raw, &arr); err != nil {
-		return nil, err
-	}
-	return arr, nil
-}
-
-func (s *SyncService) fetchDirectoryJSONs(ctx context.Context, owner, repo, dir string) ([]map[string]interface{}, error) {
-	_, directoryContents, _, err := s.githubClient.Repositories.GetContents(ctx, owner, repo, dir, nil)
-	if err != nil {
-		return nil, err
-	}
-	if directoryContents == nil {
-		return nil, fmt.Errorf("no contents found in %s", dir)
-	}
-	var result []map[string]interface{}
-	for _, content := range directoryContents {
-		if content.GetType() != "file" {
-			continue
-		}
-		path := fmt.Sprintf("%s/%s", dir, content.GetName())
-		raw, err := s.fetchJSONFile(ctx, owner, repo, path)
-		if err != nil {
-			log.Printf("Warning: Failed to load %s: %v", path, err)
-			continue
-		}
-		var decoded map[string]interface{}
-		if err := json.Unmarshal(raw, &decoded); err != nil {
-			log.Printf("Warning: Failed to parse %s: %v", path, err)
-			continue
-		}
-		result = append(result, decoded)
-	}
-	if len(result) == 0 {
-		return nil, fmt.Errorf("no files found in %s", dir)
-	}
-	return result, nil
-}
-
-func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error {
-	questsData, err := s.loadJSONCollection(ctx, owner, repo, "quests", "quests.json")
-	if err != nil {
-		log.Printf("Warning: Could not load quests data: %v", err)
+		log.Printf("Warning: Could not load quests data from zip: %v", err)
 		return nil
 	}
 
@@ -366,7 +398,6 @@ func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error 
 			SyncedAt: time.Now(),
 		}
 
-		// Extract common fields
 		if id, ok := q["id"].(string); ok {
 			quest.ExternalID = id
 		} else if id, ok := q["id"].(float64); ok {
@@ -382,7 +413,6 @@ func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error 
 			quest.Trader = trader
 		}
 		if objectives, ok := q["objectives"].([]interface{}); ok {
-			// Store as array directly, but wrap for consistency with TypeScript types
 			quest.Objectives = models.JSONB(map[string]interface{}{"objectives": objectives})
 		}
 		if rewardItemIds, ok := q["rewardItemIds"].([]interface{}); ok {
@@ -392,7 +422,6 @@ func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error 
 			quest.XP = int(xp)
 		}
 
-		// Store full data as JSONB
 		quest.Data = models.JSONB(q)
 
 		err := s.questRepo.UpsertByExternalID(quest)
@@ -401,40 +430,20 @@ func (s *SyncService) syncQuests(ctx context.Context, owner, repo string) error 
 		}
 	}
 
-	log.Printf("Synced %d quests", len(questsData))
-
-	// Invalidate quests cache after sync
-	if s.dataCacheService != nil {
-		if err := s.dataCacheService.InvalidateQuestsCache(); err != nil {
-			log.Printf("Failed to invalidate quests cache: %v", err)
-		} else {
-			log.Println("Quests cache invalidated after sync")
-		}
-	}
-
+	log.Printf("Synced %d quests from zip", len(questsData))
 	return nil
 }
 
-// syncMissions is deprecated, use syncQuests instead
-func (s *SyncService) syncMissions(ctx context.Context, owner, repo string) error {
-	return s.syncQuests(ctx, owner, repo)
-}
-
-func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
-	itemsData, err := s.loadJSONCollection(ctx, owner, repo, "items", "items.json")
+func (s *SyncService) syncItemsFromZip(ctx context.Context, r *zip.Reader) error {
+	itemsData, err := s.loadZipCollection(r, "items", "items.json")
 	if err != nil {
-		log.Printf("Warning: Could not load items data: %v", err)
+		log.Printf("Warning: Could not load items data from zip: %v", err)
 		return nil
 	}
 
-	// Get the default branch - try to get repo info, fallback to "main"
+	owner := "MatD1"
+	repo := "arcraiders-data-fork"
 	branch := "main"
-	repoInfo, _, err := s.githubClient.Repositories.Get(ctx, owner, repo)
-	if err == nil && repoInfo.DefaultBranch != nil {
-		branch = *repoInfo.DefaultBranch
-	}
-
-	// Base URL for GitHub raw content (free CDN via GitHub raw)
 	baseImageURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/images/items", owner, repo, branch)
 
 	for _, i := range itemsData {
@@ -457,33 +466,22 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 			item.Type = itemType
 		}
 
-		// Handle image - check both imageFilename and image_url
 		var imagePath string
-		var imageSource string
 		if imgFilename, ok := i["imageFilename"].(string); ok && imgFilename != "" {
 			item.ImageFilename = imgFilename
 			imagePath = imgFilename
-			imageSource = "imageFilename"
 		} else if imgURL, ok := i["image_url"].(string); ok && imgURL != "" {
 			imagePath = imgURL
-			imageSource = "image_url"
 		}
 
-		// Convert to GitHub raw URL if needed
 		if imagePath != "" {
-			// If it's already a full URL (http/https), use it as-is
 			if strings.HasPrefix(imagePath, "http://") || strings.HasPrefix(imagePath, "https://") {
 				item.ImageURL = imagePath
 			} else {
-				// Otherwise, treat it as a filename and construct GitHub raw URL
 				filename := strings.TrimPrefix(imagePath, "/")
-				// URL encode the filename in case it has special characters or spaces
 				encodedFilename := url.PathEscape(filename)
 				item.ImageURL = fmt.Sprintf("%s/%s", baseImageURL, encodedFilename)
 			}
-			log.Printf("Item %s: Image from %s -> %s", item.ExternalID, imageSource, item.ImageURL)
-		} else {
-			log.Printf("Item %s: No image found (checked imageFilename and image_url)", item.ExternalID)
 		}
 
 		item.Data = models.JSONB(i)
@@ -494,34 +492,14 @@ func (s *SyncService) syncItems(ctx context.Context, owner, repo string) error {
 		}
 	}
 
-	log.Printf("Synced %d items", len(itemsData))
-
-	// Invalidate items cache after sync
-	if s.dataCacheService != nil {
-		if err := s.dataCacheService.InvalidateItemsCache(); err != nil {
-			log.Printf("Failed to invalidate items cache: %v", err)
-		} else {
-			log.Println("Items cache invalidated after sync")
-		}
-	}
-
+	log.Printf("Synced %d items from zip", len(itemsData))
 	return nil
 }
 
-func (s *SyncService) syncSkillNodes(ctx context.Context, owner, repo string) error {
-	paths := []string{"skillNodes.json"}
-
-	var data []byte
-	var err error
-	for _, path := range paths {
-		data, err = s.fetchJSONFile(ctx, owner, repo, path)
-		if err == nil {
-			break
-		}
-	}
-
+func (s *SyncService) syncSkillNodesFromZip(ctx context.Context, r *zip.Reader) error {
+	data, err := s.getZipFile(r, "skillNodes.json")
 	if err != nil {
-		log.Printf("Warning: Could not fetch skillNodes.json: %v", err)
+		log.Printf("Warning: Could not fetch skillNodes.json from zip: %v", err)
 		return nil
 	}
 
@@ -579,14 +557,14 @@ func (s *SyncService) syncSkillNodes(ctx context.Context, owner, repo string) er
 		}
 	}
 
-	log.Printf("Synced %d skill nodes", len(skillNodes))
+	log.Printf("Synced %d skill nodes from zip", len(skillNodes))
 	return nil
 }
 
-func (s *SyncService) syncHideoutModules(ctx context.Context, owner, repo string) error {
-	hideoutData, err := s.loadJSONCollection(ctx, owner, repo, "hideout", "hideoutModules.json")
+func (s *SyncService) syncHideoutModulesFromZip(ctx context.Context, r *zip.Reader) error {
+	hideoutData, err := s.loadZipCollection(r, "hideout", "hideoutModules.json")
 	if err != nil {
-		log.Printf("Warning: Could not load hideout modules data: %v", err)
+		log.Printf("Warning: Could not load hideout modules data from zip: %v", err)
 		return nil
 	}
 
@@ -621,14 +599,14 @@ func (s *SyncService) syncHideoutModules(ctx context.Context, owner, repo string
 		}
 	}
 
-	log.Printf("Synced %d hideout modules", len(hideoutData))
+	log.Printf("Synced %d hideout modules from zip", len(hideoutData))
 	return nil
 }
 
-func (s *SyncService) syncBots(ctx context.Context, owner, repo string) error {
-	data, err := s.fetchJSONFile(ctx, owner, repo, "bots.json")
+func (s *SyncService) syncBotsFromZip(ctx context.Context, r *zip.Reader) error {
+	data, err := s.getZipFile(r, "bots.json")
 	if err != nil {
-		log.Printf("Warning: Could not fetch bots.json: %v", err)
+		log.Printf("Warning: Could not fetch bots.json from zip: %v", err)
 		return nil
 	}
 
@@ -659,14 +637,14 @@ func (s *SyncService) syncBots(ctx context.Context, owner, repo string) error {
 		}
 	}
 
-	log.Printf("Synced %d bots", len(bots))
+	log.Printf("Synced %d bots from zip", len(bots))
 	return nil
 }
 
-func (s *SyncService) syncMaps(ctx context.Context, owner, repo string) error {
-	data, err := s.fetchJSONFile(ctx, owner, repo, "maps.json")
+func (s *SyncService) syncMapsFromZip(ctx context.Context, r *zip.Reader) error {
+	data, err := s.getZipFile(r, "maps.json")
 	if err != nil {
-		log.Printf("Warning: Could not fetch maps.json: %v", err)
+		log.Printf("Warning: Could not fetch maps.json from zip: %v", err)
 		return nil
 	}
 
@@ -686,15 +664,12 @@ func (s *SyncService) syncMaps(ctx context.Context, owner, repo string) error {
 			mapModel.ExternalID = fmt.Sprintf("%.0f", id)
 		}
 
-		// Extract name - can be string or multilingual object
 		if name, ok := m["name"].(string); ok {
 			mapModel.Name = name
 		} else if nameObj, ok := m["name"].(map[string]interface{}); ok {
-			// Try English first
 			if enName, ok := nameObj["en"].(string); ok && enName != "" {
 				mapModel.Name = enName
 			} else {
-				// Try any available language
 				for _, val := range nameObj {
 					if nameStr, ok := val.(string); ok && nameStr != "" {
 						mapModel.Name = nameStr
@@ -704,7 +679,6 @@ func (s *SyncService) syncMaps(ctx context.Context, owner, repo string) error {
 			}
 		}
 
-		// Fallback to external_id if no name found
 		if mapModel.Name == "" {
 			mapModel.Name = mapModel.ExternalID
 		}
@@ -717,14 +691,14 @@ func (s *SyncService) syncMaps(ctx context.Context, owner, repo string) error {
 		}
 	}
 
-	log.Printf("Synced %d maps", len(maps))
+	log.Printf("Synced %d maps from zip", len(maps))
 	return nil
 }
 
-func (s *SyncService) syncTraders(ctx context.Context, owner, repo string) error {
-	data, err := s.fetchJSONFile(ctx, owner, repo, "trades.json")
+func (s *SyncService) syncTradersFromZip(ctx context.Context, r *zip.Reader) error {
+	data, err := s.getZipFile(r, "trades.json")
 	if err != nil {
-		log.Printf("Warning: Could not fetch trades.json: %v", err)
+		log.Printf("Warning: Could not fetch trades.json from zip: %v", err)
 		return nil
 	}
 
@@ -733,7 +707,6 @@ func (s *SyncService) syncTraders(ctx context.Context, owner, repo string) error
 		return err
 	}
 
-	// Group trades by trader name and create a unique ID for each trader
 	traderMap := make(map[string]*models.Trader)
 
 	for _, t := range trades {
@@ -742,25 +715,20 @@ func (s *SyncService) syncTraders(ctx context.Context, owner, repo string) error
 			continue
 		}
 
-		// Use trader name as external_id (or create a unique ID)
 		externalID := traderName
 
-		// Check if we've already seen this trader
 		if trader, exists := traderMap[externalID]; exists {
-			// Append this trade to the trader's data
-			// We'll store all trades in the Data field
 			if trader.Data == nil {
 				trader.Data = models.JSONB{"trades": []interface{}{t}}
 			} else {
 				dataMap := map[string]interface{}(trader.Data)
-				if trades, ok := dataMap["trades"].([]interface{}); ok {
-					trades = append(trades, t)
-					dataMap["trades"] = trades
+				if tradesArr, ok := dataMap["trades"].([]interface{}); ok {
+					tradesArr = append(tradesArr, t)
+					dataMap["trades"] = tradesArr
 					trader.Data = models.JSONB(dataMap)
 				}
 			}
 		} else {
-			// Create new trader
 			trader := &models.Trader{
 				ExternalID: externalID,
 				Name:       traderName,
@@ -771,7 +739,6 @@ func (s *SyncService) syncTraders(ctx context.Context, owner, repo string) error
 		}
 	}
 
-	// Upsert all traders
 	for _, trader := range traderMap {
 		err := s.traderRepo.UpsertByExternalID(trader)
 		if err != nil {
@@ -779,14 +746,14 @@ func (s *SyncService) syncTraders(ctx context.Context, owner, repo string) error
 		}
 	}
 
-	log.Printf("Synced %d traders (from %d trades)", len(traderMap), len(trades))
+	log.Printf("Synced %d traders from zip", len(traderMap))
 	return nil
 }
 
-func (s *SyncService) syncProjects(ctx context.Context, owner, repo string) error {
-	data, err := s.fetchJSONFile(ctx, owner, repo, "projects.json")
+func (s *SyncService) syncProjectsFromZip(ctx context.Context, r *zip.Reader) error {
+	data, err := s.getZipFile(r, "projects.json")
 	if err != nil {
-		log.Printf("Warning: Could not fetch projects.json: %v", err)
+		log.Printf("Warning: Could not fetch projects.json from zip: %v", err)
 		return nil
 	}
 
@@ -806,15 +773,12 @@ func (s *SyncService) syncProjects(ctx context.Context, owner, repo string) erro
 			project.ExternalID = fmt.Sprintf("%.0f", id)
 		}
 
-		// Extract name - can be string or multilingual object
 		if name, ok := p["name"].(string); ok {
 			project.Name = name
 		} else if nameObj, ok := p["name"].(map[string]interface{}); ok {
-			// Try English first
 			if enName, ok := nameObj["en"].(string); ok && enName != "" {
 				project.Name = enName
 			} else {
-				// Try any available language
 				for _, val := range nameObj {
 					if nameStr, ok := val.(string); ok && nameStr != "" {
 						project.Name = nameStr
@@ -824,7 +788,6 @@ func (s *SyncService) syncProjects(ctx context.Context, owner, repo string) erro
 			}
 		}
 
-		// Fallback to external_id if no name found
 		if project.Name == "" {
 			project.Name = project.ExternalID
 		}
@@ -837,6 +800,6 @@ func (s *SyncService) syncProjects(ctx context.Context, owner, repo string) erro
 		}
 	}
 
-	log.Printf("Synced %d projects", len(projects))
+	log.Printf("Synced %d projects from zip", len(projects))
 	return nil
 }

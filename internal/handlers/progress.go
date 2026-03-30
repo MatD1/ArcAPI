@@ -47,6 +47,17 @@ func NewProgressHandler(
 }
 
 // GetMyQuestProgress returns all quest progress for the current user
+// GetMyQuestProgress returns all quest progress for the current user
+// @Summary Get my quest progress
+// @Description Fetch all quest completion states for the authenticated user.
+// @Tags progress
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string][]models.UserQuestProgress "Successfully fetched quest progress"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security BearerAuth
+// @Router /progress/quests [get]
 func (h *ProgressHandler) GetMyQuestProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -66,6 +77,21 @@ func (h *ProgressHandler) GetMyQuestProgress(c *gin.Context) {
 
 // UpdateQuestProgress updates quest completion status for the current user
 // Accepts external_id (e.g., "ss1") instead of internal database ID
+// UpdateQuestProgress updates quest completion status for the current user
+// @Summary Update my quest progress
+// @Description Update the completion state of a specific quest using its external ID.
+// @Tags progress
+// @Accept json
+// @Produce json
+// @Param quest_id path string true "Quest External ID"
+// @Param completion body map[string]bool true "Completion status (completed: true/false)"
+// @Success 200 {object} models.UserQuestProgress "Successfully updated quest progress"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 404 {object} ErrorResponse "Quest not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security BearerAuth
+// @Router /progress/quests/{quest_id} [put]
 func (h *ProgressHandler) UpdateQuestProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -106,6 +132,17 @@ func (h *ProgressHandler) UpdateQuestProgress(c *gin.Context) {
 }
 
 // GetMyHideoutModuleProgress returns all hideout module progress for the current user
+// GetMyHideoutModuleProgress returns all hideout module progress for the current user
+// @Summary Get my hideout module progress
+// @Description Fetch all hideout module levels and unlock states for the authenticated user.
+// @Tags progress
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string][]models.UserHideoutModuleProgress "Successfully fetched hideout module progress"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security BearerAuth
+// @Router /progress/hideout-modules [get]
 func (h *ProgressHandler) GetMyHideoutModuleProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -125,6 +162,21 @@ func (h *ProgressHandler) GetMyHideoutModuleProgress(c *gin.Context) {
 
 // UpdateHideoutModuleProgress updates hideout module progress for the current user
 // Accepts external_id (e.g., "module_001") instead of internal database ID
+// UpdateHideoutModuleProgress updates hideout module progress for the current user
+// @Summary Update my hideout module progress
+// @Description Update the unlock state and level of a specific hideout module using its external ID.
+// @Tags progress
+// @Accept json
+// @Produce json
+// @Param module_id path string true "Module External ID"
+// @Param progress body map[string]interface{} true "Progress data (unlocked, level)"
+// @Success 200 {object} models.UserHideoutModuleProgress "Successfully updated hideout module progress"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 404 {object} ErrorResponse "Module not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security BearerAuth
+// @Router /progress/hideout-modules/{module_id} [put]
 func (h *ProgressHandler) UpdateHideoutModuleProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -166,6 +218,17 @@ func (h *ProgressHandler) UpdateHideoutModuleProgress(c *gin.Context) {
 }
 
 // GetMySkillNodeProgress returns all skill node progress for the current user
+// GetMySkillNodeProgress returns all skill node progress for the current user
+// @Summary Get my skill node progress
+// @Description Fetch all skill node levels and unlock states for the authenticated user.
+// @Tags progress
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string][]models.UserSkillNodeProgress "Successfully fetched skill node progress"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security BearerAuth
+// @Router /progress/skill-nodes [get]
 func (h *ProgressHandler) GetMySkillNodeProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -185,6 +248,21 @@ func (h *ProgressHandler) GetMySkillNodeProgress(c *gin.Context) {
 
 // UpdateSkillNodeProgress updates skill node progress for the current user
 // Accepts external_id (e.g., "skill_001") instead of internal database ID
+// UpdateSkillNodeProgress updates skill node progress for the current user
+// @Summary Update my skill node progress
+// @Description Update the unlock state and level of a specific skill node using its external ID.
+// @Tags progress
+// @Accept json
+// @Produce json
+// @Param skill_node_id path string true "Skill Node External ID"
+// @Param progress body map[string]interface{} true "Progress data (unlocked, level)"
+// @Success 200 {object} models.UserSkillNodeProgress "Successfully updated skill node progress"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 404 {object} ErrorResponse "Skill node not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security BearerAuth
+// @Router /progress/skill-nodes/{skill_node_id} [put]
 func (h *ProgressHandler) UpdateSkillNodeProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -226,6 +304,17 @@ func (h *ProgressHandler) UpdateSkillNodeProgress(c *gin.Context) {
 }
 
 // GetMyBlueprintProgress returns all blueprint progress for the current user
+// GetMyBlueprintProgress returns all blueprint progress for the current user
+// @Summary Get my blueprint progress
+// @Description Fetch all blueprint consumption states for the authenticated user.
+// @Tags progress
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string][]models.UserBlueprintProgress "Successfully fetched blueprint progress"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security BearerAuth
+// @Router /progress/blueprints [get]
 func (h *ProgressHandler) GetMyBlueprintProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -245,6 +334,21 @@ func (h *ProgressHandler) GetMyBlueprintProgress(c *gin.Context) {
 
 // UpdateBlueprintProgress updates blueprint consumption status for the current user
 // Accepts external_id (e.g., "arc_motion_core") instead of internal database ID
+// UpdateBlueprintProgress updates blueprint consumption status for the current user
+// @Summary Update my blueprint progress
+// @Description Update whether a specific blueprint has been consumed by the user.
+// @Tags progress
+// @Accept json
+// @Produce json
+// @Param item_id path string true "Item External ID (Blueprint)"
+// @Param consumption body map[string]bool true "Consumption status (consumed: true/false)"
+// @Success 200 {object} models.UserBlueprintProgress "Successfully updated blueprint progress"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 404 {object} ErrorResponse "Blueprint not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security BearerAuth
+// @Router /progress/blueprints/{item_id} [put]
 func (h *ProgressHandler) UpdateBlueprintProgress(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
@@ -289,6 +393,22 @@ func (h *ProgressHandler) UpdateBlueprintProgress(c *gin.Context) {
 // ========================================
 
 // GetUserQuestProgress returns quest progress for a specific user (admin only)
+// GetUserQuestProgress returns quest progress for a specific user (admin only)
+// @Summary Get user quest progress
+// @Description Fetch quest completion states for any user by their ID. Only admins can access this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} map[string]interface{} "Successfully fetched quest progress"
+// @Failure 400 {object} ErrorResponse "Invalid user ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress/quests [get]
 func (h *ProgressHandler) GetUserQuestProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
@@ -313,6 +433,24 @@ c.JSON(http.StatusOK, gin.H{"data": progress, "user_id": userID})
 }
 
 // UpdateUserQuestProgress updates quest progress for a specific user (admin only)
+// UpdateUserQuestProgress updates quest progress for a specific user (admin only)
+// @Summary Update user quest progress
+// @Description Update the completion state of a quest for any user. Only admins can perform this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param quest_id path string true "Quest External ID"
+// @Param completion body map[string]bool true "Completion status"
+// @Success 200 {object} models.UserQuestProgress "Successfully updated user quest progress"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User or Quest not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress/quests/{quest_id} [put]
 func (h *ProgressHandler) UpdateUserQuestProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
@@ -359,6 +497,22 @@ c.JSON(http.StatusOK, progress)
 }
 
 // GetUserHideoutModuleProgress returns hideout module progress for a specific user (admin only)
+// GetUserHideoutModuleProgress returns hideout module progress for a specific user (admin only)
+// @Summary Get user hideout module progress
+// @Description Fetch hideout module levels for any user. Only admins can access this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} map[string]interface{} "Successfully fetched hideout module progress"
+// @Failure 400 {object} ErrorResponse "Invalid user ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress/hideout-modules [get]
 func (h *ProgressHandler) GetUserHideoutModuleProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
@@ -383,6 +537,24 @@ c.JSON(http.StatusOK, gin.H{"data": progress, "user_id": userID})
 }
 
 // UpdateUserHideoutModuleProgress updates hideout module progress for a specific user (admin only)
+// UpdateUserHideoutModuleProgress updates hideout module progress for a specific user (admin only)
+// @Summary Update user hideout module progress
+// @Description Update module level/unlock state for any user. Only admins can perform this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param module_id path string true "Module External ID"
+// @Param progress body map[string]interface{} true "Progress data"
+// @Success 200 {object} models.UserHideoutModuleProgress "Successfully updated user module progress"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User or Module not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress/hideout-modules/{module_id} [put]
 func (h *ProgressHandler) UpdateUserHideoutModuleProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
@@ -430,6 +602,22 @@ c.JSON(http.StatusOK, progress)
 }
 
 // GetUserSkillNodeProgress returns skill node progress for a specific user (admin only)
+// GetUserSkillNodeProgress returns skill node progress for a specific user (admin only)
+// @Summary Get user skill node progress
+// @Description Fetch skill node levels for any user. Only admins can access this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} map[string]interface{} "Successfully fetched skill node progress"
+// @Failure 400 {object} ErrorResponse "Invalid user ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress/skill-nodes [get]
 func (h *ProgressHandler) GetUserSkillNodeProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
@@ -454,6 +642,24 @@ c.JSON(http.StatusOK, gin.H{"data": progress, "user_id": userID})
 }
 
 // UpdateUserSkillNodeProgress updates skill node progress for a specific user (admin only)
+// UpdateUserSkillNodeProgress updates skill node progress for a specific user (admin only)
+// @Summary Update user skill node progress
+// @Description Update skill node level/unlock state for any user. Only admins can perform this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param skill_node_id path string true "Skill Node External ID"
+// @Param progress body map[string]interface{} true "Progress data"
+// @Success 200 {object} models.UserSkillNodeProgress "Successfully updated user skill node progress"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User or Skill Node not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress/skill-nodes/{skill_node_id} [put]
 func (h *ProgressHandler) UpdateUserSkillNodeProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
@@ -501,6 +707,22 @@ c.JSON(http.StatusOK, progress)
 }
 
 // GetUserBlueprintProgress returns blueprint progress for a specific user (admin only)
+// GetUserBlueprintProgress returns blueprint progress for a specific user (admin only)
+// @Summary Get user blueprint progress
+// @Description Fetch blueprint consumption states for any user. Only admins can access this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} map[string]interface{} "Successfully fetched blueprint progress"
+// @Failure 400 {object} ErrorResponse "Invalid user ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress/blueprints [get]
 func (h *ProgressHandler) GetUserBlueprintProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
@@ -525,6 +747,24 @@ c.JSON(http.StatusOK, gin.H{"data": progress, "user_id": userID})
 }
 
 // UpdateUserBlueprintProgress updates blueprint progress for a specific user (admin only)
+// UpdateUserBlueprintProgress updates blueprint progress for a specific user (admin only)
+// @Summary Update user blueprint progress
+// @Description Update blueprint consumption state for any user. Only admins can perform this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param item_id path string true "Item External ID (Blueprint)"
+// @Param consumption body map[string]bool true "Consumption status"
+// @Success 200 {object} models.UserBlueprintProgress "Successfully updated user blueprint progress"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User or Blueprint not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress/blueprints/{item_id} [put]
 func (h *ProgressHandler) UpdateUserBlueprintProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)
@@ -571,6 +811,22 @@ c.JSON(http.StatusOK, progress)
 }
 
 // GetAllUserProgress returns all progress types for a specific user (admin only)
+// GetAllUserProgress returns all progress types for a specific user (admin only)
+// @Summary Get all user progress
+// @Description Fetch a comprehensive summary of all progress types (quests, modules, skills, blueprints) for any user. Only admins can access this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} map[string]interface{} "Successfully fetched comprehensive progress"
+// @Failure 400 {object} ErrorResponse "Invalid user ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/users/{id}/progress [get]
 func (h *ProgressHandler) GetAllUserProgress(c *gin.Context) {
 userIDStr := c.Param("id")
 userID, err := parseUint(userIDStr)

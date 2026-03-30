@@ -19,26 +19,35 @@ type AuthContext struct {
 
 const AuthContextKey = "auth_context"
 
-// AuthenticateRequest validates Authorization header using Supabase (JWT/RS256) or internal JWTs.
-// It returns the associated user and the raw token string.
+// AuthenticateRequest validates request using Supabase JWT or API Key.
+// It returns the associated user and the raw credentials (token or key).
 func AuthenticateRequest(c *gin.Context, authService *services.AuthService, supabaseService *services.SupabaseAuthService, cfg *config.Config) (*models.User, string, error) {
+	// 1. Try API Key first (common for programmatic access)
+	apiKeyString := c.GetHeader("X-API-Key")
+	if apiKeyString != "" {
+		apiKey, err := authService.ValidateAPIKey(apiKeyString)
+		if err == nil {
+			user, err := authService.UserRepo().FindByID(apiKey.UserID)
+			if err == nil {
+				return user, apiKeyString, nil
+			}
+		}
+	}
+
+	// 2. Try Authorization: Bearer <token> (Supabase JWT)
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		return nil, "", fmt.Errorf("authorization header required")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			tokenString := parts[1]
+			user, err := ValidateTokenString(tokenString, authService, supabaseService, cfg)
+			if err == nil {
+				return user, tokenString, nil
+			}
+		}
 	}
 
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return nil, "", fmt.Errorf("invalid authorization header format")
-	}
-
-	tokenString := parts[1]
-
-	user, err := ValidateTokenString(tokenString, authService, supabaseService, cfg)
-	if err != nil {
-		return nil, "", err
-	}
-	return user, tokenString, nil
+	return nil, "", fmt.Errorf("authentication required (Supabase JWT or X-API-Key)")
 }
 
 // ValidateTokenString validates a raw token string using Supabase.

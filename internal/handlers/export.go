@@ -52,6 +52,18 @@ func NewExportHandler(
 	}
 }
 
+// ExportBots exports all bots as CSV (admin only)
+// @Summary Export bots
+// @Description Fetch all bot data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/bots [get]
 func (h *ExportHandler) ExportBots(c *gin.Context) {
 	bots, _, err := h.botRepo.FindAll(0, 10000) // Get all bots
 	if err != nil {
@@ -63,6 +75,18 @@ func (h *ExportHandler) ExportBots(c *gin.Context) {
 	h.sendCSV(c, csvData, "bots")
 }
 
+// ExportMaps exports all maps as CSV (admin only)
+// @Summary Export maps
+// @Description Fetch all map data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/maps [get]
 func (h *ExportHandler) ExportMaps(c *gin.Context) {
 	maps, _, err := h.mapRepo.FindAll(0, 10000) // Get all maps
 	if err != nil {
@@ -74,6 +98,18 @@ func (h *ExportHandler) ExportMaps(c *gin.Context) {
 	h.sendCSV(c, csvData, "maps")
 }
 
+// ExportTraders exports all traders as CSV (admin only)
+// @Summary Export traders
+// @Description Fetch all trader data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/traders [get]
 func (h *ExportHandler) ExportTraders(c *gin.Context) {
 	traders, _, err := h.traderRepo.FindAll(0, 10000) // Get all traders
 	if err != nil {
@@ -85,6 +121,18 @@ func (h *ExportHandler) ExportTraders(c *gin.Context) {
 	h.sendCSV(c, csvData, "traders")
 }
 
+// ExportProjects exports all projects as CSV (admin only)
+// @Summary Export projects
+// @Description Fetch all project data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/projects [get]
 func (h *ExportHandler) ExportProjects(c *gin.Context) {
 	projects, _, err := h.projectRepo.FindAll(0, 10000) // Get all projects
 	if err != nil {
@@ -97,6 +145,18 @@ func (h *ExportHandler) ExportProjects(c *gin.Context) {
 }
 
 // ExportQuests exports all quests as CSV
+// ExportQuests exports all quests as CSV (admin only)
+// @Summary Export quests
+// @Description Fetch all quest data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/quests [get]
 func (h *ExportHandler) ExportQuests(c *gin.Context) {
 	quests, _, err := h.questRepo.FindAll(0, 10000) // Get all quests
 	if err != nil {
@@ -109,6 +169,18 @@ func (h *ExportHandler) ExportQuests(c *gin.Context) {
 }
 
 // ExportItems exports all items as CSV
+// ExportItems exports all items as CSV (admin only)
+// @Summary Export items
+// @Description Fetch all item data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/items [get]
 func (h *ExportHandler) ExportItems(c *gin.Context) {
 	items, _, err := h.itemRepo.FindAll(0, 10000) // Get all items
 	if err != nil {
@@ -121,6 +193,18 @@ func (h *ExportHandler) ExportItems(c *gin.Context) {
 }
 
 // ExportSkillNodes exports all skill nodes as CSV
+// ExportSkillNodes exports all skill nodes as CSV (admin only)
+// @Summary Export skill nodes
+// @Description Fetch all skill node data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/skill-nodes [get]
 func (h *ExportHandler) ExportSkillNodes(c *gin.Context) {
 	skillNodes, _, err := h.skillNodeRepo.FindAll(0, 10000) // Get all skill nodes
 	if err != nil {
@@ -133,6 +217,18 @@ func (h *ExportHandler) ExportSkillNodes(c *gin.Context) {
 }
 
 // ExportHideoutModules exports all hideout modules as CSV
+// ExportHideoutModules exports all hideout modules as CSV (admin only)
+// @Summary Export hideout modules
+// @Description Fetch all hideout module data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/hideout-modules [get]
 func (h *ExportHandler) ExportHideoutModules(c *gin.Context) {
 	hideoutModules, _, err := h.hideoutModuleRepo.FindAll(0, 10000) // Get all hideout modules
 	if err != nil {
@@ -145,6 +241,18 @@ func (h *ExportHandler) ExportHideoutModules(c *gin.Context) {
 }
 
 // ExportEnemyTypes exports all enemy types as CSV
+// ExportEnemyTypes exports all enemy types as CSV (admin only)
+// @Summary Export enemy types
+// @Description Fetch all enemy type data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/enemy-types [get]
 func (h *ExportHandler) ExportEnemyTypes(c *gin.Context) {
 	enemyTypes, _, err := h.enemyTypeRepo.FindAll(0, 10000) // Get all enemy types
 	if err != nil {
@@ -157,6 +265,18 @@ func (h *ExportHandler) ExportEnemyTypes(c *gin.Context) {
 }
 
 // ExportAlerts exports all alerts as CSV
+// ExportAlerts exports all alerts as CSV (admin only)
+// @Summary Export alerts
+// @Description Fetch all alert data in CSV format. Only admins can export data.
+// @Tags management
+// @Produce text/csv
+// @Success 200 {string} string "CSV file content"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /admin/export/alerts [get]
 func (h *ExportHandler) ExportAlerts(c *gin.Context) {
 	alerts, _, err := h.alertRepo.FindAll(0, 10000) // Get all alerts
 	if err != nil {

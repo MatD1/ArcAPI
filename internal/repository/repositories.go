@@ -1054,3 +1054,37 @@ func (r *ProjectRepository) UpsertByExternalID(project *models.Project) error {
 	project.ID = existing.ID
 	return r.db.Save(project).Error
 }
+
+// Metadata Repository
+type MetadataRepository struct {
+	db *DB
+}
+
+func NewMetadataRepository(db *DB) *MetadataRepository {
+	return &MetadataRepository{db: db}
+}
+
+func (r *MetadataRepository) Get(key string) (string, error) {
+	var metadata models.Metadata
+	err := r.db.Where("key = ?", key).First(&metadata).Error
+	if err != nil {
+		return "", err
+	}
+	return metadata.Value, nil
+}
+
+func (r *MetadataRepository) Set(key, value string) error {
+	var metadata models.Metadata
+	err := r.db.Where("key = ?", key).First(&metadata).Error
+	if err == gorm.ErrRecordNotFound {
+		return r.db.Create(&models.Metadata{
+			Key:   key,
+			Value: value,
+		}).Error
+	}
+	if err != nil {
+		return err
+	}
+	metadata.Value = value
+	return r.db.Save(&metadata).Error
+}

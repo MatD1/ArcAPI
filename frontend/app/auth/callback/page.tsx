@@ -1,98 +1,65 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
-import { clearPKCEContext, exchangeCodeForTokens, getPKCEContext } from '@/lib/authentik';
+
+import LoadingScreen from '@/components/ui/LoadingScreen';
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const loginWithOIDC = useAuthStore((state) => state.loginWithOIDC);
-  const [status, setStatus] = useState('Validating authorization code...');
+  const { isAuthenticated, user, isLoading } = useAuthStore();
+  const [status, setStatus] = useState('Authenticating with Supabase...');
   const [error, setError] = useState<string | null>(null);
+  const redirectAttempted = useRef(false);
 
   useEffect(() => {
-    const run = async () => {
-      if (typeof window === 'undefined') {
-        return;
-      }
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      const stateParam = params.get('state');
-      const authError = params.get('error');
-      const errorDescription = params.get('error_description');
-
-      if (authError) {
-        setError(`${authError}${errorDescription ? `: ${errorDescription}` : ''}`);
-        clearPKCEContext();
-        return;
-      }
-
-      if (!code) {
-        setError('Missing authorization code. Please try signing in again.');
-        clearPKCEContext();
-        return;
-      }
-
-      const pkce = getPKCEContext();
-      if (!pkce) {
-        setError('Login session expired or missing. Please start over.');
-        return;
-      }
-
-      if (!stateParam || stateParam !== pkce.state) {
-        setError('State validation failed. Please try signing in again.');
-        clearPKCEContext();
-        return;
-      }
-
+    const verifySession = async () => {
       try {
-        setStatus('Exchanging code for tokens...');
-        const tokens = await exchangeCodeForTokens(code, pkce.redirectUri, pkce.verifier);
-        if (!tokens?.id_token) {
-          throw new Error('Authentik did not return an ID token.');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        
+        if (session) {
+          setStatus('Syncing profiles...');
         }
-        setStatus('Fetching user information...');
-        await loginWithOIDC(tokens.id_token, tokens.refresh_token, tokens.expires_in);
-        clearPKCEContext();
-        setStatus('Login successful. Redirecting...');
-        router.replace('/dashboard/');
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unable to complete login.';
-        setError(message);
-        clearPKCEContext();
+        console.error('Session verification error:', err);
+        setError(err instanceof Error ? err.message : 'Unable to verify session.');
       }
     };
 
-    run();
-  }, [loginWithOIDC, router]);
+    verifySession();
+  }, []);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center space-y-4">
-        {!error ? (
-          <>
-            <div className="animate-spin h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto" />
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Signing you in…</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{status}</p>
-          </>
-        ) : (
-          <>
-            <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 flex items-center justify-center mx-auto">
-              !
-            </div>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Authentication Failed</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{error}</p>
-            <button
-              onClick={() => router.replace('/login/')}
-              className="mt-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              Back to Login
-            </button>
-          </>
-        )}
+  useEffect(() => {
+    if (isAuthenticated && user && !redirectAttempted.current) {
+      setStatus('Redirecting...');
+      redirectAttempted.current = true;
+      router.replace('/dashboard/');
+    }
+  }, [isAuthenticated, user, router]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0c] px-4">
+        <div className="max-w-md w-full bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center space-y-6">
+          <div className="h-16 w-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center mx-auto text-2xl font-black">
+            !
+          </div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Access Denied</h1>
+          <p className="text-sm text-gray-400 font-medium">{error}</p>
+          <button
+            onClick={() => router.replace('/login/')}
+            className="w-full py-3.5 px-6 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all active:scale-[0.98]"
+          >
+            Terminal Return
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return <LoadingScreen message={status} />;
 }
 

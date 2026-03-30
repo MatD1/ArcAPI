@@ -3,20 +3,21 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 import { useAuthStore } from '@/store/authStore';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, isLoading } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.push('/login/');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
-  if (!isAuthenticated) {
-    return null;
+  if (isLoading || !isAuthenticated) {
+    return <LoadingScreen message="Verifying session..." />;
   }
 
   return (

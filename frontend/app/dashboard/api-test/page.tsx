@@ -38,7 +38,7 @@ export default function APITestPage() {
 
   useEffect(() => {
     // Load auth tokens (JWT from localStorage, API key from memory only)
-    const jwtToken = localStorage.getItem('jwt_token');
+    const jwtToken = localStorage.getItem('supabase_token');
     const apiKey = apiClient.getApiKey(); // Get from memory, not localStorage
 
     setHeaders([
@@ -151,10 +151,6 @@ export default function APITestPage() {
     // Auth Endpoints
     { label: 'Login (API Key)', method: 'POST' as HttpMethod, endpoint: '/api/v1/auth/login', category: 'Auth', body: '{"api_key": "your-api-key"}' },
     { label: 'Get Current User', method: 'GET' as HttpMethod, endpoint: '/api/v1/me', category: 'Auth' },
-    { label: 'Refresh Token', method: 'POST' as HttpMethod, endpoint: '/api/v1/auth/refresh', category: 'Auth', body: '{"refresh_token": "your-refresh-token"}' },
-    { label: 'Token Exchange', method: 'POST' as HttpMethod, endpoint: '/api/v1/auth/token', category: 'Auth', body: '{"code": "auth-code", "code_verifier": "code-verifier"}' },
-    { label: 'Authentik Token Exchange', method: 'POST' as HttpMethod, endpoint: '/api/v1/auth/authentik/token', category: 'Auth', body: '{"code": "auth-code", "code_verifier": "code-verifier", "redirect_uri": "https://..."}' },
-    { label: 'Authentik Register', method: 'POST' as HttpMethod, endpoint: '/api/v1/auth/authentik/register', category: 'Auth', body: '{"access_token": "authentik-token"}' },
     
     // Quests/Missions (Read)
     { label: 'List Quests', method: 'GET' as HttpMethod, endpoint: '/api/v1/quests', category: 'Quests' },

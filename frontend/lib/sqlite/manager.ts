@@ -128,8 +128,12 @@ async function hydrate(api: any) {
 
     await set('db_last_sync', Date.now());
     console.log('Hydration complete!');
-  } catch (error) {
-    console.error('Hydration failed:', error);
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      console.warn('Hydration skipped - unauthorized access to snapshot (public access required)');
+    } else {
+      console.error('Hydration failed:', error);
+    }
   }
 }
 

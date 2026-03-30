@@ -42,6 +42,9 @@ type Config struct {
 	SupabaseURL            string `envconfig:"SUPABASE_URL" default:""`            // Main project URL (fallback: NEXT_PUBLIC_SUPABASE_URL)
 	SupabaseJWKSURL        string `envconfig:"SUPABASE_JWKS_URL" default:""`        // Use if different from standard auth/v1/jwks
 	SupabasePublishableKey string `envconfig:"SUPABASE_PUBLISHABLE_KEY" default:""` // Modern label (replacing "Anon Key")
+
+	// GitHub
+	GitHubToken string `envconfig:"GITHUB_TOKEN" default:""`
 }
 
 func LoadConfig() (*Config, error) {

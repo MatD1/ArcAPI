@@ -164,26 +164,25 @@ Similar endpoints for `/items`, `/skill-nodes`, `/hideout-modules`.
    - Create an API key via the management API (requires admin role initially)
 
 2. **Via API Key**:
-   - Login with API key via `POST /api/v1/auth/login`
-   - Receive JWT token in response
-   - Use both API key and JWT token for subsequent requests
+## 🔐 Authentication
 
-3. **Via Dashboard**:
-   - Visit `/dashboard` in your browser
-   - Login with your API key
-   - Access all features through the web interface
+ArcAPI supports two primary authentication methods:
 
-### Making Authenticated Requests
+1.  **GitHub OAuth (via Supabase)**: Recommended for users. Provides secure, enterprise-grade authentication and dashboard access.
+2.  **API Keys**: Recommended for developers and programmatic access. Keys are managed via the dashboard (Admin only) and should be passed in the `X-API-Key` header.
 
-All protected endpoints require:
-- **API Key**: Send in `X-API-Key` header
-- **JWT Token**: Send in `Authorization: Bearer <token>` header
+### Authenticating Requests
 
-Example:
+#### Using API Keys
+Pass your key in the `X-API-Key` header:
 ```bash
-curl -H "X-API-Key: your-api-key" \
-     -H "Authorization: Bearer your-jwt-token" \
-     http://localhost:8080/api/v1/missions
+curl -H "X-API-Key: your_api_key_here" https://api.arcapi.dev/api/v1/quests
+```
+
+#### Using Bearer Tokens (Supabase)
+Pass the session JWT in the `Authorization` header:
+```bash
+curl -H "Authorization: Bearer <jwt_token>" https://api.arcapi.dev/api/v1/quests
 ```
 
 ## Data Synchronization

@@ -17,6 +17,18 @@ func NewAlertHandler(repo *repository.AlertRepository) *AlertHandler {
 	return &AlertHandler{repo: repo}
 }
 
+// List returns all alerts (paginated)
+// @Summary List all alerts
+// @Description Fetch all alerts with optional pagination
+// @Tags alerts
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(20)
+// @Success 200 {object} PaginatedResponse{data=[]models.Alert} "Successfully fetched alerts"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /alerts [get]
 func (h *AlertHandler) List(c *gin.Context) {
 	page := 1
 	limit := 20
@@ -49,6 +61,16 @@ func (h *AlertHandler) List(c *gin.Context) {
 	})
 }
 
+// GetActive returns all active alerts
+// @Summary List active alerts
+// @Description Fetch all alerts that are currently marked as active
+// @Tags alerts
+// @Accept json
+// @Produce json
+// @Success 200 {object} PaginatedResponse{data=[]models.Alert} "Successfully fetched active alerts"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /alerts/active [get]
 func (h *AlertHandler) GetActive(c *gin.Context) {
 	alerts, err := h.repo.FindActive()
 	if err != nil {
@@ -61,6 +83,19 @@ func (h *AlertHandler) GetActive(c *gin.Context) {
 	})
 }
 
+// Get returns a single alert by ID
+// @Summary Get a single alert
+// @Description Fetch an alert by its numeric ID
+// @Tags alerts
+// @Accept json
+// @Produce json
+// @Param id path int true "Alert ID"
+// @Success 200 {object} models.Alert "Successfully fetched the alert"
+// @Failure 400 {object} ErrorResponse "Invalid alert ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 404 {object} ErrorResponse "Alert not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /alerts/{id} [get]
 func (h *AlertHandler) Get(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -78,6 +113,20 @@ func (h *AlertHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, alert)
 }
 
+// Create adds a new alert
+// @Summary Create an alert
+// @Description Add a new alert to the database
+// @Tags alerts
+// @Accept json
+// @Produce json
+// @Param alert body models.Alert true "Alert object"
+// @Success 201 {object} models.Alert "Successfully created the alert"
+// @Failure 400 {object} ErrorResponse "Invalid input data"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /alerts [post]
 func (h *AlertHandler) Create(c *gin.Context) {
 	var alert models.Alert
 	if err := c.ShouldBindJSON(&alert); err != nil {
@@ -127,6 +176,21 @@ func (h *AlertHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, alert)
 }
 
+// Update modifies an existing alert
+// @Summary Update an alert
+// @Description Update an existing alert by its ID
+// @Tags alerts
+// @Accept json
+// @Produce json
+// @Param id path int true "Alert ID"
+// @Param alert body models.Alert true "Updated alert object"
+// @Success 200 {object} models.Alert "Successfully updated the alert"
+// @Failure 400 {object} ErrorResponse "Invalid input or ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /alerts/{id} [put]
 func (h *AlertHandler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -165,6 +229,20 @@ func (h *AlertHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, alert)
 }
 
+// Delete removes an alert
+// @Summary Delete an alert
+// @Description Delete an existing alert by its ID
+// @Tags alerts
+// @Accept json
+// @Produce json
+// @Param id path int true "Alert ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} ErrorResponse "Invalid alert ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /alerts/{id} [delete]
 func (h *AlertHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)

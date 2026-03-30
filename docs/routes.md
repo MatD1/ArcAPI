@@ -8,62 +8,10 @@ http://localhost:8080/api/v1
 
 ## Authentication
 
-### Public Endpoints (No Authentication Required)
-
-#### 1. GitHub OAuth Login
-**Endpoint:** `GET /auth/github/login`
-
-**Description:** Initiates GitHub OAuth flow for user authentication.
-
-**Query Parameters:**
-- `redirect` (optional): Deep link URL for mobile apps (e.g., `arcdb://auth/callback`)
-- `client` (optional): Client type - `mobile` or `web` (defaults to `web`)
-
-**Response:** Redirects to GitHub OAuth page
-
-**Example:**
-```
-GET /api/v1/auth/github/login?client=web
-GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
-```
-
-#### 2. GitHub OAuth Callback
-**Endpoint:** `GET /auth/github/callback`
-
-**Description:** Handles OAuth callback from GitHub and redirects to frontend or mobile app.
-
-**Query Parameters:**
-- `code`: Authorization code from GitHub
-- `state`: OAuth state parameter (contains redirect URL and client type)
-
-**Response:** Redirects to frontend callback URL or mobile deep link
-
-#### 3. Exchange Temporary Token
-**Endpoint:** `GET /auth/exchange-token`
-
-**Description:** Exchanges a temporary token for JWT and user data.
-
-**Query Parameters:**
-- `token`: Temporary token received from OAuth callback
-
-**Response:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": 1,
-    "username": "username",
-    "email": "user@example.com",
-    "role": "user"
-  },
-  "api_key": "optional-api-key-if-auto-created"
-}
-```
-
-#### 4. API Key Login
+### 1. API Key Login
 **Endpoint:** `POST /auth/login`
 
-**Description:** Authenticates with API key and returns JWT token.
+**Description:** Authenticates with an API key and returns user information.
 
 **Headers:**
 - `Content-Type: application/json`
@@ -78,7 +26,28 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
 **Response:**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "message": "Authenticated successfully",
+  "user": {
+    "id": 1,
+    "username": "username",
+    "email": "user@example.com",
+    "role": "user"
+  },
+  "token": "your-api-key"
+}
+```
+
+### 2. Get Current User
+**Endpoint:** `GET /me`
+
+**Description:** Returns details for the currently authenticated user (via JWT or API Key).
+
+**Headers:**
+- `Authorization: Bearer <jwt-token>` OR `X-API-Key: <api-key>`
+
+**Response:**
+```json
+{
   "user": {
     "id": 1,
     "username": "username",
@@ -88,16 +57,22 @@ GET /api/v1/auth/github/login?redirect=arcdb://auth/callback&client=mobile
 }
 ```
 
-#### 5. Mobile Callback Page
-**Endpoint:** `GET /auth/mobile-callback`
+### 3. Refresh User Role
+**Endpoint:** `POST /me/refresh-role`
 
-**Description:** Web page that redirects mobile apps to deep links. Used internally by OAuth flow.
+**Description:** Syncs the user's role from Supabase and updates the local database.
 
-**Query Parameters:**
-- `token`: Temporary authentication token
-- `redirect`: Deep link URL (e.g., `arcdb://auth/callback`)
+**Headers:**
+- `Authorization: Bearer <jwt-token>`
 
-**Response:** HTML page with JavaScript redirect
+**Response:**
+```json
+{
+  "message": "Role updated successfully",
+  "role_updated": true,
+  "user": { ... }
+}
+```
 
 ---
 

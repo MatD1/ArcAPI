@@ -118,6 +118,7 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		&models.Map{},
 		&models.Trader{},
 		&models.Project{},
+		&models.Metadata{},
 	)
 	if err != nil {
 		return nil, err

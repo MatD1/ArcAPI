@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,6 +23,9 @@ import (
 )
 
 func main() {
+	// Register WASM MIME type for proper browser loading
+	mime.AddExtensionType(".wasm", "application/wasm")
+	
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -220,6 +224,9 @@ func main() {
 	api := r.Group("/api/v1")
 	api.Use(middleware.RateLimitMiddleware(cacheService, cfg.RateLimitRequests, cfg.RateLimitWindowSeconds))
 	{
+		// Sync Snapshot (Public - game data only, no sensitive info)
+		api.GET("/sync/snapshot", syncHandler.GetSnapshot)
+
 		// JWTAuthMiddleware handles Supabase JWT validation
 		readOnly := api.Group("")
 		readOnly.Use(middleware.JWTAuthMiddleware(authService, cfg, supabaseAuthService))
@@ -231,7 +238,6 @@ func main() {
 			// Backward compatibility
 			readOnly.GET("/missions", missionHandler.List)
 			readOnly.GET("/missions/:id", missionHandler.Get)
-			readOnly.GET("/sync/snapshot", syncHandler.GetSnapshot)
 
 			// Items - Read
 			readOnly.GET("/items", itemHandler.List)

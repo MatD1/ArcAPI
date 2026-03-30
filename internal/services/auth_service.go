@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"strings"
 	"time"
@@ -44,6 +45,10 @@ func NewAuthService(
 		cacheService:     cacheService,
 		cfg:              cfg,
 	}
+}
+
+func (s *AuthService) UserRepo() *repository.UserRepository {
+	return s.userRepo
 }
 
 // IssueTokensForUser is removed - Use Supabase for tokens
@@ -137,6 +142,7 @@ func (s *AuthService) SyncSupabaseUser(claims *SupabaseClaims) (*models.User, er
 			if err != nil {
 				return nil, err
 			}
+			log.Printf("Successfully created new user from Supabase sync: %s (%s)", user.Email, user.Username)
 		} else {
 			return nil, err
 		}

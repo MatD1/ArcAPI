@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
-import { apiClient } from '@/lib/api';
-import { buildLogoutUrl } from '@/lib/authentik';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard/', icon: '📊' },
@@ -29,7 +27,6 @@ const adminNavigation = [
   { name: 'Alerts', href: '/alerts/', icon: '🚨' },
   { name: 'Audit Logs', href: '/logs/', icon: '📋' },
   { name: 'API Test', href: '/dashboard/api-test/', icon: '🧪' },
-  { name: 'Appwrite', href: '/appwrite/', icon: '🗄️' },
   { name: 'Export Data', href: '/export/', icon: '📥' },
 ];
 
@@ -40,18 +37,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
-    const idToken = apiClient.getIdToken() || undefined;
-    logout();
-    if (typeof window !== 'undefined') {
-      try {
-        const logoutUrl = await buildLogoutUrl(`${window.location.origin}/login/`, idToken);
-        if (logoutUrl) {
-          window.location.href = logoutUrl;
-          return;
-        }
-      } catch {
-        // ignore failure and fall back to local redirect
-      }
+    try {
+      await logout();
+      router.push('/login/');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Fallback
       router.push('/login/');
     }
   };

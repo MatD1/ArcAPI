@@ -37,6 +37,21 @@ func NewManagementHandler(
 }
 
 // CreateAPIKey creates a new API key (admin only)
+// CreateAPIKey creates a new API key (admin only)
+// @Summary Create API key
+// @Description Generate a new API key for the current user. Only admins can create keys.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param name body string true "Key name"
+// @Success 201 {object} map[string]string "Successfully created API key"
+// @Failure 400 {object} ErrorResponse "Invalid input data"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/api-keys [post]
 func (h *ManagementHandler) CreateAPIKey(c *gin.Context) {
 	// Get current user from context
 	authCtx, _ := c.Get(middleware.AuthContextKey)
@@ -72,6 +87,18 @@ func (h *ManagementHandler) CreateAPIKey(c *gin.Context) {
 }
 
 // ListAPIKeys lists all API keys (admins see all, users see only their own)
+// ListAPIKeys lists all API keys (admins see all, users see only their own)
+// @Summary List API keys
+// @Description Fetch API keys. Admins see all keys, regular users see only their own.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Success 200 {array} models.APIKey "Successfully fetched API keys"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/api-keys [get]
 func (h *ManagementHandler) ListAPIKeys(c *gin.Context) {
 	authCtx, _ := c.Get(middleware.AuthContextKey)
 	ctx := authCtx.(*middleware.AuthContext)
@@ -102,6 +129,22 @@ func (h *ManagementHandler) ListAPIKeys(c *gin.Context) {
 }
 
 // RevokeAPIKey revokes an API key
+// RevokeAPIKey revokes an API key
+// @Summary Revoke API key
+// @Description Deactivate an API key by its ID
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "API Key ID"
+// @Success 200 {object} map[string]string "Successfully revoked API key"
+// @Failure 400 {object} ErrorResponse "Invalid key ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Access denied"
+// @Failure 404 {object} ErrorResponse "API key not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/api-keys/{id}/revoke [post]
 func (h *ManagementHandler) RevokeAPIKey(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -139,6 +182,27 @@ func (h *ManagementHandler) RevokeAPIKey(c *gin.Context) {
 }
 
 // QueryLogs queries audit logs with filters
+// QueryLogs queries audit logs with filters
+// @Summary Query audit logs
+// @Description Fetch audit logs with various filters and pagination
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Logs per page" default(50)
+// @Param api_key_id query int false "Filter by API key ID"
+// @Param user_id query int false "Filter by User ID"
+// @Param method query string false "Filter by HTTP method"
+// @Param endpoint query string false "Filter by endpoint"
+// @Param start_time query string false "Filter by start time (RFC3339)"
+// @Param end_time query string false "Filter by end time (RFC3339)"
+// @Success 200 {object} PaginatedResponse{data=[]models.AuditLog} "Successfully fetched logs"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Access denied"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/logs [get]
 func (h *ManagementHandler) QueryLogs(c *gin.Context) {
 	page := 1
 	limit := 50
@@ -209,6 +273,23 @@ func (h *ManagementHandler) QueryLogs(c *gin.Context) {
 }
 
 // UpdateUserAccess controls whether a user can access data (admin only)
+// UpdateUserAccess controls whether a user can access data (admin only)
+// @Summary Update user data access
+// @Description Enable or disable data access for a user. Only admins can update access.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param access body map[string]bool true "Access payload (can_access_data)"
+// @Success 200 {object} map[string]interface{} "Successfully updated user access"
+// @Failure 400 {object} ErrorResponse "Invalid user ID or input"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/users/{id}/access [put]
 func (h *ManagementHandler) UpdateUserAccess(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -262,6 +343,23 @@ func (h *ManagementHandler) UpdateUserAccess(c *gin.Context) {
 }
 
 // UpdateUserRole updates a user's role (admin only)
+// UpdateUserRole updates a user's role (admin only)
+// @Summary Update user role
+// @Description Change a user's role to 'admin' or 'user'. Only admins can update roles.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param role body map[string]string true "Role payload (role: 'admin' or 'user')"
+// @Success 200 {object} map[string]interface{} "Successfully updated user role"
+// @Failure 400 {object} ErrorResponse "Invalid user ID or role"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/users/{id}/role [put]
 func (h *ManagementHandler) UpdateUserRole(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -321,6 +419,21 @@ func (h *ManagementHandler) UpdateUserRole(c *gin.Context) {
 }
 
 // ListUsers lists all users (admin only)
+// ListUsers lists all users (admin only)
+// @Summary List all users
+// @Description Fetch all users with optional pagination. Only admins can list users.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Users per page" default(50)
+// @Success 200 {object} PaginatedResponse{data=[]models.User} "Successfully fetched users"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/users [get]
 func (h *ManagementHandler) ListUsers(c *gin.Context) {
 	page := 1
 	limit := 50
@@ -355,6 +468,22 @@ func (h *ManagementHandler) ListUsers(c *gin.Context) {
 
 // GetUser gets a user with their API keys and JWT tokens
 // Admins can view any user, regular users can only view themselves
+// GetUser gets a user with their API keys and JWT tokens
+// @Summary Get user details
+// @Description Fetch detailed user data including associated API keys. Admins see anyone, users see only themselves.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} map[string]interface{} "Successfully fetched user details"
+// @Failure 400 {object} ErrorResponse "Invalid user ID"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Access denied"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/users/{id} [get]
 func (h *ManagementHandler) GetUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -396,6 +525,23 @@ func (h *ManagementHandler) GetUser(c *gin.Context) {
 // UpdateUserProfile allows users to update their own profile
 // Regular users can ONLY update their username (not email or other fields)
 // Admins can update any user's profile including email
+// UpdateUserProfile allows users to update their own profile
+// @Summary Update user profile
+// @Description Modify user profile details (email/username). Admins can update any user, regular users only their own username.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param profile body map[string]string true "Profile update payload (email, username)"
+// @Success 200 {object} map[string]interface{} "Successfully updated user profile"
+// @Failure 400 {object} ErrorResponse "Invalid user ID or input"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Access denied"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/users/{id} [put]
 func (h *ManagementHandler) UpdateUserProfile(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -465,6 +611,22 @@ func (h *ManagementHandler) UpdateUserProfile(c *gin.Context) {
 }
 
 // DeleteUser deletes a user and all associated data (admin only)
+// DeleteUser deletes a user and all associated data (admin only)
+// @Summary Delete user
+// @Description Permanently delete a user and all their associated data. Only admins can delete users.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} map[string]string "Successfully deleted user"
+// @Failure 400 {object} ErrorResponse "Invalid user ID or attempt to delete self"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/users/{id} [delete]
 func (h *ManagementHandler) DeleteUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -501,6 +663,19 @@ func (h *ManagementHandler) DeleteUser(c *gin.Context) {
 }
 
 // CleanupDuplicateHideoutModules removes duplicate hideout modules, keeping the one with the lowest ID
+// CleanupDuplicateHideoutModules removes duplicate hideout modules, keeping the one with the lowest ID
+// @Summary Cleanup duplicate hideout modules
+// @Description Identify and remove duplicate hideout modules by their external_id. Keeps only the one with the lowest numeric ID. Only admins can perform this.
+// @Tags management
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Cleanup report"
+// @Failure 401 {object} ErrorResponse "Not authenticated"
+// @Failure 403 {object} ErrorResponse "Not an administrator"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Security BearerAuth
+// @Router /management/hideout-modules/cleanup [post]
 func (h *ManagementHandler) CleanupDuplicateHideoutModules(c *gin.Context) {
 	// Find all hideout modules (using a large limit to get all)
 	allModules, _, err := h.hideoutModuleRepo.FindAll(0, 1000000)
