@@ -52,7 +52,7 @@ func SecurityMiddleware(allowedOrigins []string) gin.HandlerFunc {
 			}
 		}
 
-		csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.arctracker.io; connect-src %s; frame-src %s; frame-ancestors 'self'; form-action 'self'", connectSrc, frameSrc)
+		csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://cdn.arctracker.io https://cdn.jsdelivr.net; connect-src %s blob: data: https://cdn.jsdelivr.net; frame-src %s; frame-ancestors 'self'; form-action 'self'", connectSrc, frameSrc)
 
 		csp += ";"
 

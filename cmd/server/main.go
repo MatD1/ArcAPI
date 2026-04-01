@@ -3,13 +3,9 @@ package main
 import (
 	"context"
 	"log"
-	"mime"
 	"net/http"
 	"os"
 	"os/signal"
-	"path"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -23,8 +19,6 @@ import (
 )
 
 func main() {
-	// Register WASM MIME type for proper browser loading
-	mime.AddExtensionType(".wasm", "application/wasm")
 	
 	// Load configuration
 	cfg, err := config.LoadConfig()
@@ -224,6 +218,35 @@ func main() {
 	api := r.Group("/api/v1")
 	api.Use(middleware.RateLimitMiddleware(cacheService, cfg.RateLimitRequests, cfg.RateLimitWindowSeconds))
 	{
+		// Serve swagger.json for documentation tools
+		api.GET("/swagger.json", func(c *gin.Context) {
+			c.File("./docs/swagger.json")
+		})
+
+		// Scalar API Reference
+		api.GET("/docs", func(c *gin.Context) {
+			html := `
+<!doctype html>
+<html>
+  <head>
+    <title>ArcAPI Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <script
+      id="api-reference"
+      data-url="/api/v1/swagger.json"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>`
+			c.Header("Content-Type", "text/html")
+			c.String(http.StatusOK, html)
+		})
+
 		// Sync Snapshot (Public - game data only, no sensitive info)
 		api.GET("/sync/snapshot", syncHandler.GetSnapshot)
 
@@ -399,46 +422,10 @@ func main() {
 
 	}
 
-	// Serve frontend static files
-	frontendDir := "./frontend/out"
-	if _, err := os.Stat(frontendDir); err == nil {
-		absFrontendDir, _ := filepath.Abs(frontendDir)
-		dashboardBase := filepath.Join(absFrontendDir, "dashboard")
-		nextDir := filepath.Join(absFrontendDir, "_next")
-		
-		r.StaticFS("/_next", gin.Dir(nextDir, false))
-		r.GET("/dashboard", func(c *gin.Context) {
-			c.File(filepath.Join(dashboardBase, "index.html"))
-		})
-		r.GET("/dashboard/*path", func(c *gin.Context) {
-			pathParam := c.Param("path")
-			normalizedPath := path.Clean(pathParam)
-			if !strings.HasPrefix(normalizedPath, "/") {
-				normalizedPath = "/" + normalizedPath
-			}
-			
-			candidate := filepath.Join(dashboardBase, normalizedPath)
-			if strings.HasSuffix(normalizedPath, "/") || normalizedPath == "" {
-				candidate = filepath.Join(candidate, "index.html")
-			}
-			if _, err := os.Stat(candidate); err == nil {
-				c.File(candidate)
-			} else {
-				c.File(filepath.Join(dashboardBase, "index.html"))
-			}
-		})
-		
-		// Catch-all
-		r.NoRoute(func(c *gin.Context) {
-			if !strings.HasPrefix(c.Request.URL.Path, "/api") &&
-				!strings.HasPrefix(c.Request.URL.Path, "/health") &&
-				!strings.HasPrefix(c.Request.URL.Path, "/_next") {
-				c.File(filepath.Join(absFrontendDir, "index.html"))
-			} else {
-				c.JSON(404, gin.H{"error": "Not found"})
-			}
-		})
-	}
+	// 404 handler
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+	})
 
 	// Server start
 	srv := &http.Server{

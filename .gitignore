@@ -42,4 +42,4 @@ dist/
 build/
 
 *.md
-docs/
+md/

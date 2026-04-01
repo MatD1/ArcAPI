@@ -21,8 +21,10 @@ import (
 
 // SupabaseClaims represents the standard claims from a Supabase JWT
 type SupabaseClaims struct {
-	Email string `json:"email"`
-	Sub   string `json:"sub"`
+	Email        string                 `json:"email"`
+	Sub          string                 `json:"sub"`
+	AppMetadata  map[string]interface{} `json:"app_metadata"`
+	UserMetadata map[string]interface{} `json:"user_metadata"`
 	jwt.RegisteredClaims
 }
 

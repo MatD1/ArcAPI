@@ -1,0 +1,3877 @@
+basePath: /api/v1
+definitions:
+  handlers.BlueprintItem:
+    properties:
+      created_at:
+        type: string
+      data:
+        additionalProperties: true
+        type: object
+      description:
+        type: string
+      external_id:
+        type: string
+      id:
+        type: integer
+      image_filename:
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      synced_at:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  handlers.ErrorResponse:
+    properties:
+      error:
+        example: Description of the error
+        type: string
+    type: object
+  handlers.PaginatedResponse:
+    properties:
+      data: {}
+      pagination:
+        $ref: '#/definitions/handlers.PaginationDetails'
+    type: object
+  handlers.PaginationDetails:
+    properties:
+      limit:
+        example: 20
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  handlers.RequiredItemResponse:
+    properties:
+      item:
+        $ref: '#/definitions/models.Item'
+      total_quantity:
+        type: integer
+      usages:
+        items:
+          $ref: '#/definitions/handlers.RequiredItemUsage'
+        type: array
+    type: object
+  handlers.RequiredItemUsage:
+    properties:
+      level:
+        description: For hideout modules, which level requires this
+        type: integer
+      quantity:
+        type: integer
+      source_id:
+        type: integer
+      source_name:
+        type: string
+      source_type:
+        description: '"quest" or "hideout_module"'
+        type: string
+    type: object
+  models.APIKey:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      last_used_at:
+        type: string
+      name:
+        type: string
+      revoked_at:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+      user_id:
+        type: integer
+    type: object
+  models.Alert:
+    properties:
+      created_at:
+        type: string
+      data:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: Full data including multilingual content
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        description: Whether the alert is currently active
+        type: boolean
+      name:
+        type: string
+      severity:
+        description: e.g., "info", "warning", "error", "critical"
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.AuditLog:
+    properties:
+      api_key:
+        $ref: '#/definitions/models.APIKey'
+      api_key_id:
+        type: integer
+      created_at:
+        type: string
+      endpoint:
+        type: string
+      id:
+        type: integer
+      ip_address:
+        type: string
+      jwt_token:
+        $ref: '#/definitions/models.JWTToken'
+      jwt_token_id:
+        type: integer
+      method:
+        type: string
+      request_body:
+        $ref: '#/definitions/models.JSONB'
+      response_time_ms:
+        type: integer
+      status_code:
+        type: integer
+      user:
+        $ref: '#/definitions/models.User'
+      user_id:
+        type: integer
+    type: object
+  models.Bot:
+    properties:
+      created_at:
+        type: string
+      data:
+        $ref: '#/definitions/models.JSONB'
+      external_id:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      synced_at:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.EnemyType:
+    properties:
+      created_at:
+        type: string
+      data:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: Full data including multilingual content
+      description:
+        type: string
+      external_id:
+        type: string
+      id:
+        type: integer
+      image_filename:
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      synced_at:
+        type: string
+      type:
+        description: e.g., "Human", "Robot", "Alien"
+        type: string
+      updated_at:
+        type: string
+      weakpoints:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: Array of weakpoint objects
+    type: object
+  models.HideoutModule:
+    properties:
+      created_at:
+        type: string
+      data:
+        $ref: '#/definitions/models.JSONB'
+      description:
+        type: string
+      external_id:
+        type: string
+      id:
+        type: integer
+      levels:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: Array of level objects
+      max_level:
+        type: integer
+      name:
+        type: string
+      synced_at:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.Item:
+    properties:
+      created_at:
+        type: string
+      data:
+        $ref: '#/definitions/models.JSONB'
+      description:
+        type: string
+      external_id:
+        type: string
+      id:
+        type: integer
+      image_filename:
+        description: Original filename from JSON
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      synced_at:
+        type: string
+      type:
+        description: e.g., "Material"
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.JSONB:
+    additionalProperties: true
+    type: object
+  models.JWTToken:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: integer
+      revoked_at:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+      user_id:
+        type: integer
+    type: object
+  models.Map:
+    properties:
+      created_at:
+        type: string
+      data:
+        $ref: '#/definitions/models.JSONB'
+      external_id:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      synced_at:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.Project:
+    properties:
+      created_at:
+        type: string
+      data:
+        $ref: '#/definitions/models.JSONB'
+      external_id:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      synced_at:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.Quest:
+    properties:
+      created_at:
+        type: string
+      data:
+        $ref: '#/definitions/models.JSONB'
+      description:
+        type: string
+      external_id:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      objectives:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: Array of strings
+      reward_item_ids:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: Array of {itemId, quantity}
+      synced_at:
+        type: string
+      trader:
+        type: string
+      updated_at:
+        type: string
+      xp:
+        type: integer
+    type: object
+  models.SkillNode:
+    properties:
+      category:
+        type: string
+      created_at:
+        type: string
+      data:
+        $ref: '#/definitions/models.JSONB'
+      description:
+        type: string
+      external_id:
+        type: string
+      icon_name:
+        type: string
+      id:
+        type: integer
+      impacted_skill:
+        type: string
+      is_major:
+        type: boolean
+      known_value:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: Array
+      max_points:
+        description: Maximum level/points for this skill node (from GitHub maxPoints)
+        type: integer
+      name:
+        type: string
+      position:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: '{x, y}'
+      prerequisite_node_ids:
+        allOf:
+        - $ref: '#/definitions/models.JSONB'
+        description: Array of strings
+      synced_at:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.Trader:
+    properties:
+      created_at:
+        type: string
+      data:
+        $ref: '#/definitions/models.JSONB'
+      external_id:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      synced_at:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.User:
+    properties:
+      can_access_data:
+        description: Admin-controlled access (deprecated - all users have read access
+          by default)
+        type: boolean
+      created_at:
+        type: string
+      created_via_app:
+        description: True if user was created via mobile app
+        type: boolean
+      discord_id:
+        type: string
+      email:
+        type: string
+      github_id:
+        type: string
+      id:
+        type: integer
+      role:
+        $ref: '#/definitions/models.UserRole'
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  models.UserBlueprintProgress:
+    properties:
+      consumed:
+        type: boolean
+      created_at:
+        type: string
+      id:
+        type: integer
+      item:
+        $ref: '#/definitions/models.Item'
+      item_id:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/models.User'
+        description: Relations
+      user_id:
+        type: integer
+    type: object
+  models.UserHideoutModuleProgress:
+    properties:
+      created_at:
+        type: string
+      hideout_module:
+        $ref: '#/definitions/models.HideoutModule'
+      hideout_module_id:
+        type: integer
+      id:
+        type: integer
+      level:
+        type: integer
+      unlocked:
+        type: boolean
+      updated_at:
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/models.User'
+        description: Relations
+      user_id:
+        type: integer
+    type: object
+  models.UserQuestProgress:
+    properties:
+      completed:
+        type: boolean
+      created_at:
+        type: string
+      id:
+        type: integer
+      quest:
+        $ref: '#/definitions/models.Quest'
+      quest_id:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/models.User'
+        description: Relations
+      user_id:
+        type: integer
+    type: object
+  models.UserRole:
+    enum:
+    - admin
+    - user
+    type: string
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleUser
+  models.UserSkillNodeProgress:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      level:
+        description: Current level (0 if not unlocked)
+        type: integer
+      skill_node:
+        $ref: '#/definitions/models.SkillNode'
+      skill_node_id:
+        type: integer
+      unlocked:
+        type: boolean
+      updated_at:
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/models.User'
+        description: Relations
+      user_id:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: API Server for Arc Project (Mobile/Web)
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: ArcAPI
+  version: "1.0"
+paths:
+  /admin/export/alerts:
+    get:
+      description: Fetch all alert data in CSV format. Only admins can export data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export alerts
+      tags:
+      - management
+  /admin/export/bots:
+    get:
+      description: Fetch all bot data in CSV format. Only admins can export data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export bots
+      tags:
+      - management
+  /admin/export/enemy-types:
+    get:
+      description: Fetch all enemy type data in CSV format. Only admins can export
+        data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export enemy types
+      tags:
+      - management
+  /admin/export/hideout-modules:
+    get:
+      description: Fetch all hideout module data in CSV format. Only admins can export
+        data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export hideout modules
+      tags:
+      - management
+  /admin/export/items:
+    get:
+      description: Fetch all item data in CSV format. Only admins can export data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export items
+      tags:
+      - management
+  /admin/export/maps:
+    get:
+      description: Fetch all map data in CSV format. Only admins can export data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export maps
+      tags:
+      - management
+  /admin/export/projects:
+    get:
+      description: Fetch all project data in CSV format. Only admins can export data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export projects
+      tags:
+      - management
+  /admin/export/quests:
+    get:
+      description: Fetch all quest data in CSV format. Only admins can export data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export quests
+      tags:
+      - management
+  /admin/export/skill-nodes:
+    get:
+      description: Fetch all skill node data in CSV format. Only admins can export
+        data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export skill nodes
+      tags:
+      - management
+  /admin/export/traders:
+    get:
+      description: Fetch all trader data in CSV format. Only admins can export data.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file content
+          schema:
+            type: string
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Export traders
+      tags:
+      - management
+  /admin/sync/force:
+    post:
+      consumes:
+      - application/json
+      description: Trigger an immediate synchronization of Game Data from GitHub.
+        Only admins can force a sync.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Sync triggered successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Sync already running
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Force data sync
+      tags:
+      - sync
+  /admin/sync/status:
+    get:
+      consumes:
+      - application/json
+      description: Check if a synchronization process is currently running. Only admins
+        can check status.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Sync status
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Get sync status
+      tags:
+      - sync
+  /admin/users/{id}/progress:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a comprehensive summary of all progress types (quests, modules,
+        skills, blueprints) for any user. Only admins can access this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched comprehensive progress
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Get all user progress
+      tags:
+      - management
+  /admin/users/{id}/progress/blueprints:
+    get:
+      consumes:
+      - application/json
+      description: Fetch blueprint consumption states for any user. Only admins can
+        access this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched blueprint progress
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Get user blueprint progress
+      tags:
+      - management
+  /admin/users/{id}/progress/blueprints/{item_id}:
+    put:
+      consumes:
+      - application/json
+      description: Update blueprint consumption state for any user. Only admins can
+        perform this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Item External ID (Blueprint)
+        in: path
+        name: item_id
+        required: true
+        type: string
+      - description: Consumption status
+        in: body
+        name: consumption
+        required: true
+        schema:
+          additionalProperties:
+            type: boolean
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated user blueprint progress
+          schema:
+            $ref: '#/definitions/models.UserBlueprintProgress'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User or Blueprint not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update user blueprint progress
+      tags:
+      - management
+  /admin/users/{id}/progress/hideout-modules:
+    get:
+      consumes:
+      - application/json
+      description: Fetch hideout module levels for any user. Only admins can access
+        this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched hideout module progress
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Get user hideout module progress
+      tags:
+      - management
+  /admin/users/{id}/progress/hideout-modules/{module_id}:
+    put:
+      consumes:
+      - application/json
+      description: Update module level/unlock state for any user. Only admins can
+        perform this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Module External ID
+        in: path
+        name: module_id
+        required: true
+        type: string
+      - description: Progress data
+        in: body
+        name: progress
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated user module progress
+          schema:
+            $ref: '#/definitions/models.UserHideoutModuleProgress'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User or Module not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update user hideout module progress
+      tags:
+      - management
+  /admin/users/{id}/progress/quests:
+    get:
+      consumes:
+      - application/json
+      description: Fetch quest completion states for any user by their ID. Only admins
+        can access this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched quest progress
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Get user quest progress
+      tags:
+      - management
+  /admin/users/{id}/progress/quests/{quest_id}:
+    put:
+      consumes:
+      - application/json
+      description: Update the completion state of a quest for any user. Only admins
+        can perform this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Quest External ID
+        in: path
+        name: quest_id
+        required: true
+        type: string
+      - description: Completion status
+        in: body
+        name: completion
+        required: true
+        schema:
+          additionalProperties:
+            type: boolean
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated user quest progress
+          schema:
+            $ref: '#/definitions/models.UserQuestProgress'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User or Quest not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update user quest progress
+      tags:
+      - management
+  /admin/users/{id}/progress/skill-nodes:
+    get:
+      consumes:
+      - application/json
+      description: Fetch skill node levels for any user. Only admins can access this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched skill node progress
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Get user skill node progress
+      tags:
+      - management
+  /admin/users/{id}/progress/skill-nodes/{skill_node_id}:
+    put:
+      consumes:
+      - application/json
+      description: Update skill node level/unlock state for any user. Only admins
+        can perform this.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Skill Node External ID
+        in: path
+        name: skill_node_id
+        required: true
+        type: string
+      - description: Progress data
+        in: body
+        name: progress
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated user skill node progress
+          schema:
+            $ref: '#/definitions/models.UserSkillNodeProgress'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User or Skill Node not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update user skill node progress
+      tags:
+      - management
+  /alerts:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all alerts with optional pagination
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched alerts
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Alert'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List all alerts
+      tags:
+      - alerts
+    post:
+      consumes:
+      - application/json
+      description: Add a new alert to the database
+      parameters:
+      - description: Alert object
+        in: body
+        name: alert
+        required: true
+        schema:
+          $ref: '#/definitions/models.Alert'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created the alert
+          schema:
+            $ref: '#/definitions/models.Alert'
+        "400":
+          description: Invalid input data
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Create an alert
+      tags:
+      - alerts
+  /alerts/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing alert by its ID
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid alert ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Delete an alert
+      tags:
+      - alerts
+    get:
+      consumes:
+      - application/json
+      description: Fetch an alert by its numeric ID
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the alert
+          schema:
+            $ref: '#/definitions/models.Alert'
+        "400":
+          description: Invalid alert ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Alert not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single alert
+      tags:
+      - alerts
+    put:
+      consumes:
+      - application/json
+      description: Update an existing alert by its ID
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated alert object
+        in: body
+        name: alert
+        required: true
+        schema:
+          $ref: '#/definitions/models.Alert'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated the alert
+          schema:
+            $ref: '#/definitions/models.Alert'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update an alert
+      tags:
+      - alerts
+  /alerts/active:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all alerts that are currently marked as active
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched active alerts
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Alert'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List active alerts
+      tags:
+      - alerts
+  /bots:
+    get:
+      consumes:
+      - application/json
+      description: Fetch bots with optional pagination (offset/limit)
+      parameters:
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched bots
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Bot'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List bots
+      tags:
+      - bots
+  /bots/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a bot by its numeric ID
+      parameters:
+      - description: Bot ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the bot
+          schema:
+            $ref: '#/definitions/models.Bot'
+        "400":
+          description: Invalid bot ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Bot not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single bot
+      tags:
+      - bots
+  /config:
+    get:
+      consumes:
+      - application/json
+      description: Returns public configuration settings for the frontend (e.g. Supabase
+        details)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched frontend configuration
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get frontend configuration
+      tags:
+      - config
+  /enemy-types:
+    get:
+      consumes:
+      - application/json
+      description: Fetch enemy types with optional pagination
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched enemy types
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.EnemyType'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List enemy types
+      tags:
+      - enemy-types
+    post:
+      consumes:
+      - application/json
+      description: Add a new enemy type to the database
+      parameters:
+      - description: Enemy Type object
+        in: body
+        name: enemyType
+        required: true
+        schema:
+          $ref: '#/definitions/models.EnemyType'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created the enemy type
+          schema:
+            $ref: '#/definitions/models.EnemyType'
+        "400":
+          description: Invalid input data
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Create an enemy type
+      tags:
+      - enemy-types
+  /enemy-types/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing enemy type by its ID
+      parameters:
+      - description: Enemy Type ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid enemy type ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Delete an enemy type
+      tags:
+      - enemy-types
+    get:
+      consumes:
+      - application/json
+      description: Fetch an enemy type by its numeric ID
+      parameters:
+      - description: Enemy Type ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the enemy type
+          schema:
+            $ref: '#/definitions/models.EnemyType'
+        "400":
+          description: Invalid enemy type ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Enemy type not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single enemy type
+      tags:
+      - enemy-types
+    put:
+      consumes:
+      - application/json
+      description: Update an existing enemy type by its ID
+      parameters:
+      - description: Enemy Type ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated enemy type object
+        in: body
+        name: enemyType
+        required: true
+        schema:
+          $ref: '#/definitions/models.EnemyType'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated the enemy type
+          schema:
+            $ref: '#/definitions/models.EnemyType'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update an enemy type
+      tags:
+      - enemy-types
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check the health of database, cache, and other services
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: System is healthy
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: System is degraded
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Comprehensive health check
+      tags:
+      - health
+  /hideout-modules:
+    get:
+      consumes:
+      - application/json
+      description: Fetch hideout modules with optional pagination. If ?all=true is
+        passed, returns all modules unpaginated.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - default: false
+        description: Return all modules
+        in: query
+        name: all
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched hideout modules
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.HideoutModule'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List hideout modules
+      tags:
+      - hideout-modules
+    post:
+      consumes:
+      - application/json
+      description: Add a new hideout module to the database
+      parameters:
+      - description: Hideout Module object
+        in: body
+        name: hideoutModule
+        required: true
+        schema:
+          $ref: '#/definitions/models.HideoutModule'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created the hideout module
+          schema:
+            $ref: '#/definitions/models.HideoutModule'
+        "400":
+          description: Invalid input data
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Create a hideout module
+      tags:
+      - hideout-modules
+  /hideout-modules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing hideout module by its ID
+      parameters:
+      - description: Hideout Module ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid hideout module ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Delete a hideout module
+      tags:
+      - hideout-modules
+    get:
+      consumes:
+      - application/json
+      description: Fetch a hideout module by its numeric ID
+      parameters:
+      - description: Hideout Module ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the hideout module
+          schema:
+            $ref: '#/definitions/models.HideoutModule'
+        "400":
+          description: Invalid hideout module ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Hideout module not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single hideout module
+      tags:
+      - hideout-modules
+    put:
+      consumes:
+      - application/json
+      description: Update an existing hideout module by its ID
+      parameters:
+      - description: Hideout Module ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated hideout module object
+        in: body
+        name: hideoutModule
+        required: true
+        schema:
+          $ref: '#/definitions/models.HideoutModule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated the hideout module
+          schema:
+            $ref: '#/definitions/models.HideoutModule'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update a hideout module
+      tags:
+      - hideout-modules
+  /items:
+    get:
+      consumes:
+      - application/json
+      description: Fetch items with optional pagination. If ?all=true is passed, returns
+        all items unpaginated.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - default: false
+        description: Return all items
+        in: query
+        name: all
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched items
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Item'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List items
+      tags:
+      - items
+    post:
+      consumes:
+      - application/json
+      description: Add a new item to the database
+      parameters:
+      - description: Item object
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/models.Item'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created the item
+          schema:
+            $ref: '#/definitions/models.Item'
+        "400":
+          description: Invalid input data
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Create an item
+      tags:
+      - items
+  /items/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing item by its ID
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid item ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Delete an item
+      tags:
+      - items
+    get:
+      consumes:
+      - application/json
+      description: Fetch an item by its numeric ID
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the item
+          schema:
+            $ref: '#/definitions/models.Item'
+        "400":
+          description: Invalid item ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Item not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single item
+      tags:
+      - items
+    put:
+      consumes:
+      - application/json
+      description: Update an existing item by its ID
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated item object
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/models.Item'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated the item
+          schema:
+            $ref: '#/definitions/models.Item'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update an item
+      tags:
+      - items
+  /items/blueprints:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all items identified as blueprints
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched blueprints
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/handlers.BlueprintItem'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get all blueprints
+      tags:
+      - items
+  /items/required:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all items that are required for quests or hideout module
+        upgrades, with usage details
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched required items
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/handlers.RequiredItemResponse'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get all required items
+      tags:
+      - items
+  /live:
+    get:
+      consumes:
+      - application/json
+      description: Basic check to see if the application process is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Application is alive
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness check
+      tags:
+      - health
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate a user using an API key. Returns user details and
+        the key as a token.
+      parameters:
+      - description: API Key
+        in: body
+        name: credentials
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Authenticated successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: API key is required
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Invalid API key or user not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Login with API key
+      tags:
+      - auth
+  /management/api-keys:
+    get:
+      consumes:
+      - application/json
+      description: Fetch API keys. Admins see all keys, regular users see only their
+        own.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched API keys
+          schema:
+            items:
+              $ref: '#/definitions/models.APIKey'
+            type: array
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: List API keys
+      tags:
+      - management
+    post:
+      consumes:
+      - application/json
+      description: Generate a new API key for the current user. Only admins can create
+        keys.
+      parameters:
+      - description: Key name
+        in: body
+        name: name
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created API key
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input data
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Create API key
+      tags:
+      - management
+  /management/api-keys/{id}/revoke:
+    post:
+      consumes:
+      - application/json
+      description: Deactivate an API key by its ID
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully revoked API key
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid key ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: API key not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Revoke API key
+      tags:
+      - management
+  /management/hideout-modules/cleanup:
+    post:
+      consumes:
+      - application/json
+      description: Identify and remove duplicate hideout modules by their external_id.
+        Keeps only the one with the lowest numeric ID. Only admins can perform this.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Cleanup report
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Cleanup duplicate hideout modules
+      tags:
+      - management
+  /management/logs:
+    get:
+      consumes:
+      - application/json
+      description: Fetch audit logs with various filters and pagination
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 50
+        description: Logs per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by API key ID
+        in: query
+        name: api_key_id
+        type: integer
+      - description: Filter by User ID
+        in: query
+        name: user_id
+        type: integer
+      - description: Filter by HTTP method
+        in: query
+        name: method
+        type: string
+      - description: Filter by endpoint
+        in: query
+        name: endpoint
+        type: string
+      - description: Filter by start time (RFC3339)
+        in: query
+        name: start_time
+        type: string
+      - description: Filter by end time (RFC3339)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched logs
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.AuditLog'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Query audit logs
+      tags:
+      - management
+  /management/users:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all users with optional pagination. Only admins can list
+        users.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 50
+        description: Users per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched users
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.User'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: List all users
+      tags:
+      - management
+  /management/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Permanently delete a user and all their associated data. Only admins
+        can delete users.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully deleted user
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid user ID or attempt to delete self
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - management
+    get:
+      consumes:
+      - application/json
+      description: Fetch detailed user data including associated API keys. Admins
+        see anyone, users see only themselves.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched user details
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Get user details
+      tags:
+      - management
+    put:
+      consumes:
+      - application/json
+      description: Modify user profile details (email/username). Admins can update
+        any user, regular users only their own username.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Profile update payload (email, username)
+        in: body
+        name: profile
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated user profile
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID or input
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update user profile
+      tags:
+      - management
+  /management/users/{id}/access:
+    put:
+      consumes:
+      - application/json
+      description: Enable or disable data access for a user. Only admins can update
+        access.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Access payload (can_access_data)
+        in: body
+        name: access
+        required: true
+        schema:
+          additionalProperties:
+            type: boolean
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated user access
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID or input
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update user data access
+      tags:
+      - management
+  /management/users/{id}/role:
+    put:
+      consumes:
+      - application/json
+      description: Change a user's role to 'admin' or 'user'. Only admins can update
+        roles.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 'Role payload (role: ''admin'' or ''user'')'
+        in: body
+        name: role
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated user role
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID or role
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Not an administrator
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update user role
+      tags:
+      - management
+  /maps:
+    get:
+      consumes:
+      - application/json
+      description: Fetch maps with optional pagination
+      parameters:
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched maps
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Map'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List maps
+      tags:
+      - maps
+  /maps/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a map by its numeric ID
+      parameters:
+      - description: Map ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the map
+          schema:
+            $ref: '#/definitions/models.Map'
+        "400":
+          description: Invalid map ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Map not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single map
+      tags:
+      - maps
+  /me:
+    get:
+      consumes:
+      - application/json
+      description: Returns the details of the currently authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched user details
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/models.User'
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
+  /progress/blueprints:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all blueprint consumption states for the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched blueprint progress
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/models.UserBlueprintProgress'
+              type: array
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my blueprint progress
+      tags:
+      - progress
+  /progress/blueprints/{item_id}:
+    put:
+      consumes:
+      - application/json
+      description: Update whether a specific blueprint has been consumed by the user.
+      parameters:
+      - description: Item External ID (Blueprint)
+        in: path
+        name: item_id
+        required: true
+        type: string
+      - description: 'Consumption status (consumed: true/false)'
+        in: body
+        name: consumption
+        required: true
+        schema:
+          additionalProperties:
+            type: boolean
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated blueprint progress
+          schema:
+            $ref: '#/definitions/models.UserBlueprintProgress'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Blueprint not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update my blueprint progress
+      tags:
+      - progress
+  /progress/hideout-modules:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all hideout module levels and unlock states for the authenticated
+        user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched hideout module progress
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/models.UserHideoutModuleProgress'
+              type: array
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my hideout module progress
+      tags:
+      - progress
+  /progress/hideout-modules/{module_id}:
+    put:
+      consumes:
+      - application/json
+      description: Update the unlock state and level of a specific hideout module
+        using its external ID.
+      parameters:
+      - description: Module External ID
+        in: path
+        name: module_id
+        required: true
+        type: string
+      - description: Progress data (unlocked, level)
+        in: body
+        name: progress
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated hideout module progress
+          schema:
+            $ref: '#/definitions/models.UserHideoutModuleProgress'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Module not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update my hideout module progress
+      tags:
+      - progress
+  /progress/quests:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all quest completion states for the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched quest progress
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/models.UserQuestProgress'
+              type: array
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my quest progress
+      tags:
+      - progress
+  /progress/quests/{quest_id}:
+    put:
+      consumes:
+      - application/json
+      description: Update the completion state of a specific quest using its external
+        ID.
+      parameters:
+      - description: Quest External ID
+        in: path
+        name: quest_id
+        required: true
+        type: string
+      - description: 'Completion status (completed: true/false)'
+        in: body
+        name: completion
+        required: true
+        schema:
+          additionalProperties:
+            type: boolean
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated quest progress
+          schema:
+            $ref: '#/definitions/models.UserQuestProgress'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Quest not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update my quest progress
+      tags:
+      - progress
+  /progress/skill-nodes:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all skill node levels and unlock states for the authenticated
+        user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched skill node progress
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/models.UserSkillNodeProgress'
+              type: array
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my skill node progress
+      tags:
+      - progress
+  /progress/skill-nodes/{skill_node_id}:
+    put:
+      consumes:
+      - application/json
+      description: Update the unlock state and level of a specific skill node using
+        its external ID.
+      parameters:
+      - description: Skill Node External ID
+        in: path
+        name: skill_node_id
+        required: true
+        type: string
+      - description: Progress data (unlocked, level)
+        in: body
+        name: progress
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated skill node progress
+          schema:
+            $ref: '#/definitions/models.UserSkillNodeProgress'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Skill node not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update my skill node progress
+      tags:
+      - progress
+  /projects:
+    get:
+      consumes:
+      - application/json
+      description: Fetch projects with optional pagination
+      parameters:
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched projects
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Project'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List projects
+      tags:
+      - projects
+  /projects/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a project by its numeric ID
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the project
+          schema:
+            $ref: '#/definitions/models.Project'
+        "400":
+          description: Invalid project ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Project not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single project
+      tags:
+      - projects
+  /quests:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all quests from the database or cache
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched quests
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Quest'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List all quests
+      tags:
+      - quests
+    post:
+      consumes:
+      - application/json
+      description: Add a new quest to the database
+      parameters:
+      - description: Quest object
+        in: body
+        name: quest
+        required: true
+        schema:
+          $ref: '#/definitions/models.Quest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created the quest
+          schema:
+            $ref: '#/definitions/models.Quest'
+        "400":
+          description: Invalid input data
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Create a quest
+      tags:
+      - quests
+  /quests/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing quest by its ID
+      parameters:
+      - description: Quest ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid quest ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Delete a quest
+      tags:
+      - quests
+    get:
+      consumes:
+      - application/json
+      description: Fetch a quest by its numeric ID
+      parameters:
+      - description: Quest ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the quest
+          schema:
+            $ref: '#/definitions/models.Quest'
+        "400":
+          description: Invalid quest ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Quest not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single quest
+      tags:
+      - quests
+    put:
+      consumes:
+      - application/json
+      description: Update an existing quest by its ID
+      parameters:
+      - description: Quest ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated quest object
+        in: body
+        name: quest
+        required: true
+        schema:
+          $ref: '#/definitions/models.Quest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated the quest
+          schema:
+            $ref: '#/definitions/models.Quest'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update a quest
+      tags:
+      - quests
+  /ready:
+    get:
+      consumes:
+      - application/json
+      description: Check if the application is ready to handle requests
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Application is ready
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Application is not ready
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Readiness check
+      tags:
+      - health
+  /skill-nodes:
+    get:
+      consumes:
+      - application/json
+      description: Fetch skill nodes with optional pagination. If ?all=true is passed,
+        returns all skill nodes unpaginated.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - default: false
+        description: Return all nodes
+        in: query
+        name: all
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched skill nodes
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.SkillNode'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List skill nodes
+      tags:
+      - skill-nodes
+    post:
+      consumes:
+      - application/json
+      description: Add a new skill node to the database
+      parameters:
+      - description: Skill Node object
+        in: body
+        name: skillNode
+        required: true
+        schema:
+          $ref: '#/definitions/models.SkillNode'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created the skill node
+          schema:
+            $ref: '#/definitions/models.SkillNode'
+        "400":
+          description: Invalid input data
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Create a skill node
+      tags:
+      - skill-nodes
+  /skill-nodes/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing skill node by its ID
+      parameters:
+      - description: Skill Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Invalid skill node ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Delete a skill node
+      tags:
+      - skill-nodes
+    get:
+      consumes:
+      - application/json
+      description: Fetch a skill node by its numeric ID
+      parameters:
+      - description: Skill Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the skill node
+          schema:
+            $ref: '#/definitions/models.SkillNode'
+        "400":
+          description: Invalid skill node ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Skill node not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single skill node
+      tags:
+      - skill-nodes
+    put:
+      consumes:
+      - application/json
+      description: Update an existing skill node by its ID
+      parameters:
+      - description: Skill Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated skill node object
+        in: body
+        name: skillNode
+        required: true
+        schema:
+          $ref: '#/definitions/models.SkillNode'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated the skill node
+          schema:
+            $ref: '#/definitions/models.SkillNode'
+        "400":
+          description: Invalid input or ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update a skill node
+      tags:
+      - skill-nodes
+  /sync/snapshot:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a complete snapshot of all game data (quests, items, etc.)
+        for client hydration.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Full data snapshot
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get data snapshot
+      tags:
+      - sync
+  /traders:
+    get:
+      consumes:
+      - application/json
+      description: Fetch traders with optional pagination
+      parameters:
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched traders
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Trader'
+                  type: array
+              type: object
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List traders
+      tags:
+      - traders
+  /traders/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a trader by its numeric ID
+      parameters:
+      - description: Trader ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully fetched the trader
+          schema:
+            $ref: '#/definitions/models.Trader'
+        "400":
+          description: Invalid trader ID
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Not authenticated
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Trader not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Get a single trader
+      tags:
+      - traders
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-API-Key
+    type: apiKey
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

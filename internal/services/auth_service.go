@@ -148,9 +148,36 @@ func (s *AuthService) SyncSupabaseUser(claims *SupabaseClaims) (*models.User, er
 		}
 	}
 
-	// Update CanAccessData if it's currently false (Supabase users are trusted for read access)
+	// Sync role and access status from Supabase metadata
+	wasUpdated := false
 	if !user.CanAccessData {
 		user.CanAccessData = true
+		wasUpdated = true
+	}
+
+	// Check if user is an admin in Supabase
+	isAdmin := false
+	if role, ok := claims.AppMetadata["role"].(string); ok && role == "admin" {
+		isAdmin = true
+	} else if role, ok := claims.UserMetadata["role"].(string); ok && role == "admin" {
+		isAdmin = true
+	} else if userRole, ok := claims.AppMetadata["user_role"].(string); ok && userRole == "admin" {
+		isAdmin = true
+	}
+
+	// Log metadata for debugging if user is not detected as admin
+	if !isAdmin {
+		log.Printf("DEBUG: User %s metadata - AppMetadata: %v, UserMetadata: %v", user.Email, claims.AppMetadata, claims.UserMetadata)
+	}
+
+	// Promote to admin if specified in Supabase and not already admin
+	if isAdmin && user.Role != models.RoleAdmin {
+		user.Role = models.RoleAdmin
+		wasUpdated = true
+		log.Printf("Promoting user %s to admin based on Supabase metadata", user.Email)
+	}
+
+	if wasUpdated {
 		if err := s.userRepo.Update(user); err != nil {
 			return nil, err
 		}
