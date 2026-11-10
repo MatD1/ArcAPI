@@ -62,8 +62,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./.env:/app/.env:ro
 
 volumes:
   postgres_data:
